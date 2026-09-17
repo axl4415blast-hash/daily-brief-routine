@@ -4,32 +4,40 @@
 
 ## 実行環境情報
 
-- 実行日時（日本時間）: 2026-09-18 00:37:23 JST（UTC 2026-09-17 15:37:23）
+- 実行日時（日本時間）: 2026-09-18 00:44:32 JST（UTC 2026-09-17 15:44:32）
 - 環境変数 `CLAUDE_CODE_ENVIRONMENT_NAME`: なし（未設定）
 
 ## 結果一覧
 
 | サイト | curlの結果 | WebFetchの結果 | 備考 |
 |---|---|---|---|
-| 財務省 貿易統計（customs.go.jp） | 到達不可（プロキシが CONNECT を 403 で拒否） | 失敗（EGRESS_BLOCKED） | 応答ヘッダーに `x-deny-reason` は含まれず。両ツールとも同一原因 |
-| 財務省（mof.go.jp） | 到達不可（プロキシが CONNECT を 403 で拒否） | 失敗（EGRESS_BLOCKED） | 同上 |
-| 日本銀行（boj.or.jp） | 到達不可（プロキシが CONNECT を 403 で拒否） | 失敗（EGRESS_BLOCKED） | 同上 |
-| e-Stat（e-stat.go.jp） | 到達不可（プロキシが CONNECT を 403 で拒否） | 失敗（EGRESS_BLOCKED） | 同上 |
-| e-Stat API（api.e-stat.go.jp） | 到達不可（プロキシが CONNECT を 403 で拒否） | 失敗（EGRESS_BLOCKED） | APIキー未設定でのエラー応答を想定していたが、それ以前にプロキシ段階で遮断された |
-| EDINET（disclosure2.edinet-fsa.go.jp） | 到達不可（プロキシが CONNECT を 403 で拒否） | 失敗（EGRESS_BLOCKED） | 同上 |
-| 東証 適時開示 TDnet（release.tdnet.info） | 到達不可（プロキシが CONNECT を 403 で拒否） | 失敗（EGRESS_BLOCKED） | 同上 |
-| JPX 決算発表予定日（jpx.co.jp） | 到達不可（プロキシが CONNECT を 403 で拒否） | 失敗（EGRESS_BLOCKED） | ページ自体が取得できなかったため、Excelリンクの探索・ダウンロード検証（手順3）は未実施 |
-| 米国FRB（federalreserve.gov） | 到達不可（プロキシが CONNECT を 403 で拒否） | 失敗（EGRESS_BLOCKED） | 同上 |
+| 財務省 貿易統計（customs.go.jp） | 成功（HTTP 200） | 成功（ページ内容を取得、タイトル「税関統計」） | x-deny-reasonヘッダーなし |
+| 財務省（mof.go.jp） | 成功（HTTP 200） | 成功（タイトル「財務省」） | x-deny-reasonヘッダーなし |
+| 日本銀行（boj.or.jp） | 成功（HTTP 200） | 成功（タイトル「ホーム : 日本銀行」） | x-deny-reasonヘッダーなし |
+| e-Stat（e-stat.go.jp） | 成功（HTTP 200） | 成功（政府統計の総合窓口のトップページを取得） | x-deny-reasonヘッダーなし |
+| e-Stat API（api.e-stat.go.jp） | HTTP 403（エラー応答は届いた） | 失敗（HTTP 403 Forbidden） | APIキー未設定のためのエラー応答と想定される想定通りの結果。x-deny-reasonヘッダーなし |
+| EDINET（disclosure2.edinet-fsa.go.jp） | 成功（HTTP 200） | 成功（ただしページ内容はごく短い「閲覧サイト」表示のみ。JavaScript描画のため主要コンテンツは別途読み込まれる可能性） | x-deny-reasonヘッダーなし |
+| 東証 適時開示 TDnet（release.tdnet.info） | 成功（HTTP 200） | 失敗（HTTP 403 Forbidden） | curlは成功したがWebFetchは403。この環境のプロキシではなく、サイト側がWebFetchのアクセス元（ボット判定など）を拒否している可能性。x-deny-reasonヘッダーなし |
+| JPX 決算発表予定日（jpx.co.jp） | 成功（HTTP 200） | 失敗（HTTP 403 Forbidden） | curlは成功、WebFetchのみ403（TDnetと同様の傾向）。x-deny-reasonヘッダーなし |
+| 米国FRB（federalreserve.gov） | 成功（HTTP 200） | 成功（タイトル「Federal Reserve Board - Home」） | x-deny-reasonヘッダーなし |
+
+補足: 今回はどのサイトの応答ヘッダーにも `x-deny-reason` は見つかりませんでした（プロキシによる遮断は発生せず）。同日の以前の実行（00:37 JST）では全サイトがプロキシのCONNECT拒否（403）でアクセス不可でしたが、今回（00:44 JST）は状況が変わり、ほぼ全サイトにcurlで到達できました。ネットワーク許可の状態は実行のたびに変わり得るようです。
 
 ## 手順3（JPX Excelファイルのダウンロード検証）
 
-JPXの決算発表予定日ページ自体が取得できなかったため、本手順は実施していません（未検証）。
+JPXの決算発表予定日ページ（curlで取得成功）内から、Excelファイルへのリンクを1件発見しました（ページ内に複数あり、そのうち1つを使用）。
+
+- curlでのダウンロード: 成功（ファイルサイズ約31KB、Microsoft Excel 2007+形式と確認）
+- Pythonでの先頭5行の読み取り: 成功（中身は記録していません）
 
 ## 手順4（WebSearch確認）
 
-「日本銀行 金融政策決定会合」で検索を実行し、結果が返ってきたことを確認しました（成功）。日銀サイト（boj.or.jp）を含む複数の検索結果が返りました。ただし、これは検索エンジン経由の結果であり、上記の直接アクセス（curl / WebFetch）とは別の経路です。
+「日本銀行 金融政策決定会合」で検索を実行し、結果が返ってきたことを確認しました（成功）。日銀サイト（boj.or.jp）を含む複数の検索結果が返りました。
 
 ## まとめ
 
-- 今回テストした9サイトはすべて、curl・WebFetchの両方でこの実行環境から直接アクセスできませんでした。原因は接続先サーバー側の応答ではなく、この環境のネットワークプロキシ（egress proxy）が、これらのドメインへの接続（CONNECT）自体を組織のポリシーにより拒否しているためです（プロキシの状態確認エンドポイントでも `policy denial` として記録されています）。
-- 一方、WebSearchツール（検索）は正常に機能し、結果を取得できました。
+- 今回のテストでは、9サイト中8サイトにcurlで到達できました（api.e-stat.go.jpのみHTTP 403で、これはAPIキー未設定によるものと想定され、想定通りの挙動です）。
+- WebFetchでは9サイト中6サイトが成功、3サイト（api.e-stat.go.jp、release.tdnet.info、jpx.co.jp）が失敗しました。ただしtdnetとjpxはcurlでは成功しているため、この2件の失敗はこの環境のネットワーク遮断ではなく、サイト側がWebFetchのアクセス元を拒否している可能性が高いです（未確認）。
+- 応答ヘッダーに `x-deny-reason` は一度も見つかりませんでした。今回の実行では、この環境のプロキシによる明確な遮断（EGRESS_BLOCKEDなど）は発生しませんでした。
+- 同日の以前の実行結果（全サイト遮断）とは大きく異なる結果になったため、この環境のネットワーク到達性は実行タイミングによって変動する可能性がある、という点は依頼者に申し送りが必要です。
+- WebSearchツールは正常に機能し、結果を取得できました。
