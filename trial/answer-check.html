@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>答え合わせ試作</title>
+<style>
+  :root{
+    --bg:#F4F6F8;
+    --fg:#1B2530;
+    --muted:#5B6B7A;
+    --card:#FFFFFF;
+    --border:#D8DEE4;
+    --accent:#2563EB;
+    --accent-fg:#FFFFFF;
+    --plus:#0F7B3E;
+    --minus:#C13B2A;
+    --hit:#0F7B3E;
+    --miss:#C13B2A;
+    --unknown:#8A6D00;
+    --warn-bg:#FFF3CD;
+    --warn-fg:#6B4E00;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#12181F;
+      --fg:#E6ECF1;
+      --muted:#9AA8B4;
+      --card:#1B242D;
+      --border:#2C3945;
+      --accent:#4B8BFF;
+      --accent-fg:#0B1220;
+      --plus:#3FCB7C;
+      --minus:#FF6B57;
+      --hit:#3FCB7C;
+      --miss:#FF6B57;
+      --unknown:#E0B94D;
+      --warn-bg:#3A2E00;
+      --warn-fg:#F0D27A;
+    }
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--fg);
+    font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;
+    line-height:1.7;
+  }
+  .wrap{max-width:520px;margin:0 auto;padding:16px 16px 48px;}
+  h1{font-size:19px;margin:8px 0 4px;}
+  .sub{font-size:12px;color:var(--muted);margin:0 0 16px;}
+  .disclaimer{
+    background:var(--warn-bg);
+    color:var(--warn-fg);
+    border-radius:10px;
+    padding:10px 12px;
+    font-size:13px;
+    margin-bottom:16px;
+  }
+  .error-box{
+    background:var(--warn-bg);
+    color:var(--warn-fg);
+    border-radius:10px;
+    padding:12px;
+    font-size:14px;
+    margin-bottom:16px;
+  }
+  .error-box[hidden]{display:none;}
+  .stats{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:14px;
+    margin-bottom:20px;
+    font-size:14px;
+  }
+  .stats .rate{font-size:24px;font-weight:700;margin:0 0 4px;}
+  .stats .detail{color:var(--muted);font-size:13px;}
+  section.group{margin-bottom:24px;}
+  section.group h2{
+    font-size:14px;
+    color:var(--muted);
+    margin:0 0 8px;
+    padding-bottom:6px;
+    border-bottom:1px solid var(--border);
+  }
+  .empty{color:var(--muted);font-size:13px;padding:8px 0;}
+  .card{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:14px;
+    margin-bottom:10px;
+  }
+  .card .row1{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    gap:8px;
+    margin-bottom:6px;
+  }
+  .card .company{font-size:16px;font-weight:700;}
+  .card .code{font-size:12px;color:var(--muted);}
+  .badge{
+    display:inline-block;
+    font-size:12px;
+    font-weight:700;
+    padding:2px 8px;
+    border-radius:999px;
+  }
+  .badge.plus{color:var(--plus);background:color-mix(in srgb, var(--plus) 15%, transparent);}
+  .badge.minus{color:var(--minus);background:color-mix(in srgb, var(--minus) 15%, transparent);}
+  .badge.hit{color:var(--hit);background:color-mix(in srgb, var(--hit) 15%, transparent);}
+  .badge.miss{color:var(--miss);background:color-mix(in srgb, var(--miss) 15%, transparent);}
+  .badge.unknown{color:var(--unknown);background:color-mix(in srgb, var(--unknown) 15%, transparent);}
+  .meta{font-size:13px;color:var(--muted);margin:2px 0;}
+  .meta b{color:var(--fg);font-weight:600;}
+  .id{font-size:11px;color:var(--muted);word-break:break-all;margin-top:4px;}
+  .actions{margin-top:10px;}
+  button, a.btn{
+    display:inline-block;
+    width:100%;
+    text-align:center;
+    background:var(--accent);
+    color:var(--accent-fg);
+    border:none;
+    border-radius:10px;
+    padding:12px 14px;
+    font-size:15px;
+    font-weight:700;
+    cursor:pointer;
+    text-decoration:none;
+    -webkit-tap-highlight-color:transparent;
+  }
+  a.btn.secondary, button.secondary{
+    background:transparent;
+    color:var(--accent);
+    border:1px solid var(--accent);
+  }
+  .reload-wrap{margin:20px 0;}
+  .ref{font-size:13px;margin-top:4px;}
+  .ref.positive{color:var(--hit);}
+  .ref.negative{color:var(--miss);}
+  .link-line{margin-top:8px;font-size:13px;}
+  .link-line a{color:var(--accent);}
+  footer{font-size:11px;color:var(--muted);text-align:center;margin-top:32px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>答え合わせ 試作ページ</h1>
+  <p class="sub">サンプル仮説の答え合わせをGitHub Issueに記録する操作を試すためのページです。</p>
+  <div class="disclaimer">投資の推奨ではありません／試作ページ（記録先は誰でも読めるGitHub Issueです）</div>
+
+  <div id="errorBox" class="error-box" hidden></div>
+
+  <div class="stats" id="statsBox">
+    <p class="rate">読み込み中…</p>
+  </div>
+
+  <section class="group">
+    <h2>期限が来た（未記録）</h2>
+    <div id="dueList"></div>
+  </section>
+
+  <section class="group">
+    <h2>期限前</h2>
+    <div id="upcomingList"></div>
+  </section>
+
+  <section class="group">
+    <h2>記録済み</h2>
+    <div id="recordedList"></div>
+  </section>
+
+  <section class="group" id="unreadableSection" hidden>
+    <h2>読み取れない記録</h2>
+    <div id="unreadableList"></div>
+  </section>
+
+  <div class="reload-wrap">
+    <button id="reloadBtn" class="secondary">再読み込み</button>
+  </div>
+
+  <footer>daily-brief-routine / trial 用途限定・使い捨てページ</footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var OWNER = "axl4415blast-hash";
+  var REPO_FULL = "axl4415blast-hash/daily-brief-routine";
+
+  var HYPOTHESES = [
+    { id: "2026-09-01-morning-0001", company: "サンプル工業", code: "0001", direction: "plus",  offsetDays: -5, priceAtHypo: 1234,  topixAtHypo: 2650.5 },
+    { id: "2026-09-05-morning-0002", company: "サンプル物産", code: "0002", direction: "minus", offsetDays: -2, priceAtHypo: 890,   topixAtHypo: 2660.2 },
+    { id: "2026-09-10-afternoon-0003", company: "サンプル商事", code: "0003", direction: "plus",  offsetDays: 0,  priceAtHypo: 2100,  topixAtHypo: 2670.8 },
+    { id: "2026-09-15-morning-0004", company: "サンプル化学", code: "0004", direction: "minus", offsetDays: 3,  priceAtHypo: 560,   topixAtHypo: 2655.1 },
+    { id: "2026-09-16-morning-0005", company: "サンプルHD",   code: "0005", direction: "plus",  offsetDays: 10, priceAtHypo: 3400,  topixAtHypo: 2680.0 }
+  ];
+
+  function pad(n){ return String(n).padStart(2, "0"); }
+
+  function jstTodayStr(){
+    var fmt = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit" });
+    return fmt.format(new Date());
+  }
+
+  function addDaysStr(baseStr, days){
+    var parts = baseStr.split("-").map(Number);
+    var dt = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+    dt.setUTCDate(dt.getUTCDate() + days);
+    return dt.getUTCFullYear() + "-" + pad(dt.getUTCMonth() + 1) + "-" + pad(dt.getUTCDate());
+  }
+
+  function el(tag, attrs, children){
+    var node = document.createElement(tag);
+    attrs = attrs || {};
+    Object.keys(attrs).forEach(function(k){
+      if(k === "class") node.className = attrs[k];
+      else if(k === "text") node.textContent = attrs[k];
+      else if(k === "html") { /* never used: avoid raw HTML from untrusted data */ }
+      else node.setAttribute(k, attrs[k]);
+    });
+    (children || []).forEach(function(c){ if(c) node.appendChild(c); });
+    return node;
+  }
+
+  function issueUrl(h){
+    var title = "答え合わせ " + h.id + " " + h.company;
+    var body = [
+      "仮説ID: " + h.id,
+      "結果: （当たり／外れ／判定不能 のどれか1つだけ残す）",
+      "期限時点の株価: ",
+      "期限時点のTOPIX: ",
+      "メモ: "
+    ].join("\n");
+    var params = new URLSearchParams({ title: title, body: body });
+    return "https://github.com/" + REPO_FULL + "/issues/new?" + params.toString();
+  }
+
+  // --- Issue本文の読み取り ---
+
+  function parseBody(body){
+    if(!body) return {};
+    var lines = body.split(/\r?\n/);
+    var result = {};
+    var patterns = {
+      id: /^仮説ID\s*[:：]\s*(.*)$/,
+      kekka: /^結果\s*[:：]\s*(.*)$/,
+      price: /^期限時点の株価\s*[:：]\s*(.*)$/,
+      topix: /^期限時点のTOPIX\s*[:：]\s*(.*)$/
+    };
+    lines.forEach(function(line){
+      var t = line.trim();
+      Object.keys(patterns).forEach(function(key){
+        var m = t.match(patterns[key]);
+        if(m) result[key] = m[1].trim();
+      });
+    });
+    return result;
+  }
+
+  function parseNum(s){
+    if(s == null) return null;
+    var t = s.replace(/,/g, "").trim();
+    if(t === "") return null;
+    var n = Number(t);
+    return isNaN(n) ? null : n;
+  }
+
+  function classifyResult(raw){
+    if(raw == null) return "invalid";
+    var t = raw.trim();
+    if(t === "当たり") return "hit";
+    if(t === "外れ") return "miss";
+    if(t === "判定不能") return "unknown";
+    return "invalid";
+  }
+
+  function describeFetchError(status, body){
+    if(status === 403 && body && /rate limit/i.test(body.message || "")){
+      return "GitHubの読み取り回数制限に達しました。しばらく待ってから「再読み込み」を押してください。";
+    }
+    if(status === 404){
+      return "リポジトリまたはIssue一覧が見つかりませんでした。";
+    }
+    return "GitHubからの読み取りに失敗しました（エラーコード: " + status + "）。";
+  }
+
+  async function fetchIssues(){
+    var url = "https://api.github.com/repos/" + REPO_FULL + "/issues?state=all&creator=" + OWNER + "&per_page=100";
+    var res;
+    try{
+      res = await fetch(url, { cache: "no-store" });
+    }catch(e){
+      throw new Error("ネットワークエラーによりGitHubの読み取りに失敗しました。通信環境を確認して「再読み込み」を押してください。");
+    }
+    if(!res.ok){
+      var errBody = null;
+      try{ errBody = await res.json(); }catch(e){ /* ignore */ }
+      throw new Error(describeFetchError(res.status, errBody));
+    }
+    return res.json();
+  }
+
+  function buildRecords(issues){
+    var byId = {};
+    var unreadable = [];
+    issues.forEach(function(issue){
+      if(issue.pull_request) return;
+      if(typeof issue.title !== "string" || issue.title.indexOf("答え合わせ") !== 0) return;
+      if(!issue.user || issue.user.login !== OWNER) return;
+
+      var parsed = parseBody(issue.body || "");
+      var cls = classifyResult(parsed.kekka);
+
+      if(!parsed.id || cls === "invalid"){
+        unreadable.push({ issue: issue, parsed: parsed });
+        return;
+      }
+
+      var rec = {
+        hypothesisId: parsed.id,
+        result: cls,
+        priceAtDeadline: parseNum(parsed.price),
+        topixAtDeadline: parseNum(parsed.topix),
+        issue: issue,
+        createdAt: issue.created_at
+      };
+      var existing = byId[rec.hypothesisId];
+      if(!existing || new Date(rec.createdAt) > new Date(existing.createdAt)){
+        byId[rec.hypothesisId] = rec;
+      }
+    });
+    return { byId: byId, unreadable: unreadable };
+  }
+
+  // --- 表示 ---
+
+  function directionLabel(d){ return d === "plus" ? "プラス" : "マイナス"; }
+  function resultLabel(r){ return r === "hit" ? "当たり" : r === "miss" ? "外れ" : "判定不能"; }
+
+  function renderHypothesisCard(h, record){
+    var row1 = el("div", { class: "row1" }, [
+      el("span", { class: "company", text: h.company }),
+      el("span", { class: "code", text: "証券コード " + h.code })
+    ]);
+    var badges = el("div", {}, [
+      el("span", { class: "badge " + h.direction, text: directionLabel(h.direction) })
+    ]);
+    var meta = [];
+    meta.push(el("p", { class: "meta" }, [document.createTextNode("期限: "), el("b", { text: h.deadline })]));
+    meta.push(el("p", { class: "meta" }, [document.createTextNode("仮説日の株価: "), el("b", { text: h.priceAtHypo.toLocaleString() + " 円" })]));
+    meta.push(el("p", { class: "meta" }, [document.createTextNode("仮説日のTOPIX: "), el("b", { text: h.topixAtHypo.toLocaleString() })]));
+
+    var card = el("div", { class: "card" }, [row1, badges].concat(meta));
+    card.appendChild(el("p", { class: "id", text: "仮説ID: " + h.id }));
+
+    if(record){
+      card.appendChild(el("p", { class: "meta" }, [
+        document.createTextNode("結果: "),
+        el("span", { class: "badge " + record.result, text: resultLabel(record.result) })
+      ]));
+      if(record.priceAtDeadline != null){
+        card.appendChild(el("p", { class: "meta" }, [document.createTextNode("期限時点の株価: "), el("b", { text: record.priceAtDeadline.toLocaleString() + " 円" })]));
+      }
+      if(record.topixAtDeadline != null){
+        card.appendChild(el("p", { class: "meta" }, [document.createTextNode("期限時点のTOPIX: "), el("b", { text: record.topixAtDeadline.toLocaleString() })]));
+      }
+      if(record.priceAtDeadline != null && record.topixAtDeadline != null){
+        var stockChange = record.priceAtDeadline / h.priceAtHypo - 1;
+        var topixChange = record.topixAtDeadline / h.topixAtHypo - 1;
+        var ref = (stockChange - topixChange) * 100;
+        var refStr = (ref >= 0 ? "+" : "") + ref.toFixed(2) + "%";
+        card.appendChild(el("p", { class: "ref " + (ref >= 0 ? "positive" : "negative"), text: "参考値（株価変化率 − TOPIX変化率）: " + refStr }));
+      }
+      var link = el("a", { href: record.issue.html_url, target: "_blank", rel: "noopener", text: "課題票を見る" });
+      card.appendChild(el("p", { class: "link-line" }, [link]));
+    } else {
+      var btn = el("button", { text: "答え合わせを記録" });
+      btn.addEventListener("click", function(){
+        window.open(issueUrl(h), "_blank", "noopener");
+      });
+      card.appendChild(el("div", { class: "actions" }, [btn]));
+    }
+
+    return card;
+  }
+
+  function renderUnreadableCard(item){
+    var issue = item.issue;
+    var card = el("div", { class: "card" }, [
+      el("p", { class: "meta", text: "タイトル: " + issue.title }),
+      el("p", { class: "meta", text: "この記録は「結果」欄などが正しく読み取れませんでした。" })
+    ]);
+    card.appendChild(el("p", { class: "link-line" }, [
+      el("a", { href: issue.html_url, target: "_blank", rel: "noopener", text: "課題票を見る" })
+    ]));
+    return card;
+  }
+
+  function clear(node){ while(node.firstChild) node.removeChild(node.firstChild); }
+
+  function renderEmpty(node, text){
+    node.appendChild(el("p", { class: "empty", text: text }));
+  }
+
+  function render(byId, unreadable, todayStr){
+    var dueList = document.getElementById("dueList");
+    var upcomingList = document.getElementById("upcomingList");
+    var recordedList = document.getElementById("recordedList");
+    var unreadableSection = document.getElementById("unreadableSection");
+    var unreadableList = document.getElementById("unreadableList");
+    var statsBox = document.getElementById("statsBox");
+
+    clear(dueList); clear(upcomingList); clear(recordedList); clear(unreadableList);
+
+    var hit = 0, miss = 0, unknown = 0;
+
+    HYPOTHESES.forEach(function(h){
+      var deadline = addDaysStr(todayStr, h.offsetDays);
+      var hh = Object.assign({}, h, { deadline: deadline });
+      var record = byId[h.id];
+
+      if(record){
+        recordedList.appendChild(renderHypothesisCard(hh, record));
+        if(record.result === "hit") hit++;
+        else if(record.result === "miss") miss++;
+        else unknown++;
+      } else if(deadline <= todayStr){
+        dueList.appendChild(renderHypothesisCard(hh, null));
+      } else {
+        upcomingList.appendChild(renderHypothesisCard(hh, null));
+      }
+    });
+
+    if(dueList.children.length === 0) renderEmpty(dueList, "期限が来た未記録の仮説はありません。");
+    if(upcomingList.children.length === 0) renderEmpty(upcomingList, "期限前の仮説はありません。");
+    if(recordedList.children.length === 0) renderEmpty(recordedList, "記録済みの仮説はまだありません。");
+
+    if(unreadable.length > 0){
+      unreadableSection.hidden = false;
+      unreadable.forEach(function(item){
+        unreadableList.appendChild(renderUnreadableCard(item));
+      });
+    } else {
+      unreadableSection.hidden = true;
+    }
+
+    clear(statsBox);
+    var total = hit + miss + unknown;
+    var rateStr = (hit + miss) > 0 ? Math.round((hit / (hit + miss)) * 100) + "%" : "－";
+    statsBox.appendChild(el("p", { class: "rate", text: "的中率 " + rateStr + "（" + total + "件）" }));
+    statsBox.appendChild(el("p", { class: "detail", text: "当たり" + hit + "・外れ" + miss + "・判定不能" + unknown }));
+  }
+
+  function showError(message){
+    var box = document.getElementById("errorBox");
+    box.textContent = message;
+    box.hidden = false;
+  }
+  function hideError(){
+    var box = document.getElementById("errorBox");
+    box.hidden = true;
+    box.textContent = "";
+  }
+
+  async function load(){
+    hideError();
+    var statsBox = document.getElementById("statsBox");
+    clear(statsBox);
+    statsBox.appendChild(el("p", { class: "rate", text: "読み込み中…" }));
+
+    var todayStr = jstTodayStr();
+
+    try{
+      var issues = await fetchIssues();
+      var built = buildRecords(issues);
+      render(built.byId, built.unreadable, todayStr);
+    }catch(e){
+      showError(e.message || String(e));
+      render({}, [], todayStr);
+    }
+  }
+
+  document.getElementById("reloadBtn").addEventListener("click", load);
+  load();
+})();
+</script>
+</body>
+</html>
