@@ -4,308 +4,542 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Noto+Serif+JP:wght@600;700&display=swap">
 <title>情勢デイリー（紙面を読む）</title>
 <style>
   :root{
     --bg:#FFFFFF;
-    --fg:#1A1B1E;
-    --muted:#54585D;
-    --border:#DCDFE3;
-    --block-bg:#F2F3F5;
-    --accent:#1450C4;
+    --fg:#101418;
+    --fg2:#3B444E;
+    --muted:#5B6570;
+    --border:#E2E6EA;
+    --panel:#F4F7F9;
+    --header:#0E1620;
+    --header-fg:#FFFFFF;
+    --header-muted:#9BA7B4;
+    --accent:#0B6E6E;
+    --accent-bg:#E6F2F2;
+    --mark:#3FD0C9;
+    --warn:#8A4B00;
+    --warn-bg:#FBF0E2;
+    --dash:#A9B4BF;
   }
   @media (prefers-color-scheme: dark){
     :root{
-      --bg:#121316;
-      --fg:#F1F2F4;
-      --muted:#A6ABB1;
-      --border:#33363B;
-      --block-bg:#1C1E22;
-      --accent:#7FB0FF;
+      --bg:#12161B;
+      --fg:#EAEEF2;
+      --fg2:#C2CAD2;
+      --muted:#9AA5B0;
+      --border:#2A313A;
+      --panel:#1A2028;
+      --header:#0A0E13;
+      --header-fg:#FFFFFF;
+      --header-muted:#9BA7B4;
+      --accent:#4FB3AE;
+      --accent-bg:#123230;
+      --mark:#3FD0C9;
+      --warn:#E0A45F;
+      --warn-bg:#2E2314;
+      --dash:#4A5560;
     }
   }
-  *{box-sizing:border-box;}
-  html{-webkit-text-size-adjust:100%;}
+
+  *{ box-sizing:border-box; }
+  html{ -webkit-text-size-adjust:100%; }
   body{
     margin:0;
     background:var(--bg);
     color:var(--fg);
-    font-family:system-ui,-apple-system,BlinkMacSystemFont,"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic",Meiryo,sans-serif;
-    font-size:17px;
+    font-family:'Noto Sans JP', system-ui, sans-serif;
+    font-size:16px;
     line-height:1.7;
     overflow-wrap:anywhere;
   }
-  @media (min-width:700px){
-    body{ font-size:18px; }
-  }
   a{ color:var(--accent); }
-  .wrap{max-width:680px;margin:0 auto;padding:16px 16px 56px;overflow-x:hidden;}
-
-  h1{font-size:19px;line-height:1.5;margin:8px 0 12px;}
-  h2.section-title{
-    font-size:16px;
-    line-height:1.5;
-    border-bottom:2px solid var(--border);
-    padding-bottom:6px;
-    margin:0 0 4px;
-  }
-  h3.headline{font-size:18px;line-height:1.5;font-weight:700;margin:28px 0 10px;}
-
   :focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
 
-  /* --- エラー・遅れ --- */
-  .error-box{
-    background:var(--block-bg);
-    color:var(--fg);
-    border:1px solid var(--border);
-    border-radius:8px;
-    padding:12px 14px;
-    font-size:14px;
-    margin-bottom:16px;
-  }
-  .error-box[hidden]{display:none;}
-  .error-detail{font-size:13px;margin:4px 0 0;color:var(--muted);}
-  .error-text{color:var(--fg);font-size:14px;}
-  .delay-banner{
-    background:var(--block-bg);
-    color:var(--fg);
-    border:1px solid var(--border);
-    border-radius:8px;
-    padding:10px 12px;
-    font-size:13px;
-    margin-bottom:16px;
-  }
-  .delay-banner[hidden]{display:none;}
-  .delay-banner p{margin:2px 0;}
+  .wrap{ max-width:680px; margin:0 auto; padding:0 16px; }
 
-  /* --- 号の選択 --- */
-  nav.selector{margin-bottom:16px;}
+  /* ============ 上部の帯 ============ */
+  header.topbar{
+    background:var(--header);
+    padding-bottom:2px;
+  }
+  .topbar-inner{ max-width:680px; margin:0 auto; padding:0 16px; }
+  .topbar-row1{
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    gap:8px;
+    padding:14px 0 10px;
+  }
+  .brand{
+    font-family:'Noto Serif JP', serif;
+    font-weight:700;
+    font-size:21px;
+    letter-spacing:0.08em;
+    color:var(--header-fg);
+  }
+  .topbar-date{
+    font-family:'Noto Sans JP', sans-serif;
+    font-size:12px;
+    color:var(--header-muted);
+    white-space:nowrap;
+  }
+  .slotbar{
+    display:flex;
+    gap:8px;
+    padding:0 0 12px;
+  }
+  .slot-btn{
+    flex:1 1 0;
+    min-height:44px;
+    font-family:'Noto Sans JP', sans-serif;
+    font-size:14px;
+    background:transparent;
+    border:1px solid var(--header-muted);
+    color:var(--header-muted);
+    cursor:pointer;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .slot-btn.exists{
+    border-color:#2B3743;
+    color:#9BA7B4;
+  }
+  .slot-btn.current{
+    background:var(--mark);
+    border-color:var(--mark);
+    color:var(--header);
+    font-weight:700;
+  }
+  .slot-btn:disabled{
+    cursor:default;
+    opacity:1;
+    -webkit-text-fill-color:currentColor;
+  }
+
+  /* ============ 日付の切り替え ============ */
+  nav.datebar{ padding:10px 0 4px; }
   .date-row{
     display:flex;
     align-items:center;
     justify-content:space-between;
     gap:8px;
-    padding:6px 0;
+    padding:9px 8px;
     border-bottom:1px solid var(--border);
-  }
-  .date-row:first-child{border-top:1px solid var(--border);}
-  .date-label{font-size:13px;color:var(--muted);flex-shrink:0;}
-  .slot-buttons{display:flex;gap:6px;}
-  .slot-btn{
-    font-size:13px;
-    padding:6px 12px;
-    border-radius:6px;
-    border:1px solid var(--accent);
     background:transparent;
-    color:var(--accent);
+    width:100%;
+    font-family:'Noto Sans JP', sans-serif;
+    color:var(--fg);
+    font-size:14px;
+    text-align:left;
     cursor:pointer;
     -webkit-tap-highlight-color:transparent;
   }
-  .slot-btn.selected{
-    background:var(--accent);
-    color:var(--bg);
+  .date-row:first-child{ border-top:1px solid var(--border); }
+  .date-row.current{
+    background:var(--panel);
+    border-left:3px solid var(--accent);
+    padding-left:5px;
     font-weight:700;
+    color:var(--accent);
   }
-  .slot-btn.disabled{
-    border-color:var(--border);
-    color:var(--muted);
-    cursor:default;
-    opacity:.7;
-  }
+  .date-row .date-hint{ font-size:12px; color:var(--muted); font-weight:400; }
+  .date-row.current .date-hint{ color:var(--accent); }
 
-  /* --- 号の情報 --- */
-  .info-card{
+  /* ============ 通知類 ============ */
+  .notice{
+    max-width:680px; margin:12px auto 0; padding:0 16px;
+  }
+  .notice-box{
     border:1px solid var(--border);
-    border-radius:8px;
-    padding:14px;
-    margin-bottom:20px;
-  }
-  .info-card h2{font-size:16px;margin:0 0 8px;}
-  .meta{font-size:13px;color:var(--muted);margin:4px 0;}
-  .meta.latest{border-top:1px solid var(--border);margin-top:10px;padding-top:10px;}
-  .empty{color:var(--muted);font-size:14px;padding:8px 0;}
-
-  .section{margin-bottom:32px;}
-  .article{margin-top:8px;}
-
-  /* --- 事実系の行(主役) --- */
-  .fact-line{ margin:0 0 2.55em; }
-  .fact-line:last-child{ margin-bottom:0; }
-  .fact-text{
-    font-size:1em;
-    color:var(--fg);
+    background:var(--panel);
+    color:var(--fg2);
+    padding:10px 12px;
+    font-size:13px;
     line-height:1.7;
   }
-  .fact-note{
+  .notice-box p{ margin:2px 0; }
+  .notice[hidden]{ display:none; }
+
+  /* ============ 印の説明 ============ */
+  .mark-note{ margin:20px 0; }
+  .mark-note summary{
+    font-family:'Noto Sans JP', sans-serif;
+    font-size:12px;
+    color:var(--muted);
+    cursor:pointer;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .mark-note-body{
+    margin-top:8px;
+    padding:10px 12px;
+    border:1px solid var(--border);
+    font-size:12px;
+    line-height:1.8;
+    color:var(--fg2);
+  }
+  .mark-note-body p{ margin:0 0 8px; }
+  .mark-note-body p:last-child{ margin-bottom:0; }
+
+  /* ============ 本文セクション ============ */
+  main.wrap{ padding-top:12px; padding-bottom:24px; }
+  .empty{ color:var(--muted); font-size:14px; padding:12px 0; }
+
+  .section{ margin:0 0 36px; }
+  .section-heading{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    margin:0 0 18px;
+  }
+  .section-bar{
+    display:inline-block;
+    width:3px;
+    height:15px;
+    background:var(--accent);
+    flex:0 0 auto;
+  }
+  .section-heading h2{
+    font-family:'Noto Serif JP', serif;
+    font-weight:700;
+    font-size:15px;
+    letter-spacing:0.06em;
+    color:var(--fg);
+    margin:0;
+  }
+
+  article.article{ margin:0 0 32px; }
+  article.article:last-child{ margin-bottom:0; }
+  .headline{
+    font-family:'Noto Serif JP', serif;
+    font-weight:700;
+    font-size:24px;
+    line-height:1.5;
+    color:var(--fg);
+    margin:0 0 14px;
+  }
+
+  .lead{
+    background:var(--panel);
+    border-left:3px solid var(--accent);
+    padding:12px 14px;
+    margin:0 0 20px;
+  }
+  .lead p{
+    font-size:17px;
+    font-weight:500;
+    line-height:1.7;
+    color:var(--fg);
+    margin:0;
+  }
+
+  /* ============ 事実の行 ============ */
+  .fact-line{ margin:0 0 20px; }
+  .fact-line:last-child{ margin-bottom:0; }
+  .fact-text{
+    display:block;
+    font-size:17px;
+    line-height:1.75;
+    color:var(--fg);
+  }
+  @media (min-width:700px){
+    .fact-text{ font-size:18px; }
+  }
+  .num-mark{
+    font-family:'Noto Serif JP', serif;
+    font-weight:600;
+    border-bottom:2px solid var(--mark);
+  }
+
+  .warn-note{
+    display:flex;
+    align-items:flex-start;
+    gap:6px;
+    margin-top:6px;
+    padding:6px 8px;
+    background:var(--warn-bg);
+    color:var(--warn);
+    font-size:12px;
+    line-height:1.6;
+  }
+  .warn-note svg{ flex:0 0 auto; margin-top:2px; }
+
+  /* ============ 出典バッジ ============ */
+  details.source-badge{ margin-top:6px; }
+  details.source-badge summary{
+    display:inline-flex;
+    align-items:center;
+    gap:5px;
+    list-style:none;
+    cursor:pointer;
+    font-family:'Noto Sans JP', sans-serif;
+    font-weight:500;
+    font-size:12px;
+    color:var(--accent);
+    background:var(--accent-bg);
+    padding:4px 9px;
+    -webkit-tap-highlight-color:transparent;
+  }
+  details.source-badge summary::-webkit-details-marker{ display:none; }
+  details.source-badge summary svg{ flex:0 0 auto; }
+  .source-detail{
+    margin-top:6px;
+    padding:10px 12px;
+    border:1px solid var(--border);
+    font-size:12px;
+    line-height:1.7;
+    color:var(--muted);
+  }
+  .source-detail p{ margin:0 0 6px; }
+  .source-detail p:last-child{ margin-bottom:0; }
+  .source-detail .attribution{ color:var(--fg2); }
+  .source-detail .excerpt{
+    background:var(--panel);
+    padding:6px 8px;
+    color:var(--fg2);
+    margin:6px 0;
+  }
+  .source-detail a{ font-size:12px; word-break:break-all; }
+
+  /* ============ 解説ブロック(explainer / unverified) ============ */
+  .block{
+    border:1px solid var(--border);
+    padding:14px;
+    margin:0 0 20px;
+  }
+  .block-heading{
+    display:block;
+    font-family:'Noto Serif JP', serif;
+    font-weight:700;
+    font-size:13px;
+    letter-spacing:0.04em;
+    color:var(--muted);
+    margin:0 0 10px;
+  }
+  details.block > summary.block-heading{
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:8px;
+    -webkit-tap-highlight-color:transparent;
+  }
+  details.block > summary.block-heading::-webkit-details-marker{ display:none; }
+  details.block > summary.block-heading::before{ content:""; }
+  .block-plus{
+    font-family:'Noto Serif JP', serif;
+    font-weight:600;
+    font-size:12px;
+    color:var(--accent);
+  }
+  .block-line{
+    font-size:16px;
+    line-height:1.8;
+    color:var(--fg2);
+    margin:0 0 14px;
+  }
+  .block-line:last-child{ margin-bottom:0; }
+
+  /* ============ AIによる推論 ============ */
+  .inference-box{
+    border:1px dashed var(--dash);
+    padding:14px;
+    margin:0 0 24px;
+  }
+  .inference-heading{
+    display:flex;
+    align-items:center;
+    gap:7px;
+    font-family:'Noto Serif JP', serif;
+    font-weight:700;
+    font-size:13px;
+    color:var(--muted);
+    margin:0 0 10px;
+  }
+  .inference-list{ margin:0; padding:0 0 0 1.2em; }
+  .inference-list li{
+    font-size:15px;
+    line-height:1.75;
+    color:var(--fg2);
+    margin:0 0 10px;
+  }
+  .inference-list li:last-child{ margin-bottom:0; }
+  .inference-falsifier{
     display:block;
     font-size:13px;
     color:var(--muted);
     margin-top:4px;
   }
 
-  /* 出典バッジ(行の末尾) */
-  details.source-badge{
-    display:inline-block;
-    vertical-align:baseline;
-    margin-left:2px;
-  }
-  details.source-badge summary{
-    display:inline-block;
-    list-style:none;
-    cursor:pointer;
-    font-size:13px;
-    line-height:1.4;
-    color:var(--accent);
-    border:1px solid var(--accent);
-    border-radius:10px;
-    padding:1px 8px;
-    -webkit-tap-highlight-color:transparent;
-  }
-  details.source-badge summary::-webkit-details-marker{ display:none; }
-  details.source-badge[open] summary{
-    background:var(--accent);
-    color:var(--bg);
-  }
-  .source-detail{
-    margin:8px 0 0;
-    padding:10px 12px;
-    background:var(--block-bg);
-    border-left:3px solid var(--accent);
-    border-radius:0 8px 8px 0;
-    font-size:13px;
+  /* ============ 企業欄 ============ */
+  .companies-section{ margin:0 0 24px; }
+  .companies-note{
+    font-size:12px;
     color:var(--muted);
+    margin:0 0 14px;
   }
-  .source-detail p{margin:4px 0;}
-  .source-detail .source-excerpt{
-    margin:8px 0;
-    padding:2px 0 2px 10px;
-    border-left:2px solid var(--border);
-    color:var(--fg);
-    font-size:13px;
-  }
-  .source-detail a{ font-size:13px; word-break:break-all; }
-
-  /* --- 事実系の冒頭2行 --- */
-  .lead{ margin:0 0 22px; }
-  .lead p{
-    font-size:19px;
-    line-height:1.7;
-    font-weight:600;
-    color:var(--fg);
-    margin:0 0 0.8em;
-  }
-  .lead p:last-child{ margin-bottom:0; }
-
-  /* --- 非事実系のブロック(解説・未検証) --- */
-  .block{
-    background:var(--block-bg);
-    border-left:3px solid var(--border);
-    border-radius:0 8px 8px 0;
-    padding:10px 14px;
-    margin:0 0 22px;
-  }
-  .block-heading{
-    display:block;
-    font-size:13px;
-    font-weight:700;
-    color:var(--muted);
-    margin:0 0 8px;
-    cursor:default;
-  }
-  details.block > summary.block-heading{
-    cursor:pointer;
-    -webkit-tap-highlight-color:transparent;
-  }
-  details.block > summary.block-heading::marker{ color:var(--muted); }
-  .block-line{
-    font-size:1em;
-    line-height:1.7;
-    color:var(--muted);
-    margin:0 0 2.55em;
-  }
-  .block-line:last-child{ margin-bottom:0; }
-  details.block[open] > summary.block-heading{ margin-bottom:10px; }
-
-  /* --- AIによる推論 --- */
-  .inference-box{
-    border:1px solid var(--accent);
-    border-radius:8px;
-    padding:12px 14px;
-    margin:0 0 24px;
-  }
-  .inference-heading{
-    font-size:13px;
-    font-weight:700;
-    color:var(--accent);
-    margin:0 0 8px;
-  }
-  .inference-list{ margin:0; padding:0 0 0 1.2em; }
-  .inference-list li{ margin-bottom:10px; }
-  .inference-list li:last-child{ margin-bottom:0; }
-  .inference-text{ font-size:15px; line-height:1.7; color:var(--fg); margin:0 0 4px; }
-  .inference-meta{ font-size:13px; color:var(--muted); margin:2px 0 0; }
-
-  /* --- 企業欄 --- */
-  .companies{margin-bottom:28px;}
-  .note{font-size:13px;color:var(--muted);margin:0 0 12px;}
   .company-card{
     border:1px solid var(--border);
-    border-radius:8px;
-    padding:14px;
-    margin-bottom:10px;
+    margin:0 0 10px;
   }
-  .company-name{font-size:1em;font-weight:700;color:var(--fg);margin:0 0 6px;}
-  .company-meta{font-size:1em;color:var(--fg);line-height:1.7;margin:0 0 4px;}
-  .company-sub{font-size:14px;color:var(--muted);margin:0 0 4px;}
-  .link-line{margin-top:8px;font-size:14px;}
-  .link-line a{ word-break:break-all; }
+  .company-card:last-child{ margin-bottom:0; }
+  .company-head{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:8px;
+    background:var(--panel);
+    border-bottom:1px solid var(--border);
+    padding:10px 12px;
+  }
+  .company-name{
+    font-family:'Noto Sans JP', sans-serif;
+    font-weight:700;
+    font-size:16px;
+    color:var(--fg);
+  }
+  .company-ticker{
+    font-family:'Noto Serif JP', serif;
+    font-weight:600;
+    font-size:16px;
+    letter-spacing:0.04em;
+    color:var(--fg);
+  }
+  .company-body{ padding:12px; }
+  .company-relation{
+    font-size:13px;
+    line-height:1.7;
+    color:var(--fg2);
+    margin:0 0 10px;
+  }
+  .company-tags{
+    display:flex;
+    flex-wrap:wrap;
+    align-items:center;
+    gap:6px;
+    margin:0 0 10px;
+  }
+  .tag-grade{
+    background:var(--accent);
+    color:#FFFFFF;
+    font-size:11px;
+    font-weight:500;
+    padding:3px 8px;
+  }
+  .tag-doctype{
+    border:1px solid var(--border);
+    color:var(--muted);
+    font-size:11px;
+    padding:3px 8px;
+  }
+  .tag-horizon{
+    font-family:'Noto Serif JP', serif;
+    font-weight:600;
+    font-size:11px;
+    color:var(--muted);
+  }
+  .company-link{ font-size:13px; }
 
-  /* --- 出典一覧 --- */
-  .sources{margin-bottom:16px;}
-  .sources h2{font-size:16px;margin:0 0 10px;}
+  /* ============ 出典一覧(補助・巻末) ============ */
+  .sources-section{ margin:0 0 24px; }
+  .sources-section h2{
+    font-family:'Noto Serif JP', serif;
+    font-weight:700;
+    font-size:15px;
+    letter-spacing:0.06em;
+    color:var(--fg);
+    margin:0 0 14px;
+  }
   .source-card{
     border:1px solid var(--border);
-    border-radius:8px;
-    padding:12px 14px;
-    margin-bottom:8px;
+    padding:12px;
+    margin:0 0 8px;
+    font-size:12px;
+    line-height:1.7;
   }
-  .meta.strong{color:var(--fg);font-weight:600;}
-  .source-attr{font-size:13px;color:var(--muted);margin:4px 0 0;}
+  .source-card:last-child{ margin-bottom:0; }
+  .source-card .publisher{ color:var(--fg); font-weight:700; margin:0 0 4px; }
+  .source-card .title{ color:var(--fg2); margin:0 0 4px; }
+  .source-card .attr{ color:var(--muted); margin:2px 0; }
+  .source-card a{ word-break:break-all; }
 
-  footer{margin-top:32px;}
-  footer p{font-size:13px;color:var(--muted);text-align:center;margin:0 0 8px;}
-  footer .disclaimer{font-weight:700;color:var(--fg);}
+  /* ============ 最下部 ============ */
+  footer.footer{
+    border-top:1px solid var(--border);
+    padding:16px;
+    max-width:680px;
+    margin:0 auto;
+  }
+  .footer-stats{
+    font-size:11px;
+    line-height:1.7;
+    color:var(--muted);
+    margin:0 0 14px;
+  }
+  .footer-stats .num{
+    font-family:'Noto Serif JP', serif;
+    font-weight:600;
+  }
+  .footer-note{
+    background:var(--panel);
+    padding:12px 14px;
+    font-size:12px;
+    line-height:1.7;
+    color:var(--muted);
+  }
+  .footer-note p{ margin:0 0 6px; }
+  .footer-note p:last-child{ margin-bottom:0; }
+  .footer-latest{
+    font-size:12px;
+    color:var(--muted);
+    margin:12px 0 0;
+  }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <h1>情勢デイリー（紙面を読む）</h1>
 
-  <div id="errorBox" class="error-box" hidden></div>
-  <div id="delayBanner" class="delay-banner" hidden></div>
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="topbar-row1">
+      <span class="brand">情勢デイリー</span>
+      <span class="topbar-date" id="topbarDate"></span>
+    </div>
+    <div class="slotbar" id="slotBar"></div>
+  </div>
+</header>
 
-  <nav id="selector" class="selector"></nav>
+<nav class="datebar wrap" id="dateBar"></nav>
 
-  <section id="editionInfo" class="info-card"></section>
+<div class="notice" id="errorNotice" hidden></div>
+<div class="notice" id="delayNotice" hidden></div>
 
-  <main id="content"></main>
+<main class="wrap">
+  <details class="mark-note">
+    <summary>印についての説明</summary>
+    <div class="mark-note-body">
+      <p>「出典に同じ数字あり」は、その数字が出典に存在することの確認です。文章の解釈が正しいことの確認ではありません。</p>
+      <p>「未検証」は、誤りという意味ではありません。機械での確認ができなかった、という意味です。</p>
+    </div>
+  </details>
 
-  <section id="companies" class="companies"></section>
+  <div id="content"></div>
 
-  <section id="sources" class="sources"></section>
+  <section class="companies-section" id="companies"></section>
 
-  <footer>
-    <p class="disclaimer">このページは投資の推奨ではありません。</p>
-    <p>この紙面はAIが自動で作成しています。</p>
-    <p>検索避けの設定を入れていますが、これは検索結果に出にくくするだけで、内容を隠す機能ではありません。このページは誰でも見られます。</p>
-  </footer>
-</div>
+  <section class="sources-section" id="sources"></section>
+</main>
+
+<footer class="footer" id="footer"></footer>
 
 <script>
 (function(){
   "use strict";
 
   var SLOT_LABEL = { morning: "朝", noon: "昼", evening: "夕" };
+  var SLOT_CODE = { morning: "MORN", noon: "NOON", evening: "EVE" };
   var SLOT_ORDER = ["morning", "noon", "evening"];
   var DELAY_THRESHOLD_HOUR = { morning: 9, noon: 14, evening: 18 };
 
@@ -314,17 +548,17 @@
     explainer: "この話の背景",
     unverified: "機械で確認できなかった行"
   };
-
-  var EVIDENCE_GRADE_LABELS = {
-    primary: "この会社名が一次情報に載っている",
-    reported: "報道断片に社名あり",
+  var GRADE_LABELS = {
+    primary: "一次情報に社名あり",
+    reported: "報道に社名あり",
     inferred: "AIによる推論"
   };
+  var SECTION_ORDER = ["big", "change", "ripple", "deep"];
 
   var indexData = null;
   var currentKey = null;
 
-  // --- 小さなユーティリティ ---
+  // ---------- 小さなユーティリティ ----------
 
   function el(tag, attrs, children){
     var node = document.createElement(tag);
@@ -332,6 +566,7 @@
     Object.keys(attrs).forEach(function(k){
       if(k === "class") node.className = attrs[k];
       else if(k === "text") node.textContent = attrs[k];
+      else if(k === "html") node.innerHTML = attrs[k];
       else node.setAttribute(k, attrs[k]);
     });
     (children || []).forEach(function(c){ if(c) node.appendChild(c); });
@@ -349,7 +584,7 @@
 
   function isFactMark(mark){ return !!FACT_MARKS[mark]; }
 
-  function evidenceGradeLabel(g){ return EVIDENCE_GRADE_LABELS[g] || g || "不明"; }
+  function gradeLabel(g){ return GRADE_LABELS[g] || g || "不明"; }
 
   function formatDateLabel(s){
     var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || "");
@@ -368,6 +603,13 @@
     var m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(iso);
     if(!m) return iso;
     return m[1] + "年" + parseInt(m[2], 10) + "月" + parseInt(m[3], 10) + "日 " + parseInt(m[4], 10) + ":" + m[5];
+  }
+
+  function formatHHMM(iso){
+    if(!iso) return "不明";
+    var m = /T(\d{2}):(\d{2})/.exec(iso);
+    if(!m) return iso;
+    return parseInt(m[1], 10) + ":" + m[2];
   }
 
   function formatPublishedAt(s){
@@ -409,36 +651,169 @@
     }
   }
 
-  // --- エラー表示 ---
+  // ---------- 小さなSVGアイコン ----------
+
+  var SVG_NS = "http://www.w3.org/2000/svg";
+
+  function svgDot(){
+    var s = document.createElementNS(SVG_NS, "svg");
+    s.setAttribute("width", "8"); s.setAttribute("height", "8"); s.setAttribute("viewBox", "0 0 8 8");
+    s.setAttribute("aria-hidden", "true");
+    var c = document.createElementNS(SVG_NS, "circle");
+    c.setAttribute("cx", "4"); c.setAttribute("cy", "4"); c.setAttribute("r", "4");
+    c.setAttribute("fill", "currentColor");
+    s.appendChild(c);
+    return s;
+  }
+
+  function svgWarnTriangle(){
+    var s = document.createElementNS(SVG_NS, "svg");
+    s.setAttribute("width", "14"); s.setAttribute("height", "14"); s.setAttribute("viewBox", "0 0 16 16");
+    s.setAttribute("aria-hidden", "true");
+    var p = document.createElementNS(SVG_NS, "path");
+    p.setAttribute("d", "M8 2 L15 14 L1 14 Z");
+    p.setAttribute("fill", "none");
+    p.setAttribute("stroke", "currentColor");
+    p.setAttribute("stroke-width", "1.3");
+    p.setAttribute("stroke-linejoin", "round");
+    s.appendChild(p);
+    var l = document.createElementNS(SVG_NS, "line");
+    l.setAttribute("x1", "8"); l.setAttribute("y1", "6.5"); l.setAttribute("x2", "8"); l.setAttribute("y2", "10");
+    l.setAttribute("stroke", "currentColor"); l.setAttribute("stroke-width", "1.3"); l.setAttribute("stroke-linecap", "round");
+    s.appendChild(l);
+    var d = document.createElementNS(SVG_NS, "circle");
+    d.setAttribute("cx", "8"); d.setAttribute("cy", "12"); d.setAttribute("r", "0.8");
+    d.setAttribute("fill", "currentColor");
+    s.appendChild(d);
+    return s;
+  }
+
+  function svgSquare(){
+    var s = document.createElementNS(SVG_NS, "svg");
+    s.setAttribute("width", "13"); s.setAttribute("height", "13"); s.setAttribute("viewBox", "0 0 13 13");
+    s.setAttribute("aria-hidden", "true");
+    var r = document.createElementNS(SVG_NS, "rect");
+    r.setAttribute("x", "1.5"); r.setAttribute("y", "1.5"); r.setAttribute("width", "10"); r.setAttribute("height", "10");
+    r.setAttribute("fill", "none"); r.setAttribute("stroke", "currentColor"); r.setAttribute("stroke-width", "1.3");
+    s.appendChild(r);
+    return s;
+  }
+
+  // ---------- 数字の強調 ----------
+  // numbers[] にある値を text の中から探して <span class="num-mark"> で囲む。
+  // 見つからない場合は何もしない(元のテキストのまま出す)。
+
+  function formatNumberVariants(value){
+    if(typeof value !== "number" || !isFinite(value)) return [];
+    var out = [];
+    var withComma = value.toLocaleString("en-US", { maximumFractionDigits: 20 });
+    out.push(withComma);
+    var plain = String(value);
+    if(plain !== withComma) out.push(plain);
+    return out;
+  }
+
+  function isDigitish(ch){ return ch !== undefined && /[0-9,.]/.test(ch); }
+  function isDigit(ch){ return ch !== undefined && /[0-9]/.test(ch); }
+
+  function findCandidateSpan(text, candidate, taken){
+    if(!candidate) return -1;
+    var from = 0;
+    while(true){
+      var idx = text.indexOf(candidate, from);
+      if(idx === -1) return -1;
+      var end = idx + candidate.length;
+      var beforeOk = !isDigitish(text[idx - 1]);
+      var afterOk = !isDigit(text[end]);
+      var overlaps = taken.some(function(r){ return idx < r.end && end > r.start; });
+      if(beforeOk && afterOk && !overlaps) return idx;
+      from = idx + 1;
+    }
+  }
+
+  function buildFactTextNode(text, numbers){
+    text = text || "";
+    var wrap = el("span", { class: "fact-text" });
+    if(!numbers || numbers.length === 0){
+      wrap.textContent = text;
+      return wrap;
+    }
+
+    var taken = [];
+    numbers.forEach(function(n){
+      var candidates = formatNumberVariants(n.value).map(function(v){ return v + (n.unit || ""); });
+      for(var i = 0; i < candidates.length; i++){
+        var idx = findCandidateSpan(text, candidates[i], taken);
+        if(idx !== -1){
+          taken.push({ start: idx, end: idx + candidates[i].length });
+          break;
+        }
+      }
+    });
+
+    if(taken.length === 0){
+      wrap.textContent = text;
+      return wrap;
+    }
+
+    taken.sort(function(a, b){ return a.start - b.start; });
+    var pos = 0;
+    taken.forEach(function(r){
+      if(r.start > pos) wrap.appendChild(document.createTextNode(text.slice(pos, r.start)));
+      wrap.appendChild(el("span", { class: "num-mark", text: text.slice(r.start, r.end) }));
+      pos = r.end;
+    });
+    if(pos < text.length) wrap.appendChild(document.createTextNode(text.slice(pos)));
+    return wrap;
+  }
+
+  // 生成された短い数値表記(日付・件数など)の中の数字部分だけ明朝で包む
+  function buildNumSpans(text){
+    text = text == null ? "" : String(text);
+    var frag = document.createDocumentFragment();
+    var re = /[0-9]+(?:[.,:][0-9]+)*/g;
+    var pos = 0;
+    var m;
+    while((m = re.exec(text))){
+      if(m.index > pos) frag.appendChild(document.createTextNode(text.slice(pos, m.index)));
+      frag.appendChild(el("span", { class: "num", text: m[0] }));
+      pos = m.index + m[0].length;
+    }
+    if(pos < text.length) frag.appendChild(document.createTextNode(text.slice(pos)));
+    return frag;
+  }
+
+  // ---------- エラー・遅れの表示 ----------
 
   function showFatalError(path, err){
-    var box = document.getElementById("errorBox");
+    var box = document.getElementById("errorNotice");
     clear(box);
-    box.appendChild(el("p", { text: "読み込めませんでした: " + path }));
-    if(err && err.message) box.appendChild(el("p", { class: "error-detail", text: err.message }));
+    var inner = el("div", { class: "notice-box" });
+    inner.appendChild(el("p", { text: "読み込めませんでした: " + path }));
+    if(err && err.message) inner.appendChild(el("p", { text: err.message }));
+    box.appendChild(inner);
     box.hidden = false;
   }
 
-  function showContentError(path){
-    var info = document.getElementById("editionInfo");
-    clear(info);
-    info.appendChild(el("p", { class: "error-text", text: "読み込めませんでした: " + path }));
+  function hideFatalError(){
+    var box = document.getElementById("errorNotice");
+    clear(box);
+    box.hidden = true;
+  }
 
+  function showContentError(path){
     var main = document.getElementById("content");
     clear(main);
-    main.appendChild(el("p", { class: "error-text", text: "読み込めませんでした: " + path }));
-
+    main.appendChild(el("p", { class: "empty", text: "読み込めませんでした: " + path }));
     clear(document.getElementById("sources"));
   }
 
   function showCompaniesError(path){
     var box = document.getElementById("companies");
     clear(box);
-    box.appendChild(el("h2", { text: "今日のニュースに関係する企業" }));
-    box.appendChild(el("p", { class: "error-text", text: "読み込めませんでした: " + path }));
+    box.appendChild(companiesHeading());
+    box.appendChild(el("p", { class: "empty", text: "読み込めませんでした: " + path }));
   }
-
-  // --- 遅れの表示 ---
 
   function computeDelayMessages(){
     if(!indexData || !Array.isArray(indexData.editions)) return [];
@@ -450,23 +825,23 @@
       var exists = indexData.editions.some(function(e){
         return e.date === now.dateStr && e.slot === slot;
       });
-      if(!exists){
-        msgs.push(SLOT_LABEL[slot] + "号は作成されていません");
-      }
+      if(!exists) msgs.push(SLOT_LABEL[slot] + "号は作成されていません");
     });
     return msgs;
   }
 
   function renderDelayBanner(){
-    var banner = document.getElementById("delayBanner");
-    clear(banner);
+    var box = document.getElementById("delayNotice");
+    clear(box);
     var msgs = computeDelayMessages();
-    if(msgs.length === 0){ banner.hidden = true; return; }
-    msgs.forEach(function(m){ banner.appendChild(el("p", { text: m })); });
-    banner.hidden = false;
+    if(msgs.length === 0){ box.hidden = true; return; }
+    var inner = el("div", { class: "notice-box" });
+    msgs.forEach(function(m){ inner.appendChild(el("p", { text: m })); });
+    box.appendChild(inner);
+    box.hidden = false;
   }
 
-  // --- 号の選び方 ---
+  // ---------- 上部の帯: 号の選択 ----------
 
   function buildDateRows(editions){
     var order = [];
@@ -481,8 +856,41 @@
     return order.map(function(date){ return { date: date, slots: bySlot[date] }; });
   }
 
-  function renderSelector(){
-    var nav = document.getElementById("selector");
+  function renderTopbarDate(){
+    var span = document.getElementById("topbarDate");
+    clear(span);
+    if(!currentKey){ span.textContent = ""; return; }
+    span.textContent = currentKey.date + " " + SLOT_CODE[currentKey.slot];
+  }
+
+  function renderSlotBar(){
+    var box = document.getElementById("slotBar");
+    clear(box);
+    if(!indexData || !currentKey) return;
+    var rows = buildDateRows(indexData.editions);
+    var row = rows.find(function(r){ return r.date === currentKey.date; });
+    var slots = row ? row.slots : { morning: null, noon: null, evening: null };
+
+    SLOT_ORDER.forEach(function(slot){
+      var entry = slots[slot];
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = SLOT_LABEL[slot];
+      if(!entry){
+        btn.className = "slot-btn";
+        btn.disabled = true;
+      }else if(currentKey.slot === slot){
+        btn.className = "slot-btn current";
+      }else{
+        btn.className = "slot-btn exists";
+        btn.addEventListener("click", function(){ selectEdition(currentKey.date, slot); });
+      }
+      box.appendChild(btn);
+    });
+  }
+
+  function renderDateBar(){
+    var nav = document.getElementById("dateBar");
     clear(nav);
     if(!indexData || !Array.isArray(indexData.editions) || indexData.editions.length === 0){
       nav.appendChild(el("p", { class: "empty", text: "表示できる号がありません。" }));
@@ -490,66 +898,27 @@
     }
     var rows = buildDateRows(indexData.editions);
     rows.forEach(function(row){
-      var rowEl = el("div", { class: "date-row" });
-      rowEl.appendChild(el("span", { class: "date-label", text: formatDateLabel(row.date) }));
-      var btnWrap = el("div", { class: "slot-buttons" });
-      SLOT_ORDER.forEach(function(slot){
-        var entry = row.slots[slot];
-        var btn = document.createElement("button");
-        btn.type = "button";
-        btn.textContent = SLOT_LABEL[slot];
-        if(!entry){
-          btn.className = "slot-btn disabled";
-          btn.disabled = true;
-        }else{
-          var selected = currentKey && currentKey.date === row.date && currentKey.slot === slot;
-          btn.className = "slot-btn" + (selected ? " selected" : "");
-          btn.addEventListener("click", function(){ selectEdition(row.date, slot); });
-        }
-        btnWrap.appendChild(btn);
-      });
-      rowEl.appendChild(btnWrap);
-      nav.appendChild(rowEl);
+      var isCurrent = currentKey && currentKey.date === row.date;
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "date-row" + (isCurrent ? " current" : "");
+      var label = el("span", {}, [buildNumSpans(formatDateLabel(row.date))]);
+      btn.appendChild(label);
+      if(isCurrent){
+        btn.appendChild(el("span", { class: "date-hint", text: "表示中" }));
+      }
+      if(!isCurrent){
+        btn.addEventListener("click", function(){
+          var preferred = SLOT_ORDER.slice().reverse().find(function(s){ return row.slots[s]; });
+          var keepSlot = currentKey && row.slots[currentKey.slot] ? currentKey.slot : preferred;
+          selectEdition(row.date, keepSlot);
+        });
+      }
+      nav.appendChild(btn);
     });
   }
 
-  // --- 号の情報 ---
-
-  function renderEditionInfo(ed){
-    var box = document.getElementById("editionInfo");
-    clear(box);
-    var v = ed.verification || {};
-
-    box.appendChild(el("h2", { text: formatDateLabel(ed.date) + " " + SLOT_LABEL[ed.slot] + "号" }));
-    box.appendChild(el("p", { class: "meta", text: "作成時刻: " + formatGeneratedAt(ed.generated_at) }));
-
-    var marketText = ed.market_open === true ? "市場が開いている日です"
-      : ed.market_open === false ? "市場が開いていない日です"
-      : "市場の開閉は不明です";
-    box.appendChild(el("p", { class: "meta", text: marketText }));
-
-    var linesTotal = pickNum(v, ["lines_total"]);
-    var passed = pickNum(v, ["passed"]);
-    var unverified = pickNum(v, ["unverified"]);
-    var reportedUnverified = pickNum(v, ["reported_unverified"]);
-    var explainer = pickNum(v, ["explainer"]);
-    box.appendChild(el("p", { class: "meta", text:
-      "照合結果: 合格" + passed + "行／未検証" + unverified + "行／報道のみ" + reportedUnverified + "行／解説" + explainer + "行（全" + linesTotal + "行）"
-    }));
-
-    var warnHits = pickNum(v, ["recommendation_warn_hits", "recommendation_watch_hits", "recommendation_hits"]);
-    var stopRemoved = pickNum(v, ["recommendation_stop_removed"]);
-    box.appendChild(el("p", { class: "meta", text:
-      "推奨表現の注意" + warnHits + "件／停止語で削除した行" + stopRemoved + "行"
-    }));
-
-    var latest = (indexData && indexData.editions && indexData.editions[0]) ? indexData.editions[0] : null;
-    box.appendChild(el("p", { class: "meta latest", text:
-      "最終成功日時: " + formatGeneratedAt(latest ? latest.generated_at : null)
-    }));
-  }
-
-  // --- 出典バッジ ---
+  // ---------- 出典バッジ ----------
 
   function buildSourcesById(sources){
     var map = {};
@@ -560,48 +929,49 @@
   function renderSourceBadge(line, sourcesById){
     var src = line.source_ref ? sourcesById[line.source_ref] : null;
     if(!src) return null;
+    if(!line.numbers || line.numbers.length === 0) return null;
 
     var attribution = line.attribution || src.attribution || "";
     var processingNote = line.processing_note || src.processing_note || "";
 
     var badge = el("details", { class: "source-badge" });
-    badge.appendChild(el("summary", { text: src.publisher || "出典" }));
+    var summary = el("summary", {}, [svgDot(), document.createTextNode(src.publisher || "出典")]);
+    badge.appendChild(summary);
 
     var detail = el("div", { class: "source-detail" });
-    if(attribution) detail.appendChild(el("p", { text: attribution }));
+    if(attribution) detail.appendChild(el("p", { class: "attribution", text: attribution }));
     if(processingNote) detail.appendChild(el("p", { text: processingNote }));
     if(line.excerpt){
-      detail.appendChild(el("p", { class: "source-excerpt", text: "「" + line.excerpt + "」" }));
+      detail.appendChild(el("p", { class: "excerpt", text: "「" + line.excerpt + "」" }));
     }
     if(src.url){
       detail.appendChild(el("p", {}, [
-        el("a", { href: src.url, target: "_blank", rel: "noopener noreferrer", text: "出典ページを見る" })
+        el("a", { href: src.url, target: "_blank", rel: "noopener", text: "出典ページを見る" })
       ]));
     }
     badge.appendChild(detail);
     return badge;
   }
 
-  // --- 事実系の行 ---
+  // ---------- 事実の行 ----------
 
   function renderFactLine(line, sourcesById){
     var wrap = el("div", { class: "fact-line" });
-    var text = el("span", { class: "fact-text", text: line.text || "" });
-    wrap.appendChild(text);
+    wrap.appendChild(buildFactTextNode(line.text, line.numbers));
 
     var badge = renderSourceBadge(line, sourcesById);
-    if(badge){
-      wrap.appendChild(document.createTextNode(" "));
-      wrap.appendChild(badge);
-    }
+    if(badge) wrap.appendChild(badge);
 
     if(line.mark === "reported_unverified"){
-      wrap.appendChild(el("span", { class: "fact-note", text: "報道あり・一次資料未確認" }));
+      wrap.appendChild(el("p", { class: "warn-note" }, [
+        svgWarnTriangle(),
+        document.createTextNode("報道あり・一次資料未確認")
+      ]));
     }
     return wrap;
   }
 
-  // --- 非事実系のブロック ---
+  // ---------- 解説ブロック ----------
 
   function renderNonFactBlock(mark, lines, openFirst){
     var heading = NONFACT_HEADINGS[mark] || mark;
@@ -619,41 +989,58 @@
 
     var details = el("details", { class: "block" });
     if(openFirst) details.setAttribute("open", "");
-    details.appendChild(el("summary", { class: "block-heading", text: heading + "（" + lines.length + "行）" }));
+
+    var summary = el("summary", { class: "block-heading" });
+    var labelSpan = el("span", { class: "block-label", text: heading + "（" + lines.length + "行）" });
+    var plusSpan = el("span", { class: "block-plus", text: "[ + ]" });
+    summary.appendChild(labelSpan);
+    summary.appendChild(plusSpan);
+    details.appendChild(summary);
     details.appendChild(linesBox);
+
+    function sync(){
+      var isOpen = details.hasAttribute("open");
+      plusSpan.style.display = isOpen ? "none" : "";
+    }
+    details.addEventListener("toggle", sync);
+    sync();
+
     return details;
   }
 
-  // --- 冒頭2行(結論を先に) ---
+  // ---------- リード(冒頭1行) ----------
 
   function renderLead(factLines){
     if(factLines.length === 0) return null;
     var lead = el("div", { class: "lead" });
-    factLines.slice(0, 2).forEach(function(line){
-      lead.appendChild(el("p", { text: line.text || "" }));
-    });
+    var first = factLines[0];
+    var p = document.createElement("p");
+    p.appendChild(buildFactTextNode(first.text, first.numbers));
+    lead.appendChild(p);
     return lead;
   }
 
-  // --- AIによる推論 ---
+  // ---------- AIによる推論 ----------
 
   function renderInferences(list){
     var box = el("div", { class: "inference-box" });
-    box.appendChild(el("p", { class: "inference-heading", text: "AIによる推論" }));
+    box.appendChild(el("p", { class: "inference-heading" }, [
+      svgSquare(), document.createTextNode("AIによる推論")
+    ]));
     var ul = el("ul", { class: "inference-list" });
     list.forEach(function(inf){
       var li = document.createElement("li");
-      li.appendChild(el("p", { class: "inference-text", text: inf.text || "" }));
-      if(inf.falsifier) li.appendChild(el("p", { class: "inference-meta", text: "成り立たなくなる条件: " + inf.falsifier }));
-      if(inf.check_metric) li.appendChild(el("p", { class: "inference-meta", text: "確認する指標: " + inf.check_metric }));
-      if(inf.check_by) li.appendChild(el("p", { class: "inference-meta", text: "確認予定: " + inf.check_by }));
+      li.appendChild(document.createTextNode(inf.text || ""));
+      if(inf.falsifier){
+        li.appendChild(el("span", { class: "inference-falsifier", text: "成り立たなくなる条件: " + inf.falsifier }));
+      }
       ul.appendChild(li);
     });
     box.appendChild(ul);
     return box;
   }
 
-  // --- 記事本文(事実の行 / 解説ブロックに分ける) ---
+  // ---------- 記事本文 ----------
 
   function renderArticleBody(lines, sourcesById){
     var frag = document.createDocumentFragment();
@@ -668,7 +1055,6 @@
         continue;
       }
 
-      // 非事実系: 同じmarkが続く間をひとまとめにする
       var mark = line.mark;
       var group = [line];
       var j = i + 1;
@@ -705,11 +1091,17 @@
     return artEl;
   }
 
+  function sectionHeading(title){
+    return el("div", { class: "section-heading" }, [
+      el("span", { class: "section-bar" }),
+      el("h2", { text: title })
+    ]);
+  }
+
   function renderContent(ed){
     var main = document.getElementById("content");
     clear(main);
     var sourcesById = buildSourcesById(ed.sources || []);
-    var SECTION_ORDER = ["big", "change", "ripple", "deep"];
     var bySectionId = {};
     (ed.sections || []).forEach(function(s){ bySectionId[s.section_id] = s; });
 
@@ -717,7 +1109,7 @@
       var sec = bySectionId[sid];
       if(!sec) return;
       var secEl = el("section", { class: "section" });
-      secEl.appendChild(el("h2", { class: "section-title", text: sec.title || sid }));
+      secEl.appendChild(sectionHeading(sec.title || sid));
       (sec.articles || []).forEach(function(art){
         secEl.appendChild(renderArticle(art, sourcesById));
       });
@@ -729,101 +1121,149 @@
     }
   }
 
-  // --- 企業欄 ---
+  // ---------- 企業欄 ----------
+
+  function companiesHeading(){
+    return sectionHeading("今日のニュースに関係する企業");
+  }
 
   function renderHypothesisCard(h){
     var card = el("div", { class: "company-card" });
-    card.appendChild(el("p", { class: "company-name", text: h.company_name || "" }));
-    if(h.ticker) card.appendChild(el("p", { class: "company-sub", text: "証券コード: " + h.ticker }));
-    card.appendChild(el("p", { class: "company-sub", text: "根拠の印: " + evidenceGradeLabel(h.evidence_grade) }));
-    if(h.evidence_doc_type) card.appendChild(el("p", { class: "company-sub", text: "書類の種類: " + h.evidence_doc_type }));
-    if(h.relation_text) card.appendChild(el("p", { class: "company-meta", text: "関係: " + h.relation_text }));
-    if(h.falsifier) card.appendChild(el("p", { class: "company-meta", text: "消える条件: " + h.falsifier }));
 
-    var obsParts = [];
-    if(h.baseline_date){
-      var priceTypeLabel = h.baseline_price_type === "open" ? "始値"
-        : h.baseline_price_type === "close" ? "終値"
-        : (h.baseline_price_type || "");
-      obsParts.push("基準：" + formatMonthDay(h.baseline_date) + "の" + priceTypeLabel);
-    }
+    var head = el("div", { class: "company-head" });
+    head.appendChild(el("span", { class: "company-name", text: h.company_name || "" }));
+    if(h.ticker) head.appendChild(el("span", { class: "company-ticker" }, [buildNumSpans(h.ticker)]));
+    card.appendChild(head);
+
+    var body = el("div", { class: "company-body" });
+    if(h.relation_text) body.appendChild(el("p", { class: "company-relation", text: h.relation_text }));
+
+    var tags = el("div", { class: "company-tags" });
+    tags.appendChild(el("span", { class: "tag-grade", text: gradeLabel(h.evidence_grade) }));
+    if(h.evidence_doc_type) tags.appendChild(el("span", { class: "tag-doctype", text: h.evidence_doc_type }));
     if(typeof h.horizon_business_days === "number"){
-      obsParts.push(h.horizon_business_days + "営業日後の観察");
+      tags.appendChild(el("span", { class: "tag-horizon" }, [buildNumSpans(h.horizon_business_days + "営業日後の観察")]));
     }
-    if(obsParts.length > 0) card.appendChild(el("p", { class: "company-sub", text: obsParts.join("／") }));
+    body.appendChild(tags);
 
     if(h.links && h.links.price_history){
-      card.appendChild(el("p", { class: "link-line" }, [
-        el("a", { href: h.links.price_history, target: "_blank", rel: "noopener noreferrer", text: "株価を見る（外部サイト）" })
+      body.appendChild(el("p", { class: "company-link" }, [
+        el("a", { href: h.links.price_history, target: "_blank", rel: "noopener", text: "株価を見る（外部サイト）" })
       ]));
     }
+    card.appendChild(body);
     return card;
   }
 
   function renderCompanies(hy, marketOpen){
     var box = document.getElementById("companies");
     clear(box);
-    box.appendChild(el("h2", { text: "今日のニュースに関係する企業" }));
-
-    if(marketOpen === false){
-      box.appendChild(el("p", { class: "meta", text: "市場が開いていない日です" }));
-    }
+    box.appendChild(companiesHeading());
+    box.appendChild(el("p", { class: "companies-note", text:
+      "名前が一次情報に載っているかどうかを示します。関係の説明はAIによる推論です。"
+    }));
 
     var list = (hy && Array.isArray(hy.hypotheses)) ? hy.hypotheses : [];
     if(list.length === 0){
-      box.appendChild(el("p", { class: "empty", text: "今日は該当する企業がありません" }));
+      var msg = "今日は該当する企業がありません";
+      box.appendChild(el("p", { class: "empty", text: msg }));
+      if(marketOpen === false){
+        box.appendChild(el("p", { class: "empty", text: "市場が開いていない日です" }));
+      }
       return;
     }
-
-    box.appendChild(el("p", { class: "note", text:
-      "この印が示すのは、その会社の名前が一次情報に載っているかどうかだけです。ニュースとその会社の関係の説明は、AIによる推論です。"
-    }));
 
     list.forEach(function(h){ box.appendChild(renderHypothesisCard(h)); });
   }
 
-  // --- 出典一覧(ページ末) ---
+  // ---------- 出典一覧 ----------
 
   function renderSources(sources){
     var box = document.getElementById("sources");
     clear(box);
-    box.appendChild(el("h2", { text: "出典" }));
-    if(!sources || sources.length === 0){
-      box.appendChild(el("p", { class: "empty", text: "出典情報がありません。" }));
-      return;
-    }
+    if(!sources || sources.length === 0) return;
+    box.appendChild(sectionHeading("出典"));
     sources.forEach(function(src){
       var card = el("div", { class: "source-card" });
-      if(src.publisher) card.appendChild(el("p", { class: "meta strong", text: src.publisher }));
-      if(src.title) card.appendChild(el("p", { class: "meta", text: src.title }));
+      if(src.publisher) card.appendChild(el("p", { class: "publisher", text: src.publisher }));
+      if(src.title) card.appendChild(el("p", { class: "title", text: src.title }));
       if(src.url){
-        card.appendChild(el("p", { class: "link-line" }, [
-          el("a", { href: src.url, target: "_blank", rel: "noopener noreferrer", text: src.url })
+        card.appendChild(el("p", {}, [
+          el("a", { href: src.url, target: "_blank", rel: "noopener", text: src.url })
         ]));
       }
-      if(src.published_at) card.appendChild(el("p", { class: "meta", text: "公開: " + formatPublishedAt(src.published_at) }));
-      if(src.attribution) card.appendChild(el("p", { class: "source-attr", text: src.attribution }));
-      if(src.processing_note) card.appendChild(el("p", { class: "source-attr", text: src.processing_note }));
+      if(src.published_at) card.appendChild(el("p", { class: "attr", text: "公開: " + formatPublishedAt(src.published_at) }));
+      if(src.attribution) card.appendChild(el("p", { class: "attr", text: src.attribution }));
+      if(src.processing_note) card.appendChild(el("p", { class: "attr", text: src.processing_note }));
       box.appendChild(card);
     });
   }
 
-  // --- 号の切り替え ---
+  // ---------- 最下部 ----------
+
+  function renderFooter(ed){
+    var box = document.getElementById("footer");
+    clear(box);
+    if(!ed){
+      box.appendChild(footerNote());
+      return;
+    }
+    var v = ed.verification || {};
+
+    var statsLine = document.createElement("p");
+    statsLine.className = "footer-stats";
+    var pairs = [
+      ["作成", formatHHMM(ed.generated_at)],
+      ["出典一致", String(pickNum(v, ["passed"]))],
+      ["解説", String(pickNum(v, ["explainer"]))],
+      ["未検証", String(pickNum(v, ["unverified"]))],
+      ["報道のみ", String(pickNum(v, ["reported_unverified"]))],
+      ["注意", String(pickNum(v, ["recommendation_warn_hits", "recommendation_watch_hits", "recommendation_hits"]))],
+      ["削除", String(pickNum(v, ["recommendation_stop_removed"]))]
+    ];
+    pairs.forEach(function(pair, idx){
+      if(idx > 0) statsLine.appendChild(document.createTextNode("　"));
+      statsLine.appendChild(document.createTextNode(pair[0] + " "));
+      statsLine.appendChild(el("span", { class: "num", text: pair[1] }));
+    });
+    box.appendChild(statsLine);
+
+    box.appendChild(footerNote());
+
+    var latest = (indexData && indexData.editions && indexData.editions[0]) ? indexData.editions[0] : null;
+    if(latest){
+      var latestP = el("p", { class: "footer-latest" });
+      latestP.appendChild(document.createTextNode("最終成功日時: "));
+      latestP.appendChild(buildNumSpans(formatGeneratedAt(latest.generated_at)));
+      box.appendChild(latestP);
+    }
+  }
+
+  function footerNote(){
+    var box = el("div", { class: "footer-note" });
+    box.appendChild(el("p", { text: "このページは投資の推奨ではありません。" }));
+    box.appendChild(el("p", { text: "この紙面はAIが自動で作成しています。" }));
+    box.appendChild(el("p", { text: "検索避けの設定を入れていますが、これは検索結果に出にくくするだけで、内容を隠す機能ではありません。このページは誰でも見られます。" }));
+    return box;
+  }
+
+  // ---------- 号の切り替え ----------
 
   async function selectEdition(date, slot){
     currentKey = { date: date, slot: slot };
-    renderSelector();
+    renderTopbarDate();
+    renderSlotBar();
+    renderDateBar();
 
     var entry = indexData.editions.find(function(e){ return e.date === date && e.slot === slot; });
     if(!entry) return;
 
-    var info = document.getElementById("editionInfo");
-    clear(info);
-    info.appendChild(el("p", { class: "empty", text: "読み込み中…" }));
     var main = document.getElementById("content");
     clear(main);
-    var companies = document.getElementById("companies");
-    clear(companies);
+    main.appendChild(el("p", { class: "empty", text: "読み込み中…" }));
+    clear(document.getElementById("companies"));
+    clear(document.getElementById("sources"));
+    clear(document.getElementById("footer"));
 
     var edResult = null;
     var hyResult = null;
@@ -841,9 +1281,11 @@
     }
 
     if(edResult){
-      renderEditionInfo(edResult);
       renderContent(edResult);
       renderSources(edResult.sources || []);
+      renderFooter(edResult);
+    }else{
+      renderFooter(null);
     }
 
     if(hyResult){
@@ -852,23 +1294,24 @@
     }
   }
 
-  // --- 起動 ---
+  // ---------- 起動 ----------
 
   async function init(){
     try{
       indexData = await fetchJson("editions/index.json?t=" + Date.now());
+      hideFatalError();
     }catch(e){
       showFatalError("editions/index.json", e);
       return;
     }
 
-    renderSelector();
-    renderDelayBanner();
-
     if(!indexData.editions || indexData.editions.length === 0){
-      document.getElementById("editionInfo").appendChild(el("p", { class: "empty", text: "表示できる号がありません。" }));
+      renderDateBar();
+      document.getElementById("content").appendChild(el("p", { class: "empty", text: "表示できる号がありません。" }));
       return;
     }
+
+    renderDelayBanner();
 
     var first = indexData.editions[0];
     selectEdition(first.date, first.slot);
