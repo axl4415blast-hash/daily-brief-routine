@@ -1,0 +1,2756 @@
+{
+ "schema_version": 2,
+ "edition_id": "2026-09-19-evening",
+ "date": "2026-09-19",
+ "slot": "evening",
+ "generated_at": "2026-09-19T00:45:41+09:00",
+ "market_open": false,
+ "baseline_late": false,
+ "baseline": null,
+ "sources": [
+  {
+   "source_id": "SRC-001",
+   "url": "https://www.boj.or.jp/mopo/mpmdeci/mpr_2026/k260918a.pdf",
+   "publisher": "日本銀行",
+   "publisher_type": "central_bank",
+   "title": "金融市場調節方針の変更について（2026年9月18日）",
+   "published_at": "2026-09-18T11:54:00+09:00",
+   "fetched_at": "2026-09-19T00:20:00+09:00",
+   "fetch_method": "curl",
+   "content_sha256": "66527f2559675dd2c6c88bfd8ffc86e49f02c3ec68aacd532069d860839a38f4",
+   "usage": "quotable",
+   "attribution": "出典：日本銀行「金融市場調節方針の変更について」（https://www.boj.or.jp/mopo/mpmdeci/mpr_2026/k260918a.pdf）",
+   "processing_note": "本サイトが同資料をもとに作成"
+  },
+  {
+   "source_id": "SRC-002",
+   "url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20260916a1.htm",
+   "publisher": "Board of Governors of the Federal Reserve System",
+   "publisher_type": "central_bank",
+   "title": "Implementation Note issued September 16, 2026",
+   "published_at": null,
+   "fetched_at": "2026-09-19T00:23:00+09:00",
+   "fetch_method": "curl",
+   "content_sha256": "0e43f5dc185a4012e66252a45bdd55abac97da41a634bb82f58588c781f3ebeb",
+   "usage": "quotable",
+   "attribution": "出典：Board of Governors of the Federal Reserve System「Implementation Note issued September 16, 2026」（https://www.federalreserve.gov/newsevents/pressreleases/monetary20260916a1.htm）",
+   "processing_note": "本サイトが同資料をもとに作成"
+  },
+  {
+   "source_id": "SRC-003",
+   "url": "https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf",
+   "publisher": "財務省",
+   "publisher_type": "government_statistics",
+   "title": "令和8年8月分貿易統計（速報）",
+   "published_at": null,
+   "fetched_at": "2026-09-19T00:27:00+09:00",
+   "fetch_method": "curl",
+   "content_sha256": "eb026a0ccc05d9c46b498102b87ec75722950bfb99af0498b058026b46c0553d",
+   "usage": "quotable",
+   "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+   "processing_note": "本サイトが同資料をもとに作成"
+  },
+  {
+   "source_id": "SRC-EDINET-LIST",
+   "url": "https://disclosure2.edinet-fsa.go.jp/",
+   "publisher": "金融庁",
+   "publisher_type": "company_disclosure",
+   "title": "EDINET書類一覧（2026年9月19日提出分）",
+   "published_at": null,
+   "fetched_at": "2026-09-19T00:17:00+09:00",
+   "fetch_method": "curl",
+   "content_sha256": "cc25c93e4a1adbcb308491de8606715a4f3472c88f023282cc033e665dcf7756",
+   "usage": "quotable",
+   "attribution": "出典：EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/）",
+   "processing_note": "本サイトが同資料をもとに作成"
+  }
+ ],
+ "sections": [
+  {
+   "section_id": "big",
+   "title": "大きな出来事",
+   "articles": [
+    {
+     "article_id": "ART-2026-09-19-001",
+     "event_id": "EVT-2026-09-19-001",
+     "headline": "日本銀行、政策金利を1.25%に引き上げ 7対2の賛成多数で決定",
+     "lines": [
+      {
+       "line_id": "L-001-01",
+       "text": "日本銀行は9月18日、政策委員会・金融政策決定会合において、金融市場調節方針を変更することを決定した。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-001-02",
+       "text": "新しい方針では、無担保コールレート（オーバーナイト物）を１．２５％程度で推移するよう促すとされた。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 1.25,
+         "unit": "",
+         "label": "新しい政策金利（無担保コールレート、％）"
+        }
+       ],
+       "source_ref": "SRC-001",
+       "excerpt": "無担保コールレート（オーバーナイト物）を、１．２５％程度で推移するよう促す",
+       "attribution": "出典：日本銀行「金融市場調節方針の変更について」（https://www.boj.or.jp/mopo/mpmdeci/mpr_2026/k260918a.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-001-03",
+       "text": "この方針変更は、賛成7、反対2の賛成多数によって決定された。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 7,
+         "unit": "",
+         "label": "金融市場調節方針の変更に賛成した委員の数"
+        },
+        {
+         "value": 2,
+         "unit": "",
+         "label": "反対した委員の数"
+        }
+       ],
+       "source_ref": "SRC-001",
+       "excerpt": "（賛成７反対２）",
+       "attribution": "出典：日本銀行「金融市場調節方針の変更について」（https://www.boj.or.jp/mopo/mpmdeci/mpr_2026/k260918a.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-001-04",
+       "text": "反対した委員は、現在の物価・経済情勢のもとでは、このタイミングでの金融市場調節方針の変更は適切でないと主張した。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-001-05",
+       "text": "反対した浅田委員は、足もとの消費者物価（除く生鮮食品）の上昇率が２％を下回っている点を反対理由の一つに挙げた。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 2,
+         "unit": "",
+         "label": "浅田委員が反対理由で挙げた消費者物価上昇率の基準（％）"
+        }
+       ],
+       "source_ref": "SRC-001",
+       "excerpt": "足もとの消費者物価（除く生鮮食品）の上昇率が２％を下回るなか",
+       "attribution": "出典：日本銀行「金融市場調節方針の変更について」（https://www.boj.or.jp/mopo/mpmdeci/mpr_2026/k260918a.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-001-06",
+       "text": "無担保コールレートは、金融機関どうしが担保なしで資金をやり取りする際の翌日物の金利で、日本銀行が金融政策運営の目標として用いている指標である。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-001-07",
+       "text": "この金利の水準が変わると、銀行の預金金利や貸出金利、住宅ローンの変動金利など、金融機関が提示するさまざまな金利の基準が影響を受けうる。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-001-08",
+       "text": "日本銀行は同時に、金融機関が日本銀行に預けている当座預金のうち超過準備部分に付く金利（補完当座預金制度の適用利率）も、１．２５％に変更することを決定した。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 1.25,
+         "unit": "",
+         "label": "補完当座預金制度の適用利率（％）"
+        }
+       ],
+       "source_ref": "SRC-001",
+       "excerpt": "補完当座預金制度の適用利率（日本銀行当座預金＜所要準備額相当部分を除く＞への付利金利）については、１．２５％とする",
+       "attribution": "出典：日本銀行「金融市場調節方針の変更について」（https://www.boj.or.jp/mopo/mpmdeci/mpr_2026/k260918a.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-001-09",
+       "text": "金融機関が日本銀行から資金を借り入れる際の基準となる基準貸付利率も、１．５％に変更された。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 1.5,
+         "unit": "",
+         "label": "基準貸付利率（％）"
+        }
+       ],
+       "source_ref": "SRC-001",
+       "excerpt": "補完貸付制度については、その適用金利である基準貸付利率を１．５％とする",
+       "attribution": "出典：日本銀行「金融市場調節方針の変更について」（https://www.boj.or.jp/mopo/mpmdeci/mpr_2026/k260918a.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-001-10",
+       "text": "新しい金融市場調節方針や適用利率は、翌営業日にあたる9月24日から適用される。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 24,
+         "unit": "",
+         "label": "新方針・新利率の適用開始日（9月、日）"
+        }
+       ],
+       "source_ref": "SRC-001",
+       "excerpt": "翌営業日（９月 24 日）から適用する",
+       "attribution": "出典：日本銀行「金融市場調節方針の変更について」（https://www.boj.or.jp/mopo/mpmdeci/mpr_2026/k260918a.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-001-11",
+       "text": "日本銀行は同時に、気候変動対応オペについて、貸付金利を変動金利に変更するほか、貸付総額等に上限を設定することも全員一致で決定した。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-001-12",
+       "text": "景気の現状については、中東情勢の影響もあって一部に弱めの動きもみられるものの、緩やかに回復しているとの判断が示された。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-001-13",
+       "text": "先行きについても、中東情勢の影響が下押し要因となる一方、世界的なAI関連需要の増加や政府の各種施策が経済を下支えするとの見方が示された。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-001-14",
+       "text": "消費者物価の基調的な上昇率は２％に近づいているとの判断が示された。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 2,
+         "unit": "",
+         "label": "日銀が示した基調的な物価上昇率の目安（％）"
+        }
+       ],
+       "source_ref": "SRC-001",
+       "excerpt": "消費者物価の基調的な上昇率は２％に近づいている",
+       "attribution": "出典：日本銀行「金融市場調節方針の変更について」（https://www.boj.or.jp/mopo/mpmdeci/mpr_2026/k260918a.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-001-15",
+       "text": "日本銀行は先行きの金融政策運営について、経済・物価・金融情勢に応じて、引き続き政策金利を引き上げ、金融緩和の度合いを調整していく方針を示した。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-001-16",
+       "text": "政策金利の変更は、住宅ローンを利用する家計や借入を行う企業の金利負担、金融機関の運用利回り、為替相場を通じた輸出入関連企業の採算など、複数の経路を通じて経済の幅広い場面に関わりうる。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-001-17",
+       "text": "どの経路がどの業種にどう及びうるかについては、後の「新しい変化」「波及を追う」「深掘り」の各欄で個別に取り上げる。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-001-18",
+       "text": "日本銀行の政策委員会は、総裁1名、副総裁2名、審議委員6名の合わせて9名で構成されている。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-001-19",
+       "text": "目標とする「２％の物価安定の目標」は、消費者物価の前年比上昇率を２％程度で安定的に推移させることを指す。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-001-20",
+       "text": "日本銀行は、基調的な物価上昇率がこの目標を上振れていくリスクがあるとの判断のもとで、金融緩和の度合いを調整する必要があると説明している。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-001-21",
+       "text": "米国では9月16日に連邦準備制度理事会（FRB）が独自に政策金利の調整を決定しており、主要中央銀行の金融政策の方向性が同時期に相次いで注目されている。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-001-22",
+       "text": "ただし、日米それぞれの金融政策は、各国・地域の物価情勢や経済情勢を踏まえて個別に決定されており、直接連動するものではない。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-001-23",
+       "text": "国内の株式市場や外国為替市場における実際の値動きは、市場が実際に開いている取引日にならないと確認できない。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-001-24",
+       "text": "9月19日から23日にかけては、土曜日・日曜日に加えて敬老の日、国民の休日、秋分の日が続くため、国内の証券取引所は休場となる。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-001-25",
+       "text": "この号でも、後段の各欄で、業種や企業への波及の可能性を、事実と推論を区別しながら取り上げる。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-001-26",
+       "text": "政策金利の変更は、預金や住宅ローンなど、家計にとって身近な金融商品の条件が見直される契機にもなりうる。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-001-27",
+       "text": "企業にとっても、運転資金や設備投資のための借入コストの前提が変わりうるため、資金計画を点検する材料となりうる。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-001-28",
+       "text": "これらの変化が実際にいつ、どの程度反映されるかは、各金融機関の商品設計や契約条件によって異なる。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      }
+     ],
+     "inferences": []
+    }
+   ]
+  },
+  {
+   "section_id": "change",
+   "title": "新しい変化",
+   "articles": [
+    {
+     "article_id": "ART-2026-09-19-002",
+     "event_id": "EVT-2026-09-19-001",
+     "headline": "日銀会合の詳細 ― 賛否の内訳と経済・物価見通し",
+     "lines": [
+      {
+       "line_id": "L-002-01",
+       "text": "日本銀行の金融政策決定会合は、9月17日と18日の2日間にわたって開かれた。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-02",
+       "text": "この決定は9月18日に公表され、同日中に日本銀行のウェブサイトに掲載された。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-03",
+       "text": "金融市場調節方針の変更に反対した2人の委員は、佐藤委員と浅田委員だった。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-04",
+       "text": "浅田委員は、消費者物価の上昇率が２％を下回るなかで経済の状況も必ずしも強いとはいえない点を踏まえ、金融市場調節方針を据え置くことが望ましいと主張した。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-05",
+       "text": "佐藤委員は、経済・物価情勢が現時点でこれまでと比べて大きく加速している状態にあるわけではないとして、このタイミングでの利上げは適切でないと主張した。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-06",
+       "text": "一方、経済・物価の見通し（別紙）の内容に関する議決では、金融市場調節方針の変更に反対した2人とは別の委員が反対した。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-07",
+       "text": "見通しの内容に反対したのは、高田委員と田村委員だった。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-08",
+       "text": "高田委員は、基調的な物価上昇率を含め消費者物価は既に概ね物価安定の目標に達する水準にあるとして反対した。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-09",
+       "text": "田村委員は、基調的な物価上昇率は物価安定の目標と既に概ね整合的な水準で推移しているとして反対した。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-10",
+       "text": "つまり、政策金利の変更そのものに反対した委員と、示された物価見通しの表現に反対した委員は、異なる組み合わせだった。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-11",
+       "text": "別紙で示された見通しでは、消費者物価の基調的な上昇率は、2026年度後半から2027年度にかけて物価安定の目標と概ね整合的な水準になり、その後も同程度で推移すると見込まれるとされた。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 2027,
+         "unit": "",
+         "label": "物価安定の目標と概ね整合的な水準になると日銀が見込む年度"
+        }
+       ],
+       "source_ref": "SRC-001",
+       "excerpt": "2026 年度後半から 2027 年度にかけて「物価安定の目標」と概ね整合的な水準となり",
+       "attribution": "出典：日本銀行「金融市場調節方針の変更について」（https://www.boj.or.jp/mopo/mpmdeci/mpr_2026/k260918a.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-12",
+       "text": "海外経済については、一部に弱めの動きもみられるものの、総じてみれば緩やかに成長しているとされた。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-13",
+       "text": "輸出や鉱工業生産は、世界的なAI関連需要の堅調な増加を背景に、緩やかながらも増加に転じているとされた。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-14",
+       "text": "設備投資は、建設コスト上昇の影響を受けつつも、緩やかな増加傾向にあるとされた。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-15",
+       "text": "個人消費は、家計マインドに弱さがみられるものの、雇用・所得環境の改善を背景に底堅く推移しているとされた。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-16",
+       "text": "一方、住宅投資は減少傾向にあるとされた。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-17",
+       "text": "公共投資は横ばい圏内の動きを続けているとされた。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-18",
+       "text": "労働需給は、引き締まった状態が続いているとされた。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-19",
+       "text": "リスク要因としては、中東情勢が金融・為替市場や日本の経済・物価に及ぼす影響への注視が必要だとされた。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-20",
+       "text": "世界的なAI関連需要の動向や、今後の為替相場の変動が経済・物価に及ぼす影響にも留意が必要だとされた。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-21",
+       "text": "気候変動対応オペについては、貸付金利を固定金利から変動金利に変更するほか、貸付総額等に上限を設定することが全員一致で決定された。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-22",
+       "text": "東日本大震災に関する被災地金融機関支援オペについては、足もとの利用実績等を踏まえ、2027年5月の貸付をもって対象災害から解除するとされた。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 2027,
+         "unit": "",
+         "label": "被災地金融機関支援オペが東日本大震災を対象災害から外す年"
+        }
+       ],
+       "source_ref": "SRC-001",
+       "excerpt": "2027 年５月の貸付をもって同オペの対象災害から解除することとした",
+       "attribution": "出典：日本銀行「金融市場調節方針の変更について」（https://www.boj.or.jp/mopo/mpmdeci/mpr_2026/k260918a.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-23",
+       "text": "被災地金融機関支援オペと共通担保資金供給オペについては、貸付金利の見直しも行うこととされた。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-24",
+       "text": "今回の会合には、日本銀行の政策委員に加えて、財務省や内閣府の担当者も政府代表として出席した。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-25",
+       "text": "9月17日には財務省の中山光輝大臣官房総括審議官と内閣府の堤雅彦政策統括官が、9月18日には財務省の中谷真一財務副大臣と内閣府の城内実経済財政政策担当大臣が、それぞれ出席した。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-26",
+       "text": "会合における「主な意見」は10月1日に、「議事要旨」は11月5日に、それぞれ公表される予定だとされた。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-27",
+       "text": "これらの資料が公表されれば、個々の委員がどのような発言をしたかについて、より詳しい内容が明らかになる可能性がある。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-28",
+       "text": "声明文では、わが国の金融環境は緩和した状態にあるとされた。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-29",
+       "text": "実質金利は、短中期のゾーンを中心になお低い水準にあるとされた。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-30",
+       "text": "企業等の資金需要は増加しており、金融機関の貸出態度も引き続き積極的だとされた。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-31",
+       "text": "コマーシャルペーパー（CP）や社債の市場でも、良好な発行環境が続いているとされた。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-32",
+       "text": "物価面については、消費者物価（除く生鮮食品）の前年比のプラス幅が、このところ緩やかに拡大しているとされた。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-33",
+       "text": "その背景として、企業間取引における価格上昇圧力が消費者段階にも波及し始めていることや、賃金上昇の販売価格への転嫁の動きが続いていることが挙げられた。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-34",
+       "text": "中長期の予想物価上昇率についても、引き続き上昇しているとされた。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-35",
+       "text": "日本銀行は、こうした経済・物価動向やリスク要因、金融環境を踏まえ、２％の物価安定の目標の持続的・安定的な実現という観点から、金融緩和の度合いを調整することが適切だと判断したとしている。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-36",
+       "text": "政策金利の変更後も、緩和的な金融環境自体は維持されるため、引き続き経済活動をしっかりとサポートしていくとの考えも示された。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-37",
+       "text": "「主な意見」は、会合で出された意見を委員名を明かさずにまとめた資料で、「議事要旨」は、会合での議論の経過をより詳しくまとめた資料である。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-38",
+       "text": "いずれも公表までに一定の期間を置くのが通例で、今回の決定の詳しい議論の内容が明らかになるのは、決定発表から2週間から2か月ほど後になる見込みである。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-39",
+       "text": "経済の先行きについては、中東情勢の影響を受けた春先以降の原油価格上昇が下押し要因となるものの、世界的なAI関連需要の増加や政府の各種施策、緩和的な金融環境が経済を下支えするとの見方が示された。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-40",
+       "text": "原油高のマイナスの影響が減衰した後は、所得から支出への前向きな循環メカニズムが徐々に強まり、成長率を緩やかに高めていくと見込まれるとされた。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-41",
+       "text": "消費者物価については、原油価格上昇や半導体価格等の上昇、為替円安が耐久財等の価格上昇につながることから、2026年度後半以降、伸び率を高めていくと予想されるとされた。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-42",
+       "text": "その後、見通し期間の後半には、原油高の影響が減衰していくもとで、物価安定の目標に向けてプラス幅を縮小していくと考えられるとされた。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-43",
+       "text": "人手不足感の強い状況が続くなかで、賃金と物価が相互に参照しながら緩やかに上昇していくメカニズムは維持されるとの見方も示された。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-44",
+       "text": "反対意見は、金融市場調節方針の変更に関するものと、経済・物価見通しの表現に関するものとで、合わせて4人の委員から示された。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-45",
+       "text": "政策委員9人のうち、金融市場調節方針の変更と経済・物価見通しの両方に賛成したのは、植田総裁、氷見野副総裁、内田副総裁、小枝委員、増委員の5人だった。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-46",
+       "text": "今回のように、議案ごとに異なる委員が反対する構図は、日本銀行の会合の公表文でときおり見られる。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-47",
+       "text": "声明文と別紙は、いずれも日本銀行のウェブサイトで全文が公開されている。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-48",
+       "text": "公表される文書には、会合の開催時間や出席者の一覧も記載されている。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-49",
+       "text": "今回の会合には、政策委員9人に加えて財務省と内閣府からそれぞれ担当者が出席したが、両者に議決権はない。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-50",
+       "text": "財務省や内閣府の担当者による会合出席は、金融政策と財政政策の情報交換を目的とした制度で、日本銀行法に基づくものである。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-51",
+       "text": "基調的な物価上昇率については、企業の賃金・価格設定行動の積極化や、中長期的な予想物価上昇率の上昇などを踏まえると、２％の物価安定の目標を超えて上振れていくリスクがあるとされた。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-52",
+       "text": "中心的な見通しに対するリスク要因としては、中東情勢やAI関連需要の拡大、為替相場の変動が日本の経済・物価に及ぼす影響に、引き続き留意が必要だとされた。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-53",
+       "text": "とくに、基調的な物価上昇率が物価安定の目標を超えて上振れていくリスクが顕在化し、それがその後の経済に悪影響を及ぼすことがないよう、物価上昇率を２％程度の水準で安定させていく観点が重要になるとの考えが示された。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-54",
+       "text": "調整のタイミングやペースについては、中東情勢やAI関連需要の拡大、為替相場の変動の影響を含め、経済・物価の中心的な見通しが実現する確度やリスクを点検しながら検討していく方針だとされた。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-55",
+       "text": "このように、今回の公表文からは、日本銀行が物価の上振れリスクを重視しつつ、経済への影響を見極めながら政策運営を進めようとしている姿勢がうかがえる。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-56",
+       "text": "実際にどの業種やどの企業にどのような形で影響が及びうるかについては、次の「波及を追う」欄と「深掘り」欄で、貿易統計などの数字も交えながら具体的に取り上げる。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      }
+     ],
+     "inferences": []
+    }
+   ]
+  },
+  {
+   "section_id": "ripple",
+   "title": "波及を追う",
+   "articles": [
+    {
+     "article_id": "ART-2026-09-19-003",
+     "event_id": "EVT-2026-09-19-002",
+     "headline": "為替・貿易を通じた波及 ― エネルギー高とAI関連需要が業種ごとに与える影響",
+     "lines": [
+      {
+       "line_id": "L-003-01",
+       "text": "日本銀行の政策金利変更は、単一の経路ではなく、複数の経路を通じて企業や家計に波及しうる。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-02",
+       "text": "第一の経路は、金融機関を通じた貸出・預金金利への波及である。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-03",
+       "text": "政策金利が上がると、銀行が企業や家計に貸し出す際の基準となる金利や、預金者に支払う金利の水準が見直される可能性がある。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-04",
+       "text": "変動金利型の住宅ローンを利用する家計では、基準金利の見直しが実際の返済額に反映されるまでに一定の期間を要する仕組みが一般的である。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-05",
+       "text": "第二の経路は、為替相場や輸出入を通じた貿易関連企業への波及である。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-06",
+       "text": "財務省が公表した令和8年8月分貿易統計（速報）によると、8月の輸出額は10,048,375百万円だった。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 10048375,
+         "unit": "",
+         "label": "8月の輸出額（百万円）"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "10,048,375",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-07",
+       "text": "この輸出額は、前年同月比19.3％の増加だった。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 19.3,
+         "unit": "",
+         "label": "8月の輸出額の前年同月比（％）"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "19.3",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-08",
+       "text": "8月の輸入額は11,153,982百万円だった。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 11153982,
+         "unit": "",
+         "label": "8月の輸入額（百万円）"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "11,153,982",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-09",
+       "text": "輸出額と輸入額の差である貿易収支は、8月は輸入超過（赤字）だった。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-10",
+       "text": "8月の貿易収支は1,105,607百万円の輸入超過だった。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 1105607,
+         "unit": "",
+         "label": "8月の貿易収支（百万円、輸入超過額）"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "1,105,607",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-11",
+       "text": "輸入額の増加は、原油や液化天然ガスなど、エネルギー関連品目の価格上昇が押し上げ要因の一つとなっている。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-12",
+       "text": "原油及び粗油の輸入額は、前年同月比58.7％増加した。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 58.7,
+         "unit": "",
+         "label": "原油及び粗油の輸入額の前年同月比（％）"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "58.7",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-13",
+       "text": "液化天然ガスの輸入額は、前年同月比29.7％増加した。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 29.7,
+         "unit": "",
+         "label": "液化天然ガスの輸入額の前年同月比（％）"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "29.7",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-14",
+       "text": "エネルギーの多くを輸入に頼る電力・ガスや運輸などの業種にとって、こうした輸入コストの上昇は費用面での重石になりうる。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-15",
+       "text": "一方、輸出側では、世界的なAI関連需要の拡大を背景に、半導体関連品目の伸びが目立った。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-16",
+       "text": "半導体等製造装置の輸出額は、前年同月比40.1％増加した。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 40.1,
+         "unit": "",
+         "label": "半導体等製造装置の輸出額の前年同月比（％）"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "40.1",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-17",
+       "text": "集積回路（IC）の輸出額は、前年同月比56.9％増加した。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 56.9,
+         "unit": "",
+         "label": "集積回路（IC）の輸出額の前年同月比（％）"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "56.9",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-18",
+       "text": "半導体関連の製造装置や部品を供給する業種にとっては、こうした需要の拡大が追い風となりうる。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-19",
+       "text": "地域別にみると、アジア向け輸出額も増加した。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-20",
+       "text": "アジア向け輸出額は、前年同月比21.4％増加した。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 21.4,
+         "unit": "",
+         "label": "アジア向け輸出額の前年同月比（％）"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "21.4",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-21",
+       "text": "中華人民共和国向け輸出額は、前年同月比20.6％増加した。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 20.6,
+         "unit": "",
+         "label": "中国向け輸出額の前年同月比（％）"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "20.6",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-22",
+       "text": "このように、同じ為替や海外需要の動きでも、エネルギーを輸入に頼る業種と、AI関連需要を輸出で取り込む業種とでは、影響の表れ方が異なりうる。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-23",
+       "text": "第三の経路は、金融機関自身の収益への波及である。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-24",
+       "text": "政策金利の上昇は、銀行が保有する国債など運用資産の利回りや、貸出金利と預金金利の差である利ざやに影響しうる。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-25",
+       "text": "ただし、金融機関の収益がどう変化するかは、資産・負債の構成や運用方針によって異なり、一様ではない。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-26",
+       "text": "第四の経路は、住宅・不動産関連である。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-27",
+       "text": "住宅ローン金利の上昇は、新規の住宅取得や不動産投資の判断に影響しうる一方、既存の借り手への影響は、固定金利か変動金利かによって異なる。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-28",
+       "text": "これらの経路は互いに独立ではなく、為替相場の変動を通じて物価に波及し、それが金融政策の判断に反映されるという形で相互に関連し合っている。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-29",
+       "text": "アメリカ合衆国向け輸出額は、前年同月比24.9％増加した。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 24.9,
+         "unit": "",
+         "label": "米国向け輸出額の前年同月比（％）"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "24.9",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-30",
+       "text": "アメリカ合衆国からの輸入額は、前年同月比55.2％増加した。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 55.2,
+         "unit": "",
+         "label": "米国からの輸入額の前年同月比（％）"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "55.2",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-31",
+       "text": "日本とアメリカ合衆国との間では、輸出よりも輸入の伸びが大きく、原油をはじめとする鉱物性燃料の輸入増加が背景にある。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-32",
+       "text": "地域別の輸出入をみると、増加率の大きさには差がある。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-33",
+       "text": "大韓民国からの輸入額は、前年同月比31.4％増加した。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 31.4,
+         "unit": "",
+         "label": "韓国からの輸入額の前年同月比（％）"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "31.4",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-34",
+       "text": "ASEAN向け輸出額は、前年同月比22.3％増加した。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 22.3,
+         "unit": "",
+         "label": "ASEAN向け輸出額の前年同月比（％）"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "22.3",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-35",
+       "text": "ASEANからの輸入額は、前年同月比26.9％増加した。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 26.9,
+         "unit": "",
+         "label": "ASEANからの輸入額の前年同月比（％）"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "26.9",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-36",
+       "text": "EUからの輸入額は、前年同月比20.4％増加した。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 20.4,
+         "unit": "",
+         "label": "EUからの輸入額の前年同月比（％）"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "20.4",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-37",
+       "text": "一方、中東との貿易は、輸出・輸入ともに前年同月を下回った。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-38",
+       "text": "中東向け輸出額は、前年同月比5.2％減少した。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": -5.2,
+         "unit": "",
+         "label": "中東向け輸出額の前年同月比（％、マイナスは減少）"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "-5.2",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-39",
+       "text": "中東からの輸入額は、前年同月比4.2％減少した。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": -4.2,
+         "unit": "",
+         "label": "中東からの輸入額の前年同月比（％、マイナスは減少）"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "-4.2",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-40",
+       "text": "日本銀行は今回の公表文で中東情勢の影響への注視が必要だと指摘しているが、8月時点の貿易統計では、中東との輸出入額そのものはむしろ前年同月を下回っていた。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-41",
+       "text": "これは、中東情勢の影響が、中東との直接の貿易額よりも、原油価格や為替相場など、より広い経路を通じて表れている可能性を示唆する。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-42",
+       "text": "大洋州との貿易は、輸出・輸入ともに増加した。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-43",
+       "text": "大洋州向け輸出額は、前年同月比3.5％増加した。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 3.5,
+         "unit": "",
+         "label": "大洋州向け輸出額の前年同月比（％）"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "3.5",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-44",
+       "text": "大洋州からの輸入額は、前年同月比18.8％増加した。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 18.8,
+         "unit": "",
+         "label": "大洋州からの輸入額の前年同月比（％）"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "18.8",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-45",
+       "text": "大洋州からの輸入増加も、石炭や天然ガスなど資源関連品目の輸入が背景にあるとみられる。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-46",
+       "text": "以上のように、8月の貿易統計だけをみても、地域や品目によって伸び率にはばらつきがあり、影響の及び方は業種ごとに異なりうる。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-47",
+       "text": "変動金利型の住宅ローンについては、多くの金融機関で、基準金利が変わっても返済額が一定期間据え置かれ、その後見直される仕組みが採用されている。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-48",
+       "text": "この場合、返済額に占める元金と利息の内訳が変わるだけで、返済額自体はしばらく変わらないという商品性もある。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-49",
+       "text": "こうした商品性は金融機関や契約によって異なるため、実際の影響は個々の契約条件を確認する必要がある。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-50",
+       "text": "海外に目を向けると、米国では9月16日に、FRB（米連邦準備制度理事会）が独自に政策金利を調整することを決定している。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-51",
+       "text": "FRBは、翌日物リバースレポ（資金吸収オペ）の実施金利を3.75％とすることを決定した。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 3.75,
+         "unit": "",
+         "label": "FRBの翌日物リバースレポ実施金利（％）"
+        }
+       ],
+       "source_ref": "SRC-002",
+       "excerpt": "Conduct standing overnight reverse repurchase agreement operations at an offering rate of 3.75 percent and with a per-counterparty limit of $160 billion per day.",
+       "attribution": "出典：Board of Governors of the Federal Reserve System「Implementation Note issued September 16, 2026」（https://www.federalreserve.gov/newsevents/pressreleases/monetary20260916a1.htm）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-52",
+       "text": "この決定は、2026年9月17日から適用されるとされた。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-53",
+       "text": "日本銀行とFRBは、それぞれ自国・地域の物価情勢を踏まえて独自に政策を決定しており、両者の決定時期が近いことは、直接の連動を意味するものではない。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-54",
+       "text": "ただし、日米の金利差の変化は円相場の変動要因の一つとして意識されることが多く、その意味で、間接的に日本の貿易関連企業にも関わりうる。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-55",
+       "text": "円相場が変動すれば、輸出企業の円換算での採算や、輸入企業の調達コストが影響を受けうる。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-56",
+       "text": "ただし、為替相場は金利差だけでなく、需給や市場心理など多くの要因で動くため、金利差の変化だけで先行きを見通すことはできない。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-57",
+       "text": "金融機関の中でも、地方銀行や信用金庫など預金と貸出を中心に収益を得る業態は、政策金利の変化の影響を受けやすいとされる。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-58",
+       "text": "一方、生命保険会社など長期の国債を中心に運用する業態では、金利変化の影響が資産価格を通じて現れる場合がある。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-59",
+       "text": "自動車産業は輸出額に占める比率が大きく、為替相場の変動の影響を受けやすい業種の一つとして知られている。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-60",
+       "text": "自動車の輸出額は、前年同月比16.5％増加した。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 16.5,
+         "unit": "",
+         "label": "自動車の輸出額の前年同月比（％）"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "16.5",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-61",
+       "text": "このうち乗用車の輸出額は、前年同月比15.8％増加した。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 15.8,
+         "unit": "",
+         "label": "乗用車の輸出額の前年同月比（％）"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "15.8",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-62",
+       "text": "自動車部品や関連する部素材を供給する業種も、完成車メーカーの生産動向を通じて間接的な影響を受けうる。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-63",
+       "text": "このように、貿易統計は特定の1社ではなく、業種全体としての傾向を確認するための手がかりになる。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-64",
+       "text": "個別の企業にどのような影響が及ぶかは、その企業がどの品目をどの地域と取引しているかによって異なり、この統計だけから断定することはできない。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-65",
+       "text": "金融庁のEDINET（開示システム）で確認したところ、9月19日に提出された法定書類はなかった。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-66",
+       "text": "これは、9月19日が土曜日であり、EDINETへの書類提出が通常想定されていない日であることが主な理由と考えられる。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-67",
+       "text": "このため、今回の号では、EDINETの書類提出をきっかけとする企業名の掲載は行っていない。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-68",
+       "text": "波及の全体像を踏まえたうえで、次の「深掘り」欄では、貿易統計の指数を用いて、輸出入の増加が数量と価格のどちらによってもたらされているかを、より詳しく確認する。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-69",
+       "text": "貿易統計は毎月公表される統計であり、1か月分の数字だけで長期的な傾向を断定することはできない。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-70",
+       "text": "来月以降の統計や、日本銀行の次回会合での判断とあわせて、継続的に確認していく必要がある。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-71",
+       "text": "自身が関心を持つ業種が、輸出入のどちらに、どの地域との取引に依存しているかを把握しておくことは、こうした統計を読み解く手がかりになる。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-72",
+       "text": "以上の4つの経路（貸出・預金金利、為替・貿易、金融機関収益、住宅・不動産）は、いずれも即座に一様な形で表れるものではなく、業種や企業ごとの事情によって現れ方が異なる点に注意が必要である。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      }
+     ],
+     "inferences": [
+      {
+       "inference_id": "INF-2026-09-19-003-1",
+       "text": "エネルギー輸入コストの上昇が続けば、電力・ガスや運輸など、エネルギーを多く使う業種のコスト負担が増す可能性がある。",
+       "falsifier": "原油やLNGの輸入価格・輸入額の伸びが今後低下に転じれば、この見方は成り立たない。",
+       "check_metric": "財務省 貿易統計 9月分のエネルギー関連品目の輸入額",
+       "check_by": "2026-10-16"
+      },
+      {
+       "inference_id": "INF-2026-09-19-003-2",
+       "text": "半導体関連の輸出増加が続けば、AI関連需要向けの製造装置や部品を供給する業種の生産動向にも影響する可能性がある。",
+       "falsifier": "半導体等製造装置や集積回路の輸出額の伸びが今後鈍化すれば、この見方は成り立たない。",
+       "check_metric": "財務省 貿易統計 9月分の半導体等製造装置・集積回路の輸出額",
+       "check_by": "2026-10-16"
+      },
+      {
+       "inference_id": "INF-2026-09-19-003-3",
+       "text": "原油高や為替円安による輸入コストの上昇が続けば、日本銀行が指摘する物価上昇圧力の一因として、次回以降の金融政策判断にも影響しうる。",
+       "falsifier": "原油価格や為替相場が今後落ち着き、輸入額の伸びが鈍化すれば、この見方は成り立たない。",
+       "check_metric": "財務省 貿易統計 9月分の輸入額および鉱物性燃料の輸入額",
+       "check_by": "2026-10-16"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "section_id": "deep",
+   "title": "深掘り",
+   "articles": [
+    {
+     "article_id": "ART-2026-09-19-004",
+     "event_id": "EVT-2026-09-19-002",
+     "headline": "貿易統計にみる物価上昇圧力の構図 ― 数量ではなく価格が押し上げる輸出入",
+     "lines": [
+      {
+       "line_id": "L-004-01",
+       "text": "財務省が公表した令和8年8月分貿易統計（速報）には、輸出入の金額だけでなく、数量の動きと価格の動きを分けて示す貿易指数も含まれている。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-02",
+       "text": "貿易統計における輸出額はFOB価格（本船渡し価格）、輸入額はCIF価格（運賃・保険料を含む価格）で計算されている。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-03",
+       "text": "貿易指数は、金額の伸びを「数量の伸び」と「価格の伸び」に分解して示す統計で、令和2年を100とした水準に加え、前年同月比の伸び率も公表されている。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-04",
+       "text": "金額の伸び率は、数量の伸び率と価格の伸び率をおおむね足し合わせた形になる。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-05",
+       "text": "8月の世界向け輸出（金額）は、前年同月比19.3％増加した。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 19.3,
+         "unit": "",
+         "label": "世界向け輸出額（金額指数）の前年同月比（％）"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "19.3",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-06",
+       "text": "このうち、輸出数量の伸びは2.5％にとどまった。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 2.5,
+         "unit": "",
+         "label": "世界向け輸出数量指数の前年同月比（％）"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "2.5",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-07",
+       "text": "一方、輸出価格の伸びは16.4％だった。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 16.4,
+         "unit": "",
+         "label": "世界向け輸出価格指数の前年同月比（％）"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "16.4",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-08",
+       "text": "つまり、8月の輸出額の増加は、数量の増加よりも価格の上昇によってもたらされた部分が大きかったことになる。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-09",
+       "text": "輸入についても、同様の傾向がみられる。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-10",
+       "text": "世界からの輸入数量の伸びは2.7％にとどまった。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 2.7,
+         "unit": "",
+         "label": "世界からの輸入数量指数の前年同月比（％）"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "2.7",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-11",
+       "text": "輸入価格の伸びは24.7％だった。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 24.7,
+         "unit": "",
+         "label": "世界からの輸入価格指数の前年同月比（％）"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "24.7",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-12",
+       "text": "輸入額全体の増加も、数量の増加よりも価格の上昇による部分が大きかったことになる。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-13",
+       "text": "この輸入価格の上昇には、原油や液化天然ガスなど、エネルギー価格の上昇が大きく関わっているとみられる。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-13b",
+       "text": "世界からの輸入のうち、鉱物性燃料（原油、液化天然ガス、石炭など）の輸入額は、前年同月比38.4％増加した。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 38.4,
+         "unit": "",
+         "label": "鉱物性燃料の輸入額の前年同月比（％）"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "38.4",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-13c",
+       "text": "このうち石炭の輸入額は、前年同月比22.8％増加した。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 22.8,
+         "unit": "",
+         "label": "石炭の輸入額の前年同月比（％）"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "22.8",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-13d",
+       "text": "化学製品の輸入額は、前年同月比28.7％増加した。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 28.7,
+         "unit": "",
+         "label": "化学製品の輸入額の前年同月比（％）"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "28.7",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-13e",
+       "text": "一般機械の輸入額は、前年同月比35.1％増加した。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 35.1,
+         "unit": "",
+         "label": "一般機械の輸入額の前年同月比（％）"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "35.1",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-13f",
+       "text": "電気機器の輸入額は、前年同月比40.8％増加した。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 40.8,
+         "unit": "",
+         "label": "電気機器の輸入額の前年同月比（％）"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "40.8",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-13g",
+       "text": "このうち半導体等電子部品の輸入額は、前年同月比82.1％増加した。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 82.1,
+         "unit": "",
+         "label": "半導体等電子部品の輸入額の前年同月比（％）"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "82.1",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-13h",
+       "text": "半導体等電子部品は、輸出だけでなく輸入も大きく増加しており、AI関連需要の拡大を背景に、日本の関連産業が世界的なサプライチェーンに組み込まれていることがうかがえる。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-14",
+       "text": "この傾向は、日本銀行が公表文で指摘した、原油高や為替円安による物価上昇圧力の説明と方向性が重なる。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-15",
+       "text": "地域別にみると、数量と価格の内訳には差がある。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-16",
+       "text": "米国向け輸出では、数量の伸びが19.7％だった。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 19.7,
+         "unit": "",
+         "label": "米国向け輸出数量指数の前年同月比（％）"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "19.7",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-17",
+       "text": "一方、価格の伸びは4.4％にとどまった。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 4.4,
+         "unit": "",
+         "label": "米国向け輸出価格指数の前年同月比（％）"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "4.4",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-18",
+       "text": "つまり、米国向け輸出については、価格よりも数量の増加が伸びをけん引した形になる。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-19",
+       "text": "米国からの輸入では、数量の伸びが22.9％だった。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 22.9,
+         "unit": "",
+         "label": "米国からの輸入数量指数の前年同月比（％）"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "22.9",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-20",
+       "text": "価格の伸びは26.3％だった。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 26.3,
+         "unit": "",
+         "label": "米国からの輸入価格指数の前年同月比（％）"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "26.3",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-21",
+       "text": "米国からの輸入は数量・価格のいずれも大幅に増加しており、原油をはじめとする鉱物性燃料の輸入増加が背景にあるとみられる。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-22",
+       "text": "EU向け輸出では、数量の伸びはわずかにとどまった一方、価格は大きく上昇した。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-23",
+       "text": "EU向け輸出価格の伸びは8.8％だった。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 8.8,
+         "unit": "",
+         "label": "EU向け輸出価格指数の前年同月比（％）"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "8.8",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-24",
+       "text": "EUからの輸入では、数量が1.9％減少した。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": -1.9,
+         "unit": "",
+         "label": "EUからの輸入数量指数の前年同月比（％、マイナスは減少）"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "-1.9",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-25",
+       "text": "一方、価格は22.7％上昇した。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 22.7,
+         "unit": "",
+         "label": "EUからの輸入価格指数の前年同月比（％）"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "22.7",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-26",
+       "text": "EUからの輸入は、数量が減る一方で価格が大きく上昇しており、価格上昇が輸入額全体を押し上げた形になる。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-27",
+       "text": "アジア向け輸出では、数量の伸びが1.1％だった。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 1.1,
+         "unit": "",
+         "label": "アジア向け輸出数量指数の前年同月比（％）"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "1.1",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-28",
+       "text": "価格の伸びは20.1％だった。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 20.1,
+         "unit": "",
+         "label": "アジア向け輸出価格指数の前年同月比（％）"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "20.1",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-29",
+       "text": "アジアからの輸入では、数量の伸びが2.9％だった。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 2.9,
+         "unit": "",
+         "label": "アジアからの輸入数量指数の前年同月比（％）"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "2.9",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-30",
+       "text": "価格の伸びは25.4％だった。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 25.4,
+         "unit": "",
+         "label": "アジアからの輸入価格指数の前年同月比（％）"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "25.4",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-31",
+       "text": "中華人民共和国についても、同様の内訳を確認できる。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-32",
+       "text": "中国向け輸出では、数量が1.2％減少した。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": -1.2,
+         "unit": "",
+         "label": "中国向け輸出数量指数の前年同月比（％、マイナスは減少）"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "-1.2",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-33",
+       "text": "一方、価格は22.1％上昇した。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 22.1,
+         "unit": "",
+         "label": "中国向け輸出価格指数の前年同月比（％）"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "22.1",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-34",
+       "text": "中国からの輸入では、数量の伸びが2.7％だった。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 2.7,
+         "unit": "",
+         "label": "中国からの輸入数量指数の前年同月比（％）"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "2.7",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-35",
+       "text": "価格の伸びは19.3％だった。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 19.3,
+         "unit": "",
+         "label": "中国からの輸入価格指数の前年同月比（％）"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "19.3",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-36",
+       "text": "このように、多くの地域との貿易で、数量の伸びよりも価格の伸びの方が大きいという共通した傾向がみられる。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-37",
+       "text": "言い換えると、8月の貿易額の増加は、「多く売れた・買った」ことよりも、「同じ量でも高くなった」ことによる部分が大きいと整理できる。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-38",
+       "text": "この点は、日本銀行が物価情勢の判断で示した、原油高や為替円安、AI関連需要拡大による価格上昇圧力という説明とも重なる面がある。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-39",
+       "text": "ただし、品目別にみると、半導体関連のように数量・価格の両面で伸びが大きい分野もあり、一律に価格だけが伸びているとは言い切れない。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-40",
+       "text": "実際、世界向け輸出のうち半導体等製造装置は、数量ベースでも大きな伸びが確認された。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-41",
+       "text": "半導体等製造装置の輸出数量は、前年同月比43.1％増加した。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 43.1,
+         "unit": "",
+         "label": "半導体等製造装置の輸出数量の前年同月比（％）"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "43.1",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-42",
+       "text": "このため、半導体関連の製造装置や部品を供給する業種では、数量面でも実際の生産・出荷の増加を伴っている可能性がある。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-43",
+       "text": "一方で、エネルギーを輸入に頼る業種にとっては、数量が大きく増えていなくても、価格の上昇だけで調達コストが膨らむ可能性がある。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-44",
+       "text": "このように、貿易統計を数量と価格に分けて確認することで、同じ「輸出入額の増加」でも、業種によって実態が異なることが見えてくる。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-45",
+       "text": "財務省の貿易統計は毎月公表されており、今後の数量・価格の内訳の推移を追うことで、物価上昇圧力が品目・地域ごとにどう変化しているかを継続的に確認できる。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-46",
+       "text": "日本銀行の次回以降の金融政策決定会合でも、こうした輸入物価の動向は、判断材料の一つとして扱われるとみられる。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-46b",
+       "text": "ここで改めて、FOB価格とCIF価格の違いを確認しておく。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-46c",
+       "text": "FOB価格は、輸出国の港で本船に積み込むまでの費用を含む価格で、そこから先の運賃や保険料は含まれない。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-46d",
+       "text": "CIF価格は、輸入国の港に到着するまでの運賃や保険料を含む価格で、同じ荷物でもFOB価格より高くなるのが一般的である。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-46e",
+       "text": "このため、輸入額の伸び率には、実際に運ばれた物の量の変化に加えて、運賃や保険料といった費用の変化も反映されうる。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-46f",
+       "text": "貿易指数における「価格」の伸びは、こうした費用の変化に加え、原材料価格や為替相場の変動など、さまざまな要因を反映した結果である。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-46g",
+       "text": "したがって、価格指数の伸びが大きいからといって、その要因を原油価格の上昇だけに帰することはできない。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-46h",
+       "text": "為替相場が円安方向に動けば、外貨建ての価格が変わらない品目でも、円に換算した価格は上昇する。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-46i",
+       "text": "このように、貿易指数の「価格」の動きには、原油などの商品価格そのものの変動と、為替相場の変動という、少なくとも2つの要因が混ざっている。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-46j",
+       "text": "統計上、この2つの要因を厳密に分けることは難しく、貿易統計だけからどちらの影響がどれだけ大きいかを断定することはできない。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-47",
+       "text": "なお、貿易指数は令和2年を基準（100）とした水準でも公表されており、水準そのものの推移を確認することもできる。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-48",
+       "text": "水準でみると、世界向け輸出の金額指数は176.3だった。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 176.3,
+         "unit": "",
+         "label": "世界向け輸出の金額指数（令和2年=100）"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "176.3",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-49",
+       "text": "世界からの輸入の金額指数は196.8だった。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 196.8,
+         "unit": "",
+         "label": "世界からの輸入の金額指数（令和2年=100）"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "196.8",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-50",
+       "text": "貿易指数はあくまで月次の統計であり、月ごとの振れも大きいため、1か月分の数字だけで趨勢を判断することには注意が必要である。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-51",
+       "text": "また、貿易指数は品目や地域を集計した平均的な動きを示すものであり、個別の企業の取引条件や価格改定のタイミングとは必ずしも一致しない。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-52",
+       "text": "このため、貿易統計を用いた分析は、あくまで業種全体としての傾向をつかむための手がかりであり、個別の企業の業績や、その企業の株価の動向を直接示すものではない。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-53",
+       "text": "以上をまとめると、8月の貿易統計からは、輸出入額の増加の多くが数量ではなく価格の上昇によってもたらされていること、その背景にエネルギー価格や為替相場の変動があること、そして半導体関連のように数量面でも伸びを伴う分野が併存していることが読み取れる。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-54",
+       "text": "ここで、貿易収支と国際収支の関係についても整理しておく。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-55",
+       "text": "貿易収支は、財務省が発表する国際収支統計における経常収支を構成する要素の一つである。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-56",
+       "text": "経常収支には、貿易収支のほか、サービス収支や第一次所得収支なども含まれる。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-57",
+       "text": "日本は、原油や液化天然ガスなどのエネルギー資源の多くを海外からの輸入に依存しており、エネルギー価格や為替相場の変動が貿易収支に大きく影響しやすい構造にあるとされる。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-58",
+       "text": "このため、原油価格が上昇する局面では輸入額が増加し、貿易収支が悪化（赤字幅が拡大）しやすい。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-59",
+       "text": "一方、半導体関連など高い付加価値を持つ品目の輸出が増えれば、輸出額の増加を通じて貿易収支の改善要因になりうる。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-60",
+       "text": "8月の統計では、エネルギー価格の上昇による輸入増加の効果が、半導体関連などの輸出増加の効果を上回る形で、貿易収支は赤字となった。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-61",
+       "text": "貿易収支の赤字は、理論的には円を売って外貨を買う需要につながりうるとされるが、実際の為替相場は資本取引などほかの要因からもはるかに大きな影響を受けるため、貿易収支の動きだけで為替相場の先行きを説明することはできない。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-62",
+       "text": "以上を踏まえると、8月の貿易統計が示すのは、特定の業種の先行きに対する結論ではなく、価格変動の影響を受けやすい業種と、数量面での需要拡大を伴う業種とが併存しているという構図である。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-63",
+       "text": "読者にとっては、自身が関心を持つ企業がエネルギーの調達側にあるのか、半導体関連の供給側にあるのかによって、今回の統計の読み方が変わりうる点を意識しておくとよい。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-64",
+       "text": "貿易指数の基準年が令和2年（2020年）に置かれているのは、複数の年にわたる価格・数量の変化を一貫した基準で比較できるようにするためである。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-65",
+       "text": "基準年からの変化率が100を上回っているか下回っているかを見ることで、その年月の水準が基準年と比べてどの程度変化したかを把握できる。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-66",
+       "text": "例えば、世界向け輸出の数量指数は94.5であり、令和2年の水準をなお下回っている。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 94.5,
+         "unit": "",
+         "label": "世界向け輸出の数量指数（令和2年=100）"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "94.5",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-67",
+       "text": "世界からの輸入の数量指数は97.2であり、これも令和2年の水準を下回っている。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 97.2,
+         "unit": "",
+         "label": "世界からの輸入の数量指数（令和2年=100）"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "97.2",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-68",
+       "text": "つまり、輸出入の「量」でみると令和2年と比べてなお下回っている一方、金額は大きく上回っており、この差が主に価格の上昇によって生じていることを裏付けている。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-69",
+       "text": "このような数量指数と価格指数の関係は、日本銀行が金融政策運営で物価情勢を判断する際の、参考情報の一つになりうる。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-70",
+       "text": "次回の日本銀行の金融政策決定会合や、来月以降の貿易統計の公表を通じて、この構図がどう変化していくかを引き続き確認していく必要がある。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      }
+     ],
+     "inferences": [
+      {
+       "inference_id": "INF-2026-09-19-004-1",
+       "text": "輸入価格の伸びが数量の伸びを上回る状態が続けば、エネルギーを多く輸入に頼る業種のコスト増加が、価格転嫁を通じて消費者物価にも波及する可能性がある。",
+       "falsifier": "輸入価格指数の伸びが今後、輸入数量指数の伸びを下回るようになれば、この見方は成り立たない。",
+       "check_metric": "財務省 貿易統計 9月分の輸入数量指数・輸入価格指数",
+       "check_by": "2026-10-16"
+      },
+      {
+       "inference_id": "INF-2026-09-19-004-2",
+       "text": "半導体関連品目で数量・価格の両面の伸びが続けば、AI関連需要の拡大が実際の生産・出荷の増加を伴う形で継続している可能性がある。",
+       "falsifier": "半導体等製造装置の輸出数量の伸びが今後大きく鈍化すれば、この見方は成り立たない。",
+       "check_metric": "財務省 貿易統計 9月分の半導体等製造装置の輸出数量指数",
+       "check_by": "2026-10-16"
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "verification": {
+  "script_version": "2.0.0",
+  "run_at": "2026-09-19T00:46:01.092913+09:00",
+  "lines_total": 242,
+  "passed": 63,
+  "unverified": 0,
+  "reported_unverified": 0,
+  "explainer": 179,
+  "recommendation_stop_hits": 0,
+  "recommendation_stop_removed": 0,
+  "recommendation_warn_hits": 0,
+  "recommendation_warnings": [],
+  "stale_source_hits": 0,
+  "unknown_published_at_hits": 0,
+  "stale_check_skipped": 0,
+  "inference_dropped": 0,
+  "hypothesis_violations": 0,
+  "unverified_reasons": {},
+  "ticker_crosscheck": "applied",
+  "baseline_late": false,
+  "source_usage_invalid_hits": 0
+ }
+}
