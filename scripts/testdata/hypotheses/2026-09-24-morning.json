@@ -1,0 +1,21 @@
+{
+ "edition_id": "2026-09-24-morning",
+ "hypotheses": [
+  {
+   "hypothesis_id": "H-1",
+   "company_name": "テスト商事",
+   "ticker": "9999",
+   "relation_text": "輸出関連の業績に影響しうる",
+   "direction": "plus",
+   "evidence_grade": "primary",
+   "falsifier": "輸出額が翌月大幅に減少した場合",
+   "baseline_date": "2026-09-24",
+   "baseline_price_type": "close",
+   "horizon_business_days": 20,
+   "deadline_date": "2026-10-23",
+   "line_ids": [
+    "L-01"
+   ]
+  }
+ ]
+}

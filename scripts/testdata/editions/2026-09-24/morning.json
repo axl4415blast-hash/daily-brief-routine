@@ -1,0 +1,294 @@
+{
+ "edition_id": "2026-09-24-morning",
+ "date": "2026-09-24",
+ "slot": "morning",
+ "generated_at": "2026-09-24T08:14:32+09:00",
+ "market_open": true,
+ "sources": [
+  {
+   "source_id": "SRC-001",
+   "url": "https://www.customs.go.jp/example",
+   "publisher": "財務省",
+   "publisher_type": "government_statistics",
+   "published_at": "2026-09-17T08:50:00+09:00",
+   "fetched_at": "2026-09-24T07:58:11+09:00",
+   "fetch_method": "webfetch",
+   "content_sha256": "9731f2947da88ba5804beaf628460ad1f3ba203bde3bac063ef85281fa646c3a",
+   "usage": "quotable",
+   "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」"
+  },
+  {
+   "source_id": "SRC-002",
+   "url": "https://example.test/zenkaku",
+   "publisher": "テスト資料",
+   "publisher_type": "government_statistics",
+   "published_at": "2026-09-17T08:50:00+09:00",
+   "fetched_at": "2026-09-24T07:58:11+09:00",
+   "fetch_method": "webfetch",
+   "content_sha256": "6c8d7ae38d097580323a6ffac395678c061bcc2da04dcbf2bd67480a4961b243",
+   "usage": "quotable",
+   "attribution": "出典：テスト資料（全角表記）"
+  },
+  {
+   "source_id": "SRC-003",
+   "url": "https://example.test/badhash",
+   "publisher": "財務省",
+   "publisher_type": "government_statistics",
+   "published_at": "2026-09-17T08:50:00+09:00",
+   "fetched_at": "2026-09-24T07:58:11+09:00",
+   "fetch_method": "webfetch",
+   "content_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "usage": "quotable",
+   "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」"
+  },
+  {
+   "source_id": "SRC-999",
+   "url": "https://example.test/missing",
+   "publisher": "財務省",
+   "publisher_type": "government_statistics",
+   "published_at": "2026-09-17T08:50:00+09:00",
+   "fetched_at": "2026-09-24T07:58:11+09:00",
+   "fetch_method": "webfetch",
+   "content_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+   "usage": "quotable",
+   "attribution": "出典：財務省（キャッシュ無し）"
+  },
+  {
+   "source_id": "SRC-004",
+   "url": "https://example.test/boundary",
+   "publisher": "テスト資料",
+   "publisher_type": "government_statistics",
+   "published_at": "2026-09-17T08:50:00+09:00",
+   "fetched_at": "2026-09-24T07:58:11+09:00",
+   "fetch_method": "webfetch",
+   "content_sha256": "a403029bd845afa0e347f1caa5d5c630254b8ea0cf15f1b545191c03976c611a",
+   "usage": "quotable",
+   "attribution": "出典：テスト資料（境界確認用）"
+  }
+ ],
+ "sections": [
+  {
+   "section_id": "test",
+   "articles": [
+    {
+     "article_id": "ART-TEST-001",
+     "lines": [
+      {
+       "line_id": "L-01",
+       "text": "8月の輸出額は前年同月比で3.2%増えた。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 3.2,
+         "unit": "%",
+         "label": "輸出額の前年同月比"
+        }
+       ],
+       "source_ref": "SRC-001",
+       "excerpt": "輸出額は前年同月比3.2％増の8兆1,200億円となった。",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-02",
+       "text": "8月の輸出額は前年同月比で4.8%増えた。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 4.8,
+         "unit": "%",
+         "label": "輸出額の前年同月比"
+        }
+       ],
+       "source_ref": "SRC-001",
+       "excerpt": "輸出額は前年同月比3.2％増の8兆1,200億円となった。",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」",
+       "mark": "unverified",
+       "mark_reason": "number_not_in_excerpt"
+      },
+      {
+       "line_id": "L-03",
+       "text": "米国向け輸出は大幅に伸びた。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 3.2,
+         "unit": "%",
+         "label": "ダミー"
+        }
+       ],
+       "source_ref": "SRC-001",
+       "excerpt": "米国向け輸出は大幅に伸びた。",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」",
+       "mark": "unverified",
+       "mark_reason": "excerpt_not_found"
+      },
+      {
+       "line_id": "L-04",
+       "text": "8月の輸出額は前年同月比で3.2%増えた。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 3.2,
+         "unit": "%",
+         "label": "輸出額の前年同月比"
+        }
+       ],
+       "source_ref": "SRC-001",
+       "excerpt": "",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」",
+       "mark": "unverified",
+       "mark_reason": "missing_field"
+      },
+      {
+       "line_id": "L-05",
+       "text": "8月の輸出額は前年同月比で3.2%増えた。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 3.2,
+         "unit": "%",
+         "label": "輸出額の前年同月比"
+        }
+       ],
+       "source_ref": "SRC-999",
+       "excerpt": "輸出額は前年同月比3.2％増の8兆1,200億円となった。",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」",
+       "mark": "unverified",
+       "mark_reason": "source_unfetchable"
+      },
+      {
+       "line_id": "L-06",
+       "text": "8月の輸出額は前年同月比で3.2%増えた。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 3.2,
+         "unit": "%",
+         "label": "輸出額の前年同月比"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "輸出額は前年同月比3.2％増の8兆1,200億円となった。",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」",
+       "mark": "unverified",
+       "mark_reason": "hash_mismatch"
+      },
+      {
+       "line_id": "L-07",
+       "text": "輸出額は3.2%増加した(解説)。",
+       "claimed_mark": "explainer",
+       "numbers": [
+        {
+         "value": 3.2,
+         "unit": "%",
+         "label": "輸出額の前年同月比"
+        }
+       ],
+       "mark": "unverified",
+       "mark_reason": "mark_mismatch"
+      },
+      {
+       "line_id": "L-08",
+       "text": "今回の統計は速報値であり、確報値は later 公表される。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-09",
+       "text": "輸出は前年同月比3.2%増だった(全角資料より)。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 3.2,
+         "unit": "%",
+         "label": "輸出額の前年同月比"
+        }
+       ],
+       "source_ref": "SRC-002",
+       "excerpt": "輸出額は前年同月比3.2%増となった。",
+       "attribution": "出典：テスト資料（全角表記）",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-10",
+       "text": "8月の輸出額は8兆1200億円だった。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 1200,
+         "unit": "億円",
+         "label": "輸出額"
+        }
+       ],
+       "source_ref": "SRC-001",
+       "excerpt": "輸出額は前年同月比3.2％増の8兆1,200億円となった。",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-11",
+       "text": "2026年度予算の議論が始まった。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 20,
+         "unit": "",
+         "label": "存在しないはずの数字"
+        }
+       ],
+       "source_ref": "SRC-004",
+       "excerpt": "2026年度の予算について検討した。",
+       "attribution": "出典：テスト資料（境界確認用）",
+       "mark": "unverified",
+       "mark_reason": "number_not_in_excerpt"
+      },
+      {
+       "line_id": "L-12",
+       "text": "日銀が金利を上げる可能性がある。",
+       "claimed_mark": "reported_unverified",
+       "numbers": [],
+       "mark": "reported_unverified",
+       "mark_reason": null
+      }
+     ],
+     "inferences": [
+      {
+       "inference_id": "INF-1",
+       "text": "輸出は今後も増加基調が続く可能性がある",
+       "falsifier": "翌月の輸出額が前年同月比でマイナスに転じた場合",
+       "check_metric": "貿易統計の輸出額前年同月比",
+       "check_by": "2026-10-20"
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "verification": {
+  "script_version": "1.0.0",
+  "run_at": "2026-09-18T13:06:57.168044+09:00",
+  "lines_total": 12,
+  "passed": 3,
+  "unverified": 7,
+  "reported_unverified": 1,
+  "explainer": 1,
+  "recommendation_hits": 0,
+  "stale_source_hits": 0,
+  "inference_dropped": 1,
+  "hypothesis_violations": 1,
+  "unverified_reasons": {
+   "number_not_in_excerpt": 2,
+   "excerpt_not_found": 1,
+   "missing_field": 1,
+   "source_unfetchable": 1,
+   "hash_mismatch": 1,
+   "mark_mismatch": 1
+  }
+ }
+}

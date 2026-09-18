@@ -1,0 +1,26 @@
+{
+ "edition_id": "2026-09-24-evening",
+ "date": "2026-09-24",
+ "slot": "evening",
+ "generated_at": "2026-09-24T17:14:32+09:00",
+ "market_open": true,
+ "sources": [],
+ "sections": [
+  {
+   "section_id": "test",
+   "articles": [
+    {
+     "article_id": "ART-TEST-002",
+     "lines": [
+      {
+       "line_id": "L-NG-01",
+       "text": "この銘柄は買い時だ。",
+       "claimed_mark": "reported_unverified",
+       "numbers": []
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}
