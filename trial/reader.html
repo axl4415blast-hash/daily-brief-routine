@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>情勢デイリー（紙面を読む）</title>
+<style>
+  :root{
+    --bg:#F4F6F8;
+    --fg:#1B2530;
+    --muted:#5B6B7A;
+    --card:#FFFFFF;
+    --border:#D8DEE4;
+    --accent:#2563EB;
+    --accent-fg:#FFFFFF;
+    --warn-bg:#FFF3CD;
+    --warn-fg:#6B4E00;
+    --error-bg:#FBE1DE;
+    --error-fg:#8A241A;
+    --infer-bg:#EEF2FF;
+    --infer-border:#C7D2FE;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#12181F;
+      --fg:#E6ECF1;
+      --muted:#9AA8B4;
+      --card:#1B242D;
+      --border:#2C3945;
+      --accent:#4B8BFF;
+      --accent-fg:#0B1220;
+      --warn-bg:#3A2E00;
+      --warn-fg:#F0D27A;
+      --error-bg:#3A1E1A;
+      --error-fg:#FFB3A6;
+      --infer-bg:#1B2340;
+      --infer-border:#3B4680;
+    }
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--fg);
+    font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;
+    line-height:1.85;
+    overflow-wrap:anywhere;
+  }
+  .wrap{max-width:640px;margin:0 auto;padding:16px 16px 56px;overflow-x:hidden;}
+  h1{font-size:19px;margin:8px 0 12px;}
+  h2{font-size:16px;margin:0 0 10px;}
+  h3.headline{font-size:15px;margin:20px 0 8px;}
+  h4{font-size:13px;margin:0 0 6px;}
+  .error-box{
+    background:var(--error-bg);
+    color:var(--error-fg);
+    border-radius:10px;
+    padding:12px 14px;
+    font-size:14px;
+    margin-bottom:16px;
+  }
+  .error-box[hidden]{display:none;}
+  .error-detail{font-size:12px;margin:4px 0 0;opacity:.85;}
+  .error-text{color:var(--error-fg);font-size:13px;}
+  .delay-banner{
+    background:var(--warn-bg);
+    color:var(--warn-fg);
+    border-radius:10px;
+    padding:10px 12px;
+    font-size:13px;
+    margin-bottom:16px;
+  }
+  .delay-banner[hidden]{display:none;}
+  .delay-banner p{margin:2px 0;}
+
+  nav.selector{margin-bottom:16px;}
+  .date-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:8px;
+    padding:6px 0;
+    border-bottom:1px solid var(--border);
+  }
+  .date-row:first-child{border-top:1px solid var(--border);}
+  .date-label{font-size:13px;color:var(--muted);flex-shrink:0;}
+  .slot-buttons{display:flex;gap:6px;}
+  .slot-btn{
+    font-size:13px;
+    padding:6px 12px;
+    border-radius:8px;
+    border:1px solid var(--accent);
+    background:transparent;
+    color:var(--accent);
+    cursor:pointer;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .slot-btn.selected{
+    background:var(--accent);
+    color:var(--accent-fg);
+    font-weight:700;
+  }
+  .slot-btn.disabled{
+    border-color:var(--border);
+    color:var(--muted);
+    cursor:default;
+    opacity:.6;
+  }
+
+  .info-card{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:14px;
+    margin-bottom:16px;
+  }
+  .info-card h2{margin-bottom:8px;}
+  .meta{font-size:13px;color:var(--muted);margin:4px 0;}
+  .meta.latest{border-top:1px solid var(--border);margin-top:10px;padding-top:10px;}
+  .empty{color:var(--muted);font-size:14px;padding:8px 0;}
+
+  details.explain-block{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:10px 14px;
+    margin-bottom:20px;
+    font-size:13px;
+    color:var(--muted);
+  }
+  details.explain-block summary{cursor:pointer;color:var(--fg);font-size:13px;}
+  details.explain-block p{margin:8px 0 0;}
+
+  .section{margin-bottom:28px;}
+  .section-title{
+    font-size:16px;
+    border-bottom:2px solid var(--border);
+    padding-bottom:6px;
+    margin-bottom:4px;
+  }
+  .article{margin-top:8px;}
+  .line{margin:0 0 14px;}
+  .line-text{font-size:16px;margin:0;}
+  .line-mark{font-size:11px;color:var(--muted);margin:3px 0 0;}
+  .line-attr{font-size:11px;color:var(--muted);margin:2px 0 0;}
+
+  .inferences{
+    background:var(--infer-bg);
+    border:1px solid var(--infer-border);
+    border-radius:10px;
+    padding:12px 14px;
+    margin:12px 0 20px;
+  }
+  .inferences-title{color:var(--fg);}
+  .inference-item{margin-bottom:10px;}
+  .inference-item:last-child{margin-bottom:0;}
+  .inference-text{font-size:14px;margin:0 0 4px;}
+  .inference-meta{font-size:11px;color:var(--muted);margin:2px 0 0;}
+
+  .companies{margin-bottom:28px;}
+  .note{font-size:12px;color:var(--muted);margin:0 0 12px;}
+  .company-card{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:14px;
+    margin-bottom:10px;
+  }
+  .company-name{font-size:16px;font-weight:700;margin:0 0 4px;}
+  .link-line{margin-top:8px;font-size:13px;}
+  .link-line a{color:var(--accent);word-break:break-all;}
+
+  .sources{margin-bottom:16px;}
+  .source-card{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:12px 14px;
+    margin-bottom:8px;
+  }
+  .meta.strong{color:var(--fg);font-weight:600;}
+  .source-attr{font-size:11px;color:var(--muted);margin:4px 0 0;}
+
+  footer{margin-top:32px;}
+  footer .disclaimer{font-size:13px;font-weight:700;text-align:center;margin:0 0 8px;}
+  footer .search-note{font-size:11px;color:var(--muted);text-align:center;margin:0;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>情勢デイリー（紙面を読む）</h1>
+
+  <div id="errorBox" class="error-box" hidden></div>
+  <div id="delayBanner" class="delay-banner" hidden></div>
+
+  <nav id="selector" class="selector"></nav>
+
+  <section id="editionInfo" class="info-card"></section>
+
+  <details class="explain-block">
+    <summary>行の印について</summary>
+    <p>「出典に同じ数字あり」は、その数字が出典に存在することの確認です。文章の解釈が正しいことの確認ではありません。</p>
+    <p>「未検証」は、誤りという意味ではありません。機械での確認ができなかった、という意味です。</p>
+  </details>
+
+  <main id="content"></main>
+
+  <section id="companies" class="companies"></section>
+
+  <section id="sources" class="sources"></section>
+
+  <footer>
+    <p class="disclaimer">このページは投資の推奨ではありません。</p>
+    <p class="search-note">検索避けの設定を入れていますが、これは検索結果に出にくくするだけで、内容を隠す機能ではありません。このページは誰でも見られます。</p>
+  </footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var SLOT_LABEL = { morning: "朝", noon: "昼", evening: "夕" };
+  var SLOT_ORDER = ["morning", "noon", "evening"];
+  var DELAY_THRESHOLD_HOUR = { morning: 9, noon: 14, evening: 18 };
+
+  var MARK_LABELS = {
+    source_number_match: "出典に同じ数字あり",
+    reported_unverified: "報道あり・一次資料未確認",
+    explainer: "解説",
+    unverified: "未検証"
+  };
+
+  var EVIDENCE_GRADE_LABELS = {
+    primary: "この会社名が一次情報に載っている",
+    reported: "報道断片に社名あり",
+    inferred: "AIによる推論"
+  };
+
+  var indexData = null;
+  var currentKey = null;
+
+  // --- 小さなユーティリティ ---
+
+  function el(tag, attrs, children){
+    var node = document.createElement(tag);
+    attrs = attrs || {};
+    Object.keys(attrs).forEach(function(k){
+      if(k === "class") node.className = attrs[k];
+      else if(k === "text") node.textContent = attrs[k];
+      else node.setAttribute(k, attrs[k]);
+    });
+    (children || []).forEach(function(c){ if(c) node.appendChild(c); });
+    return node;
+  }
+
+  function clear(node){ while(node.firstChild) node.removeChild(node.firstChild); }
+
+  function numOr0(v){ return (typeof v === "number") ? v : 0; }
+
+  function pickNum(v, keys){
+    for(var i = 0; i < keys.length; i++){
+      if(v && typeof v[keys[i]] === "number") return v[keys[i]];
+    }
+    return 0;
+  }
+
+  function markLabel(m){ return MARK_LABELS[m] || m || ""; }
+  function evidenceGradeLabel(g){ return EVIDENCE_GRADE_LABELS[g] || g || "不明"; }
+
+  function formatDateLabel(s){
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || "");
+    if(!m) return s || "";
+    return m[1] + "年" + parseInt(m[2], 10) + "月" + parseInt(m[3], 10) + "日";
+  }
+
+  function formatMonthDay(s){
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || "");
+    if(!m) return s || "";
+    return parseInt(m[2], 10) + "月" + parseInt(m[3], 10) + "日";
+  }
+
+  function formatGeneratedAt(iso){
+    if(!iso) return "不明";
+    var m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(iso);
+    if(!m) return iso;
+    return m[1] + "年" + parseInt(m[2], 10) + "月" + parseInt(m[3], 10) + "日 " + parseInt(m[4], 10) + ":" + m[5];
+  }
+
+  function formatPublishedAt(s){
+    if(!s) return "";
+    if(/\+09:00$/.test(s)) return formatGeneratedAt(s);
+    return s;
+  }
+
+  function jstNow(){
+    var dtf = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Tokyo",
+      year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit",
+      hourCycle: "h23"
+    });
+    var parts = dtf.formatToParts(new Date());
+    var o = {};
+    parts.forEach(function(p){ if(p.type !== "literal") o[p.type] = p.value; });
+    return {
+      dateStr: o.year + "-" + o.month + "-" + o.day,
+      hour: parseInt(o.hour, 10)
+    };
+  }
+
+  async function fetchJson(url){
+    var res;
+    try{
+      res = await fetch(url, { cache: "no-store" });
+    }catch(e){
+      throw new Error("ネットワークエラーが発生しました。");
+    }
+    if(!res.ok){
+      throw new Error("HTTPエラー（コード " + res.status + "）");
+    }
+    try{
+      return await res.json();
+    }catch(e){
+      throw new Error("JSONを読み取れませんでした。");
+    }
+  }
+
+  // --- エラー表示 ---
+
+  function showFatalError(path, err){
+    var box = document.getElementById("errorBox");
+    clear(box);
+    box.appendChild(el("p", { text: "読み込めませんでした: " + path }));
+    if(err && err.message) box.appendChild(el("p", { class: "error-detail", text: err.message }));
+    box.hidden = false;
+  }
+
+  function showContentError(path){
+    var info = document.getElementById("editionInfo");
+    clear(info);
+    info.appendChild(el("p", { class: "error-text", text: "読み込めませんでした: " + path }));
+
+    var main = document.getElementById("content");
+    clear(main);
+    main.appendChild(el("p", { class: "error-text", text: "読み込めませんでした: " + path }));
+
+    clear(document.getElementById("sources"));
+  }
+
+  function showCompaniesError(path){
+    var box = document.getElementById("companies");
+    clear(box);
+    box.appendChild(el("h2", { text: "今日のニュースに関係する企業" }));
+    box.appendChild(el("p", { class: "error-text", text: "読み込めませんでした: " + path }));
+  }
+
+  // --- 遅れの表示 ---
+
+  function computeDelayMessages(){
+    if(!indexData || !Array.isArray(indexData.editions)) return [];
+    var now = jstNow();
+    var msgs = [];
+    SLOT_ORDER.forEach(function(slot){
+      var threshold = DELAY_THRESHOLD_HOUR[slot];
+      if(now.hour < threshold) return;
+      var exists = indexData.editions.some(function(e){
+        return e.date === now.dateStr && e.slot === slot;
+      });
+      if(!exists){
+        msgs.push(SLOT_LABEL[slot] + "号は作成されていません");
+      }
+    });
+    return msgs;
+  }
+
+  function renderDelayBanner(){
+    var banner = document.getElementById("delayBanner");
+    clear(banner);
+    var msgs = computeDelayMessages();
+    if(msgs.length === 0){ banner.hidden = true; return; }
+    msgs.forEach(function(m){ banner.appendChild(el("p", { text: m })); });
+    banner.hidden = false;
+  }
+
+  // --- 号の選び方 ---
+
+  function buildDateRows(editions){
+    var order = [];
+    var bySlot = {};
+    editions.forEach(function(e){
+      if(!bySlot[e.date]){
+        bySlot[e.date] = { morning: null, noon: null, evening: null };
+        order.push(e.date);
+      }
+      bySlot[e.date][e.slot] = e;
+    });
+    return order.map(function(date){ return { date: date, slots: bySlot[date] }; });
+  }
+
+  function renderSelector(){
+    var nav = document.getElementById("selector");
+    clear(nav);
+    if(!indexData || !Array.isArray(indexData.editions) || indexData.editions.length === 0){
+      nav.appendChild(el("p", { class: "empty", text: "表示できる号がありません。" }));
+      return;
+    }
+    var rows = buildDateRows(indexData.editions);
+    rows.forEach(function(row){
+      var rowEl = el("div", { class: "date-row" });
+      rowEl.appendChild(el("span", { class: "date-label", text: formatDateLabel(row.date) }));
+      var btnWrap = el("div", { class: "slot-buttons" });
+      SLOT_ORDER.forEach(function(slot){
+        var entry = row.slots[slot];
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.textContent = SLOT_LABEL[slot];
+        if(!entry){
+          btn.className = "slot-btn disabled";
+          btn.disabled = true;
+        }else{
+          var selected = currentKey && currentKey.date === row.date && currentKey.slot === slot;
+          btn.className = "slot-btn" + (selected ? " selected" : "");
+          btn.addEventListener("click", function(){ selectEdition(row.date, slot); });
+        }
+        btnWrap.appendChild(btn);
+      });
+      rowEl.appendChild(btnWrap);
+      nav.appendChild(rowEl);
+    });
+  }
+
+  // --- 号の情報 ---
+
+  function renderEditionInfo(ed){
+    var box = document.getElementById("editionInfo");
+    clear(box);
+    var v = ed.verification || {};
+
+    box.appendChild(el("h2", { text: formatDateLabel(ed.date) + " " + SLOT_LABEL[ed.slot] + "号" }));
+    box.appendChild(el("p", { class: "meta", text: "作成時刻: " + formatGeneratedAt(ed.generated_at) }));
+
+    var marketText = ed.market_open === true ? "市場が開いている日です"
+      : ed.market_open === false ? "市場が開いていない日です"
+      : "市場の開閉は不明です";
+    box.appendChild(el("p", { class: "meta", text: marketText }));
+
+    var linesTotal = pickNum(v, ["lines_total"]);
+    var passed = pickNum(v, ["passed"]);
+    var unverified = pickNum(v, ["unverified"]);
+    var reportedUnverified = pickNum(v, ["reported_unverified"]);
+    var explainer = pickNum(v, ["explainer"]);
+    box.appendChild(el("p", { class: "meta", text:
+      "照合結果: 合格" + passed + "行／未検証" + unverified + "行／報道のみ" + reportedUnverified + "行／解説" + explainer + "行（全" + linesTotal + "行）"
+    }));
+
+    var warnHits = pickNum(v, ["recommendation_warn_hits", "recommendation_watch_hits", "recommendation_hits"]);
+    var stopRemoved = pickNum(v, ["recommendation_stop_removed"]);
+    box.appendChild(el("p", { class: "meta", text:
+      "推奨表現の注意" + warnHits + "件／停止語で削除した行" + stopRemoved + "行"
+    }));
+
+    var latest = (indexData && indexData.editions && indexData.editions[0]) ? indexData.editions[0] : null;
+    box.appendChild(el("p", { class: "meta latest", text:
+      "最終成功日時: " + formatGeneratedAt(latest ? latest.generated_at : null)
+    }));
+  }
+
+  // --- 本文 ---
+
+  function renderLine(line){
+    var wrap = el("div", { class: "line" });
+    wrap.appendChild(el("p", { class: "line-text", text: line.text || "" }));
+
+    var mText = markLabel(line.mark);
+    if(mText){
+      var reason = line.mark_reason ? "（" + line.mark_reason + "）" : "";
+      wrap.appendChild(el("p", { class: "line-mark", text: mText + reason }));
+    }
+
+    if(line.attribution){
+      var attrText = line.attribution + (line.processing_note ? "　" + line.processing_note : "");
+      wrap.appendChild(el("p", { class: "line-attr", text: attrText }));
+    }
+    return wrap;
+  }
+
+  function renderInferences(list){
+    var box = el("div", { class: "inferences" });
+    box.appendChild(el("h4", { class: "inferences-title", text: "AIによる推論" }));
+    list.forEach(function(inf){
+      var item = el("div", { class: "inference-item" });
+      item.appendChild(el("p", { class: "inference-text", text: inf.text || "" }));
+      if(inf.falsifier) item.appendChild(el("p", { class: "inference-meta", text: "成り立たなくなる条件: " + inf.falsifier }));
+      if(inf.check_metric) item.appendChild(el("p", { class: "inference-meta", text: "確認する指標: " + inf.check_metric }));
+      if(inf.check_by) item.appendChild(el("p", { class: "inference-meta", text: "確認予定: " + inf.check_by }));
+      box.appendChild(item);
+    });
+    return box;
+  }
+
+  function renderContent(ed){
+    var main = document.getElementById("content");
+    clear(main);
+    var SECTION_ORDER = ["big", "change", "ripple", "deep"];
+    var bySectionId = {};
+    (ed.sections || []).forEach(function(s){ bySectionId[s.section_id] = s; });
+
+    SECTION_ORDER.forEach(function(sid){
+      var sec = bySectionId[sid];
+      if(!sec) return;
+      var secEl = el("section", { class: "section" });
+      secEl.appendChild(el("h2", { class: "section-title", text: sec.title || sid }));
+      (sec.articles || []).forEach(function(art){
+        var artEl = el("article", { class: "article" });
+        artEl.appendChild(el("h3", { class: "headline", text: art.headline || "" }));
+        (art.lines || []).forEach(function(line){ artEl.appendChild(renderLine(line)); });
+        if(art.inferences && art.inferences.length > 0){
+          artEl.appendChild(renderInferences(art.inferences));
+        }
+        secEl.appendChild(artEl);
+      });
+      main.appendChild(secEl);
+    });
+
+    if(main.children.length === 0){
+      main.appendChild(el("p", { class: "empty", text: "本文がありません。" }));
+    }
+  }
+
+  // --- 企業欄 ---
+
+  function renderHypothesisCard(h){
+    var card = el("div", { class: "company-card" });
+    card.appendChild(el("p", { class: "company-name", text: h.company_name || "" }));
+    if(h.ticker) card.appendChild(el("p", { class: "meta", text: "証券コード: " + h.ticker }));
+    card.appendChild(el("p", { class: "meta", text: "根拠の印: " + evidenceGradeLabel(h.evidence_grade) }));
+    if(h.evidence_doc_type) card.appendChild(el("p", { class: "meta", text: "書類の種類: " + h.evidence_doc_type }));
+    if(h.relation_text) card.appendChild(el("p", { class: "meta", text: "関係: " + h.relation_text }));
+    if(h.falsifier) card.appendChild(el("p", { class: "meta", text: "消える条件: " + h.falsifier }));
+
+    var obsParts = [];
+    if(h.baseline_date){
+      var priceTypeLabel = h.baseline_price_type === "open" ? "始値"
+        : h.baseline_price_type === "close" ? "終値"
+        : (h.baseline_price_type || "");
+      obsParts.push("基準：" + formatMonthDay(h.baseline_date) + "の" + priceTypeLabel);
+    }
+    if(typeof h.horizon_business_days === "number"){
+      obsParts.push(h.horizon_business_days + "営業日後の観察");
+    }
+    if(obsParts.length > 0) card.appendChild(el("p", { class: "meta", text: obsParts.join("／") }));
+
+    if(h.links && h.links.price_history){
+      card.appendChild(el("p", { class: "link-line" }, [
+        el("a", { href: h.links.price_history, target: "_blank", rel: "noopener noreferrer", text: "株価を見る（外部サイト）" })
+      ]));
+    }
+    return card;
+  }
+
+  function renderCompanies(hy, marketOpen){
+    var box = document.getElementById("companies");
+    clear(box);
+    box.appendChild(el("h2", { text: "今日のニュースに関係する企業" }));
+
+    if(marketOpen === false){
+      box.appendChild(el("p", { class: "meta", text: "市場が開いていない日です" }));
+    }
+
+    var list = (hy && Array.isArray(hy.hypotheses)) ? hy.hypotheses : [];
+    if(list.length === 0){
+      box.appendChild(el("p", { class: "empty", text: "今日は該当する企業がありません" }));
+      return;
+    }
+
+    box.appendChild(el("p", { class: "note", text:
+      "この印が示すのは、その会社の名前が一次情報に載っているかどうかだけです。ニュースとその会社の関係の説明は、AIによる推論です。"
+    }));
+
+    list.forEach(function(h){ box.appendChild(renderHypothesisCard(h)); });
+  }
+
+  // --- 出典 ---
+
+  function renderSources(sources){
+    var box = document.getElementById("sources");
+    clear(box);
+    box.appendChild(el("h2", { text: "出典" }));
+    if(!sources || sources.length === 0){
+      box.appendChild(el("p", { class: "empty", text: "出典情報がありません。" }));
+      return;
+    }
+    sources.forEach(function(src){
+      var card = el("div", { class: "source-card" });
+      if(src.publisher) card.appendChild(el("p", { class: "meta strong", text: src.publisher }));
+      if(src.title) card.appendChild(el("p", { class: "meta", text: src.title }));
+      if(src.url){
+        card.appendChild(el("p", { class: "link-line" }, [
+          el("a", { href: src.url, target: "_blank", rel: "noopener noreferrer", text: src.url })
+        ]));
+      }
+      if(src.published_at) card.appendChild(el("p", { class: "meta", text: "公開: " + formatPublishedAt(src.published_at) }));
+      if(src.attribution) card.appendChild(el("p", { class: "source-attr", text: src.attribution }));
+      if(src.processing_note) card.appendChild(el("p", { class: "source-attr", text: src.processing_note }));
+      box.appendChild(card);
+    });
+  }
+
+  // --- 号の切り替え ---
+
+  async function selectEdition(date, slot){
+    currentKey = { date: date, slot: slot };
+    renderSelector();
+
+    var entry = indexData.editions.find(function(e){ return e.date === date && e.slot === slot; });
+    if(!entry) return;
+
+    var info = document.getElementById("editionInfo");
+    clear(info);
+    info.appendChild(el("p", { class: "empty", text: "読み込み中…" }));
+    var main = document.getElementById("content");
+    clear(main);
+    var companies = document.getElementById("companies");
+    clear(companies);
+
+    var edResult = null;
+    var hyResult = null;
+
+    try{
+      edResult = await fetchJson(entry.edition_path + "?t=" + Date.now());
+    }catch(e){
+      showContentError(entry.edition_path);
+    }
+
+    try{
+      hyResult = await fetchJson(entry.hypotheses_path + "?t=" + Date.now());
+    }catch(e){
+      showCompaniesError(entry.hypotheses_path);
+    }
+
+    if(edResult){
+      renderEditionInfo(edResult);
+      renderContent(edResult);
+      renderSources(edResult.sources || []);
+    }
+
+    if(hyResult){
+      var marketOpen = edResult ? edResult.market_open : entry.market_open;
+      renderCompanies(hyResult, marketOpen);
+    }
+  }
+
+  // --- 起動 ---
+
+  async function init(){
+    try{
+      indexData = await fetchJson("editions/index.json?t=" + Date.now());
+    }catch(e){
+      showFatalError("editions/index.json", e);
+      return;
+    }
+
+    renderSelector();
+    renderDelayBanner();
+
+    if(!indexData.editions || indexData.editions.length === 0){
+      document.getElementById("editionInfo").appendChild(el("p", { class: "empty", text: "表示できる号がありません。" }));
+      return;
+    }
+
+    var first = indexData.editions[0];
+    selectEdition(first.date, first.slot);
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,35 @@
+{
+  "generated_at": "2026-09-19T02:08:18.261521+09:00",
+  "editions": [
+    {
+      "date": "2026-09-19",
+      "slot": "evening",
+      "edition_id": "2026-09-19-evening",
+      "generated_at": "2026-09-19T00:45:41+09:00",
+      "market_open": false,
+      "hypotheses_count": 0,
+      "edition_path": "editions/2026-09-19/evening.json",
+      "hypotheses_path": "hypotheses/2026-09-19-evening.json"
+    },
+    {
+      "date": "2026-09-18",
+      "slot": "evening",
+      "edition_id": "2026-09-18-evening",
+      "generated_at": "2026-09-19T00:48:00+09:00",
+      "market_open": true,
+      "hypotheses_count": 3,
+      "edition_path": "editions/2026-09-18/evening.json",
+      "hypotheses_path": "hypotheses/2026-09-18-evening.json"
+    },
+    {
+      "date": "2026-09-18",
+      "slot": "noon",
+      "edition_id": "2026-09-18-noon",
+      "generated_at": "2026-09-18T13:57:07+09:00",
+      "market_open": true,
+      "hypotheses_count": 4,
+      "edition_path": "editions/2026-09-18/noon.json",
+      "hypotheses_path": "hypotheses/2026-09-18-noon.json"
+    }
+  ]
+}
