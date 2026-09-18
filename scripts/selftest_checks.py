@@ -1,21 +1,34 @@
 """verify_edition.py の主要な判定が今まで通り動くことを固定するためのテスト。
 
-新しい検査ルールを追加するものではない。既存の挙動(検査9・検査11・
-停止/注意のキー分割・出典本文の文字コード対応)が壊れていないかを、
-その場で一時ファイルを作って確かめる。テスト中に作った一時ファイル・
-一時フォルダはテストの終わりに消し、リポジトリには残さない。
+既存の挙動(検査9・検査11・停止/注意のキー分割・出典本文の文字コード対応)に加え、
+今回追加した検査12・13・15・16・20についても、正例(反応してほしい例)と
+負例(反応してほしくない例)の両方を確かめる。その場で一時ファイルを作って確かめ、
+テスト中に作った一時ファイル・一時フォルダはテストの終わりに消し、リポジトリには
+残さない。
+
+scripts/testdata は実データのフィクスチャだが、verify_edition.py の main() は
+検査結果を紙面JSON・仮説JSONへ書き戻すため、直接そのパスを指定して実行すると
+scripts/testdata の中身が書き換わってしまう(過去に2回、この事故で「古い行を
+落とす検査」のテストデータ自体から古い行が消えた)。そのため、scripts/testdata を
+使うテスト(test_testdata_copy_integration)は必ず一時フォルダにコピーしてから、
+コピーの方に対して検査を走らせる。それ以外のテストは実データを使わず、その場で
+作った架空の会社名(テスト物産、テスト電機など)によるフィクスチャだけを使う。
 
 使い方:
   python3 scripts/selftest_checks.py
 
 1件でも期待と異なれば、終了コード1で終わる。
 """
+import shutil
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import verify_edition as ve
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
 
 results = []
 
@@ -151,10 +164,11 @@ def test_verify_line_source_unreadable():
         }
         line = {
             "claimed_mark": "source_number_match",
-            "numbers": [],
+            "numbers": [{"value": 1}],
             "source_ref": "SRC-BROKEN",
             "excerpt": "何か",
             "attribution": "出典：テスト",
+            "processing_note": "テスト用の注記",
         }
         mark, reason, _ = ve.verify_line(line, {"SRC-BROKEN": source}, d)
         check("既存関数/出典本文が読めない場合はunverifiedへ格下げ", mark, "unverified")
@@ -256,12 +270,439 @@ def test_stop_and_watch_split():
     check("注意/負例: 除外語(株式会社・売上高)は近接ルールに引っかけない", len(hits), 0)
 
 
+def test_check_minus_direction():
+    """検査12(directionがminusの仮説の3条件)の正例・負例。
+    出典はEDINET風の文書(提出者自身の開示)を想定し、会社名は架空名(テスト物産)。"""
+    with tempfile.TemporaryDirectory() as d:
+        ok_body = "テスト物産株式会社は有価証券報告書を提出した。売上高は前期比で減少した。"
+        write(d, "SRC-OK.txt", ok_body.encode("utf-8"))
+        write(d, "SRC-OTHER.txt", "テスト電機株式会社の開示資料。".encode("utf-8"))
+
+        sources = {
+            "SRC-OK": {"source_id": "SRC-OK", "usage": "quotable"},
+            "SRC-OTHER": {"source_id": "SRC-OTHER", "usage": "quotable"},
+        }
+
+        def base_minus(**overrides):
+            hyp = {
+                "company_name": "テスト物産",
+                "direction": "minus",
+                "evidence_grade": "primary",
+                "evidence_filer_name": "テスト物産",
+                "evidence_excerpt": "売上高は前期比で減少した",
+                "evidence_source_ref": "SRC-OK",
+            }
+            hyp.update(overrides)
+            return hyp
+
+        # --- 正例(反応してほしい: Falseが返り、仮説が削除される) ---
+        check(
+            "検査12/正例: evidence_gradeがprimaryでなければ不合格",
+            ve.check_minus_direction(base_minus(evidence_grade="inferred"), sources, d),
+            False,
+        )
+        check(
+            "検査12/正例: evidence_filer_nameがcompany_nameと一致しなければ不合格",
+            ve.check_minus_direction(base_minus(evidence_filer_name="テスト電機"), sources, d),
+            False,
+        )
+        check(
+            "検査12/正例: evidence_excerptがnullなら不合格",
+            ve.check_minus_direction(base_minus(evidence_excerpt=None), sources, d),
+            False,
+        )
+        check(
+            "検査12/正例: evidence_excerptが出典本文に存在しなければ不合格",
+            ve.check_minus_direction(base_minus(evidence_excerpt="存在しない文言です"), sources, d),
+            False,
+        )
+        check(
+            "検査12/正例: evidence_source_refが別会社の出典を指していれば不合格",
+            ve.check_minus_direction(base_minus(evidence_source_ref="SRC-OTHER"), sources, d),
+            False,
+        )
+
+        # --- 負例(反応してほしくない: Trueが返り、仮説は残る) ---
+        check(
+            "検査12/負例: directionがplusならevidence_excerptがnullでも合格",
+            ve.check_minus_direction(
+                {"company_name": "テスト物産", "direction": "plus", "evidence_grade": "inferred",
+                 "evidence_excerpt": None},
+                sources, d,
+            ),
+            True,
+        )
+        check(
+            "検査12/負例: 3条件をすべて満たすminusの仮説は合格",
+            ve.check_minus_direction(base_minus(), sources, d),
+            True,
+        )
+        check(
+            "検査12/負例: evidence_filer_nameの前後に半角空白が入っているだけなら合格",
+            ve.check_minus_direction(base_minus(evidence_filer_name=" テスト物産 "), sources, d),
+            True,
+        )
+        check(
+            "検査12/負例: evidence_filer_nameの前後に全角空白が入っているだけなら合格",
+            ve.check_minus_direction(base_minus(evidence_filer_name="　テスト物産　"), sources, d),
+            True,
+        )
+        check(
+            "検査12/負例: directionがplusでevidence_gradeがinferredでも合格(minus専用の検査のため)",
+            ve.check_minus_direction(
+                {"company_name": "テスト物産", "direction": "plus", "evidence_grade": "inferred",
+                 "evidence_excerpt": None, "evidence_filer_name": None, "evidence_source_ref": None},
+                sources, d,
+            ),
+            True,
+        )
+
+
+def test_check_ticker_fields():
+    """検査13(ticker/ticker_sourceの確認)の正例・負例。証券コードは実在しない9999/9998。"""
+    edinet_companies = [
+        {"filer_name": "テスト物産", "ticker": "9999"},
+        {"filer_name": "テスト電機", "ticker": "9998"},
+    ]
+
+    def base(**overrides):
+        hyp = {
+            "company_name": "テスト物産",
+            "ticker": "9999",
+            "ticker_source": "edinet",
+        }
+        hyp.update(overrides)
+        return hyp
+
+    # --- 正例(反応してほしい: 理由の文字列が返る=不合格) ---
+    check(
+        "検査13/正例: tickerがnullなら不合格",
+        ve.check_ticker_fields(base(ticker=None), edinet_companies),
+        "ticker_missing",
+    )
+    check(
+        "検査13/正例: tickerが4桁の数字でなければ不合格",
+        ve.check_ticker_fields(base(ticker="99999"), edinet_companies),
+        "ticker_missing",
+    )
+    check(
+        "検査13/正例: ticker_sourceが空なら不合格",
+        ve.check_ticker_fields(base(ticker_source=""), edinet_companies),
+        "ticker_source_missing",
+    )
+    check(
+        "検査13/正例: EDINET一覧のtickerと食い違えば不合格",
+        ve.check_ticker_fields(base(ticker="9998"), edinet_companies),
+        "ticker_mismatch",
+    )
+    check(
+        "検査13/正例: EDINET一覧に会社名が見つからなければ不合格",
+        ve.check_ticker_fields(base(company_name="テスト建設"), edinet_companies),
+        "ticker_mismatch",
+    )
+    check(
+        "検査13/正例: links.price_historyのURLに違う証券コードが入っていれば不合格",
+        ve.check_ticker_fields(
+            base(links={"price_history": "https://example.test/chart/9998"}), edinet_companies
+        ),
+        "ticker_mismatch",
+    )
+
+    # --- 負例(反応してほしくない: Noneが返る=合格) ---
+    check(
+        "検査13/負例: 正しい4桁のtickerでEDINET一覧と一致すれば合格",
+        ve.check_ticker_fields(base(), edinet_companies),
+        None,
+    )
+    check(
+        "検査13/負例: EDINET一覧のファイルが無い場合(None)は条件3を適用せず合格",
+        ve.check_ticker_fields(base(ticker="1234"), None),
+        None,
+    )
+    check(
+        "検査13/負例: 会社名に前後の全角空白が入っているだけなら一覧と一致して合格",
+        ve.check_ticker_fields(base(company_name="　テスト物産　"), edinet_companies),
+        None,
+    )
+    check(
+        "検査13/負例: linksが無くても合格(参照するURLが無い)",
+        ve.check_ticker_fields(base(links=None), edinet_companies),
+        None,
+    )
+    check(
+        "検査13/負例: links.price_historyに証券コードらしき4桁が無ければ比較せず合格",
+        ve.check_ticker_fields(
+            base(links={"price_history": "https://example.test/chart?name=test"}), edinet_companies
+        ),
+        None,
+    )
+
+
+def test_check_numbers_empty():
+    """検査15(claimed_markがsource_number_matchなのにnumbersが空)の正例・負例。"""
+    sources = {}
+
+    # --- 正例(反応してほしい: unverified/numbers_emptyになる) ---
+    line_empty = {"claimed_mark": "source_number_match", "numbers": []}
+    mark, reason, _ = ve.verify_line(line_empty, sources, "/nonexistent")
+    check("検査15/正例: numbersが空配列ならunverifiedになる", mark, "unverified")
+    check("検査15/正例: numbersが空配列なら理由はnumbers_empty", reason, "numbers_empty")
+
+    line_missing = {"claimed_mark": "source_number_match"}
+    mark, reason, _ = ve.verify_line(line_missing, sources, "/nonexistent")
+    check("検査15/正例: numbersキー自体が無くてもnumbers_emptyになる", (mark, reason), ("unverified", "numbers_empty"))
+
+    # --- 負例(反応してほしくない) ---
+    line_explainer = {"claimed_mark": "explainer", "numbers": []}
+    mark, reason, _ = ve.verify_line(line_explainer, sources, "/nonexistent")
+    check("検査15/負例: explainerでnumbersが空でもnumbers_emptyにならない(explainerのまま合格)", mark, "explainer")
+
+    line_reported = {"claimed_mark": "reported_unverified", "numbers": []}
+    mark, reason, _ = ve.verify_line(line_reported, sources, "/nonexistent")
+    check(
+        "検査15/負例: reported_unverifiedでnumbersが空でもnumbers_emptyにならない",
+        mark, "reported_unverified",
+    )
+
+    line_explainer_with_numbers = {"claimed_mark": "explainer", "numbers": [{"value": 1}]}
+    mark, reason, _ = ve.verify_line(line_explainer_with_numbers, sources, "/nonexistent")
+    check(
+        "検査15/負例: explainerなのにnumbersがあるのはmark_mismatchであってnumbers_emptyではない",
+        reason, "mark_mismatch",
+    )
+
+    line_numbers_but_missing_fields = {
+        "claimed_mark": "source_number_match", "numbers": [{"value": 1}],
+    }
+    mark, reason, _ = ve.verify_line(line_numbers_but_missing_fields, sources, "/nonexistent")
+    check(
+        "検査15/負例: numbersはあってもsource_ref等が空ならmissing_fieldであってnumbers_emptyではない",
+        reason, "missing_field",
+    )
+
+    with tempfile.TemporaryDirectory() as d:
+        body = "テスト物産の輸出額は120億円だった。"
+        write(d, "SRC-N.txt", body.encode("utf-8"))
+        import hashlib
+        digest = hashlib.sha256(body.encode("utf-8")).hexdigest()
+        sources_full = {"SRC-N": {"source_id": "SRC-N", "content_sha256": digest, "usage": "quotable"}}
+        line_full = {
+            "claimed_mark": "source_number_match",
+            "numbers": [{"value": 120}],
+            "source_ref": "SRC-N",
+            "excerpt": "輸出額は120億円だった",
+            "attribution": "出典：テスト",
+            "processing_note": "テスト用の注記",
+        }
+        mark, reason, _ = ve.verify_line(line_full, sources_full, d)
+        check(
+            "検査15/負例: numbersが1件以上あり他の条件も満たせばsource_number_matchで合格",
+            (mark, reason), ("source_number_match", None),
+        )
+
+
+def test_check_excerpt_not_allowed():
+    """検査16(quotableでない出典を参照する行にexcerptがある)の正例・負例。"""
+    sources = {
+        "SRC-SNIPPET": {"source_id": "SRC-SNIPPET", "usage": "snippet_only"},
+        "SRC-LINK": {"source_id": "SRC-LINK", "usage": "link_only"},
+        "SRC-QUOTABLE": {"source_id": "SRC-QUOTABLE", "usage": "quotable"},
+        "SRC-NOUSAGE": {"source_id": "SRC-NOUSAGE"},
+    }
+
+    # --- 正例(反応してほしい: excerptがnullに書き換わりunverified/excerpt_not_allowedになる) ---
+    line1 = {
+        "claimed_mark": "reported_unverified", "numbers": [],
+        "source_ref": "SRC-SNIPPET", "excerpt": "何かの抜き出し",
+    }
+    mark, reason, _ = ve.verify_line(line1, sources, "/nonexistent")
+    check("検査16/正例: usageがsnippet_onlyの出典を参照しexcerptがあれば不合格", (mark, reason), ("unverified", "excerpt_not_allowed"))
+    check("検査16/正例: 不合格になった行のexcerptはNoneに書き換わる", line1["excerpt"], None)
+
+    line2 = {
+        "claimed_mark": "source_number_match", "numbers": [{"value": 1}],
+        "source_ref": "SRC-LINK", "excerpt": "何かの抜き出し",
+        "attribution": "出典：テスト", "processing_note": "注記",
+    }
+    mark, reason, _ = ve.verify_line(line2, sources, "/nonexistent")
+    check("検査16/正例: usageがlink_onlyの出典を参照しexcerptがあれば不合格", (mark, reason), ("unverified", "excerpt_not_allowed"))
+
+    # --- 負例(反応してほしくない) ---
+    with tempfile.TemporaryDirectory() as d:
+        body = "テスト物産の売上高は増えた。"
+        write(d, "SRC-QUOTABLE.txt", body.encode("utf-8"))
+        import hashlib
+        digest = hashlib.sha256(body.encode("utf-8")).hexdigest()
+        sources_ok = dict(sources)
+        sources_ok["SRC-QUOTABLE"] = {"source_id": "SRC-QUOTABLE", "usage": "quotable", "content_sha256": digest}
+        line_ok = {
+            "claimed_mark": "reported_unverified", "numbers": [],
+            "source_ref": "SRC-QUOTABLE", "excerpt": "売上高は増えた",
+        }
+        mark, reason, _ = ve.verify_line(line_ok, sources_ok, d)
+        check(
+            "検査16/負例: usageがquotableの出典を参照する行はexcerptがあってもexcerpt_not_allowedにならない",
+            reason != "excerpt_not_allowed", True,
+        )
+
+    line_no_excerpt = {
+        "claimed_mark": "explainer", "numbers": [],
+        "source_ref": "SRC-SNIPPET", "excerpt": None,
+    }
+    mark, reason, _ = ve.verify_line(line_no_excerpt, sources, "/nonexistent")
+    check("検査16/負例: excerptが無ければsnippet_onlyの出典を参照していてもexcerpt_not_allowedにならない", mark, "explainer")
+
+    line_unknown_ref = {
+        "claimed_mark": "reported_unverified", "numbers": [],
+        "source_ref": "SRC-NOT-IN-LIST", "excerpt": "何か",
+    }
+    mark, reason, _ = ve.verify_line(line_unknown_ref, sources, "/nonexistent")
+    check(
+        "検査16/負例: source_refがsources一覧に無い場合はexcerpt_not_allowedにならない(該当する出典が特定できないため)",
+        reason != "excerpt_not_allowed", True,
+    )
+
+    line_nousage = {
+        "claimed_mark": "reported_unverified", "numbers": [],
+        "source_ref": "SRC-NOUSAGE", "excerpt": "何か",
+    }
+    mark, reason, _ = ve.verify_line(line_nousage, sources, "/nonexistent")
+    check(
+        "検査16/負例: usageが記録されていない出典はexcerpt_not_allowedの対象にしない(想定外データは他の検査に委ねる)",
+        reason != "excerpt_not_allowed", True,
+    )
+
+    line_explainer_quotable = {
+        "claimed_mark": "explainer", "numbers": [],
+        "source_ref": "SRC-QUOTABLE", "excerpt": None,
+    }
+    mark, reason, _ = ve.verify_line(line_explainer_quotable, sources, "/nonexistent")
+    check("検査16/負例: excerptがNoneのexplainer行はquotable以外の出典でも合格のまま", mark, "explainer")
+
+
+def test_check_baseline_late():
+    """検査20(号の遅延判定)の正例・負例。"""
+    def edition(slot, generated_at):
+        return {"slot": slot, "generated_at": generated_at}
+
+    # --- 正例(反応してほしい: Trueになる) ---
+    check(
+        "検査20/正例: 朝号(morning)で8:51はbaseline_late",
+        ve.run_check_baseline_late(edition("morning", "2026-09-24T08:51:00+09:00")),
+        True,
+    )
+    check(
+        "検査20/正例: 昼号(noon)で14:51はbaseline_late",
+        ve.run_check_baseline_late(edition("noon", "2026-09-24T14:51:00+09:00")),
+        True,
+    )
+    check(
+        "検査20/正例: +09:00以外の表記でも日本時間に換算して8:51相当ならbaseline_late",
+        ve.run_check_baseline_late(edition("morning", "2026-09-23T23:51:00+00:00")),
+        True,
+    )
+
+    # --- 負例(反応してほしくない: Falseのまま) ---
+    check(
+        "検査20/負例: 朝号(morning)で8:49はbaseline_lateにならない",
+        ve.run_check_baseline_late(edition("morning", "2026-09-24T08:49:00+09:00")),
+        False,
+    )
+    check(
+        "検査20/負例: 昼号(noon)で14:49はbaseline_lateにならない",
+        ve.run_check_baseline_late(edition("noon", "2026-09-24T14:49:00+09:00")),
+        False,
+    )
+    check(
+        "検査20/負例: 夕方号(evening)は17:30でもbaseline_lateにならない(常に判定しない)",
+        ve.run_check_baseline_late(edition("evening", "2026-09-24T17:30:00+09:00")),
+        False,
+    )
+    check(
+        "検査20/負例: +09:00以外の表記で日本時間に換算すると8:30相当ならbaseline_lateにならない",
+        ve.run_check_baseline_late(edition("morning", "2026-09-23T23:30:00+00:00")),
+        False,
+    )
+    check(
+        "検査20/負例: generated_atが読み取れない場合はbaseline_lateにならない",
+        ve.run_check_baseline_late(edition("morning", None)),
+        False,
+    )
+
+
+def test_stop_words_remove_line_not_whole_edition():
+    """検査7(停止語)が号全体ではなく該当行だけを削除することを確かめる。"""
+    edition = {
+        "sections": [
+            {
+                "section_id": "test",
+                "articles": [
+                    {
+                        "article_id": "ART-STOP",
+                        "lines": [
+                            {"line_id": "S-01", "text": "この銘柄は買い時だ。", "claimed_mark": "explainer", "numbers": []},
+                            {"line_id": "S-02", "text": "輸出額は前年同月比で増えた。", "claimed_mark": "explainer", "numbers": []},
+                        ],
+                    }
+                ],
+            }
+        ]
+    }
+    hits = ve.check_c_stop_words(edition, ["買い時"])
+    check("検査7/停止語を含む行は削除される(削除件数1)", len(hits), 1)
+    remaining_ids = [line["line_id"] for line in edition["sections"][0]["articles"][0]["lines"]]
+    check("検査7/停止語を含まない行は残る", remaining_ids, ["S-02"])
+
+
+def test_testdata_copy_integration():
+    """3.3: scripts/testdata を一時フォルダにコピーし、コピーの方に対してCLI全体を
+    走らせることで、本体のscripts/testdataには一切書き込まないことを確かめる。
+    main()は紙面JSON・仮説JSONへ検査結果を書き戻すため、直接scripts/testdataの
+    パスを渡すとリポジトリのフィクスチャが壊れてしまう(過去に2回発生)。"""
+    src_testdata = REPO_ROOT / "scripts" / "testdata"
+    with tempfile.TemporaryDirectory() as d:
+        dst = Path(d) / "testdata"
+        shutil.copytree(src_testdata, dst)
+
+        edition_path = dst / "editions" / "2026-09-24" / "morning.json"
+        hyp_path = dst / "hypotheses" / "2026-09-24-morning.json"
+        cache_dir = dst / "cache"
+        calendar_dir = REPO_ROOT / "calendar"
+
+        result = subprocess.run(
+            [sys.executable, str(REPO_ROOT / "scripts" / "verify_edition.py"),
+             "--edition", str(edition_path), "--hypotheses", str(hyp_path),
+             "--cache", str(cache_dir), "--calendar", str(calendar_dir)],
+            capture_output=True, text=True,
+        )
+        check(
+            "testdata統合/コピーしたtestdataに対してCLI(main)が正常終了する(終了コード0)",
+            result.returncode, 0,
+        )
+
+    status = subprocess.run(
+        ["git", "status", "--porcelain", "--", "scripts/testdata"],
+        cwd=str(REPO_ROOT), capture_output=True, text=True,
+    )
+    check(
+        "testdata統合/scripts/testdata本体はテスト実行後もgit的に変更されていない",
+        status.stdout.strip(), "",
+    )
+
+
 def main():
     test_read_source_text()
     test_check_evidence_source_ref()
     test_verify_line_source_unreadable()
     test_stale_sources()
     test_stop_and_watch_split()
+    test_check_minus_direction()
+    test_check_ticker_fields()
+    test_check_numbers_empty()
+    test_check_excerpt_not_allowed()
+    test_check_baseline_late()
+    test_stop_words_remove_line_not_whole_edition()
+    test_testdata_copy_integration()
 
     total = len(results)
     passed = sum(1 for _, ok, _, _ in results if ok)

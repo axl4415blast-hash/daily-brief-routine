@@ -17,19 +17,27 @@
       "hypothesis_id": "H-1",
       "company_name": "...",
       "ticker": "1234",
+      "ticker_source": "edinet" | "...",
       "relation_text": "...",
       "direction": "plus" | "minus",
       "evidence_grade": "primary" | "reported" | "inferred",
       "evidence_source_ref": "SRC-001" | null,
+      "evidence_filer_name": "..." | null,
+      "evidence_excerpt": "..." | null,
       "falsifier": "...",
       "baseline_date": "2026-09-24",
       "baseline_price_type": "close" | "open" | ...,
       "horizon_business_days": 20,
       "deadline_date": "2026-10-23",
-      "line_ids": ["L-003-02"]
+      "line_ids": ["L-003-02"],
+      "links": {"price_history": "https://..."}
     }
   ]
 }
+
+evidence_filer_name / evidence_excerpt は検査12(directionがminusの仮説の3条件)、
+ticker_source / links.price_history は検査13(証券コードの確認)で使う。どちらも
+今回追加した項目のため、依頼文には例示が無い(本スクリプトが定める形)。
 """
 import argparse
 import datetime as dt
@@ -40,6 +48,8 @@ import sys
 import unicodedata
 from pathlib import Path
 
+import edinet_fetch
+
 KNOWN_CLAIMED_MARKS = {
     "source_number_match",
     "reported_unverified",
@@ -48,10 +58,16 @@ KNOWN_CLAIMED_MARKS = {
 }
 
 REQUIRED_EDITION_KEYS = ["edition_id", "date", "slot", "generated_at", "market_open", "sources", "sections"]
+# "ticker" は以前ここに含まれていたが、検査13(ticker_missing/ticker_source_missing/
+# ticker_mismatch)が4桁形式のチェックまで含めて専用に判定するため、ここからは外した。
 REQUIRED_HYPOTHESIS_FIELDS = [
-    "company_name", "ticker", "relation_text", "falsifier",
+    "company_name", "relation_text", "falsifier",
     "baseline_date", "baseline_price_type", "horizon_business_days",
 ]
+TICKER_RE = re.compile(r"^[0-9]{4}$")
+NON_QUOTABLE_USAGES = {"snippet_only", "link_only"}
+MORNING_DEADLINE = dt.time(8, 50)
+NOON_DEADLINE = dt.time(14, 50)
 
 _WS_RE = re.compile(r"[ \t\r\n　]")
 _COMMA_RE = re.compile(r"(?<=[0-9]),(?=[0-9])")
@@ -74,6 +90,14 @@ def normalize_text(s):
     s = _WS_RE.sub("", s)
     s = _COMMA_RE.sub("", s)
     return s
+
+
+def strip_ws(value):
+    """前後の空白を取り除く。str.strip()は全角空白(U+3000)も空白として扱うため、
+    これだけで前後の全角空白も除去できる。文字列でなければNoneを返す。"""
+    if not isinstance(value, str):
+        return None
+    return value.strip()
 
 
 def format_number(value):
@@ -211,15 +235,27 @@ def iter_lines(edition):
 
 
 def check_c_stop_words(edition, ng_words):
-    """停止側: ng_words.txt に載っている語そのものの検出。1件でもあれば号は保存されない。"""
+    """停止側(検査7): ng_words.txt に載っている語そのものを含む行を、その行だけ
+    紙面から削除する。号全体は保存する(1語のために号全体を捨てない)。
+    削除した行の情報(line_id/word/text)を返す。"""
     hits = []
-    for section, article, line in iter_lines(edition):
-        text = line.get("text", "")
-        if not text:
-            continue
-        for word in ng_words:
-            if word in text:
-                hits.append({"line_id": line.get("line_id"), "word": word, "text": text})
+    for section in edition["sections"]:
+        for article in section.get("articles", []):
+            lines = article.get("lines", [])
+            kept = []
+            for line in lines:
+                text = line.get("text", "")
+                hit_word = None
+                if text:
+                    for word in ng_words:
+                        if word in text:
+                            hit_word = word
+                            break
+                if hit_word:
+                    hits.append({"line_id": line.get("line_id"), "word": hit_word, "text": text})
+                else:
+                    kept.append(line)
+            article["lines"] = kept
     return hits
 
 
@@ -264,12 +300,27 @@ def check_watch_proximity(edition, exclude_words):
 def verify_line(line, sources_by_id, cache_dir):
     claimed = line["claimed_mark"]
     numbers = line.get("numbers", [])
+    source_ref = line.get("source_ref")
+    excerpt = line.get("excerpt")
+
+    # 検査16: 本文を取得していない出典(usageがsnippet_only/link_only)からのexcerptは
+    # 認めない。claimed_markの種類を問わず、行にsource_refとexcerptの両方があれば対象になる。
+    # usageが記録されていない出典(想定外のデータ)はこの検査の対象にしない(検査6など、
+    # 他の既存検査に判定を委ねる)。
+    if source_ref and excerpt:
+        source = sources_by_id.get(source_ref)
+        if source is not None and source.get("usage") in NON_QUOTABLE_USAGES:
+            line["excerpt"] = None
+            return "unverified", "excerpt_not_allowed", None
 
     if claimed == "source_number_match":
-        source_ref = line.get("source_ref")
-        excerpt = line.get("excerpt")
+        # 検査15: numbersが空なら、何も照合せずに合格印が付く抜け道になるため不合格にする。
+        if not numbers:
+            return "unverified", "numbers_empty", None
+
         attribution = line.get("attribution")
-        if not source_ref or not excerpt or not attribution:
+        processing_note = line.get("processing_note")
+        if not source_ref or not excerpt or not attribution or not processing_note:
             return "unverified", "missing_field", None
 
         source = sources_by_id.get(source_ref)
@@ -424,6 +475,22 @@ def run_check_e_stale_sources(edition):
     return stale, unknown_published_at, skipped
 
 
+def run_check_baseline_late(edition):
+    """検査20: 号の遅延判定。generated_atの時刻(日本時間)が、morning号なら8:50、
+    noon号なら14:50を過ぎていたらTrueを返す。evening号は常にFalse(判定しない)。
+    generated_atが読み取れない場合もFalse(この検査では判定できないため)。"""
+    slot = edition.get("slot")
+    if slot not in ("morning", "noon"):
+        return False
+    generated_dt = parse_datetime_assume_jst(edition.get("generated_at"))
+    if generated_dt is None:
+        return False
+    local_time = generated_dt.astimezone(JST).time()
+    if slot == "morning":
+        return local_time > MORNING_DEADLINE
+    return local_time > NOON_DEADLINE
+
+
 def load_business_days(calendar_dir):
     days = []
     for path in sorted(Path(calendar_dir).glob("*.json")):
@@ -481,10 +548,106 @@ def check_evidence_source_ref(hyp, sources_by_id, cache_dir):
     return None
 
 
+def check_minus_direction(hyp, sources_by_id, cache_dir):
+    """検査12: direction が minus の仮説は、次の3条件をすべて満たすときだけ残す。
+      1. evidence_grade が primary
+      2. evidence_filer_name が company_name と(前後の空白を除いて)完全一致する
+      3. evidence_excerpt が evidence_source_ref の出典本文にそのまま存在する
+         (検査1と同じ照合の仕方)
+    direction が plus の仮説はこの検査の対象外(常に合格)。evidence_excerptが
+    nullでも問題ない。"""
+    if hyp.get("direction") != "minus":
+        return True
+
+    if hyp.get("evidence_grade") != "primary":
+        return False
+
+    company_name = strip_ws(hyp.get("company_name"))
+    filer_name = strip_ws(hyp.get("evidence_filer_name"))
+    if not company_name or not filer_name or company_name != filer_name:
+        return False
+
+    excerpt = hyp.get("evidence_excerpt")
+    if not excerpt:
+        return False
+    ref = hyp.get("evidence_source_ref")
+    source = sources_by_id.get(ref) if ref else None
+    if source is None:
+        return False
+    cache_path = Path(cache_dir) / f"{ref}.txt"
+    body_text = read_source_text(cache_path)
+    if body_text is None:
+        return False
+    if normalize_text(excerpt) not in normalize_text(body_text):
+        return False
+
+    return True
+
+
+def load_edinet_companies(cache_dir):
+    """検査13(証券コードの確認)で使う、EDINET書類一覧から作った「会社名→証券コード」の
+    対応を読む。--cache フォルダの中の SRC-EDINET-LIST.json(edinet_fetch.py listが
+    そのまま保存した生データ)を優先し、無ければ .cache/edinet/companies.json
+    (edinet_fetch.py list が同時に作る、company_name/tickerの形に整形済みのファイル)を見る。
+    どちらも見つからなければ None を返す(=検査13の条件3を適用しない)。"""
+    raw_path = Path(cache_dir) / "SRC-EDINET-LIST.json"
+    if raw_path.is_file():
+        try:
+            raw_doc = load_json(raw_path)
+        except (json.JSONDecodeError, OSError):
+            return None
+        companies, _ = edinet_fetch.build_companies(raw_doc)
+        return companies
+
+    companies_path = edinet_fetch.COMPANIES_CACHE_PATH
+    if companies_path.is_file():
+        try:
+            return load_json(companies_path)
+        except (json.JSONDecodeError, OSError):
+            return None
+
+    return None
+
+
+def check_ticker_fields(hyp, edinet_companies):
+    """検査13: ticker/ticker_sourceの確認。次のいずれかに当たったら不合格(None以外を返す)。
+      1. ticker が null・空・4桁の数字以外
+      2. ticker_source が null・空
+      3. EDINET書類一覧が読める場合に、company_name と ticker の組がその一覧に見つからない
+         (links.price_history のURLに含まれる証券コードが ticker と違う場合も含む)
+    EDINET書類一覧が読めない(edinet_companiesがNone)場合、条件3は適用しない。"""
+    ticker = hyp.get("ticker")
+    if not (isinstance(ticker, str) and TICKER_RE.match(ticker)):
+        return "ticker_missing"
+
+    if not hyp.get("ticker_source"):
+        return "ticker_source_missing"
+
+    if edinet_companies is None:
+        return None
+
+    company_name = strip_ws(hyp.get("company_name"))
+    match = None
+    for c in edinet_companies:
+        if strip_ws(c.get("filer_name")) == company_name:
+            match = c
+            break
+    if match is None or match.get("ticker") != ticker:
+        return "ticker_mismatch"
+
+    price_history = (hyp.get("links") or {}).get("price_history")
+    if price_history:
+        codes_in_url = re.findall(r"\d{4}", price_history)
+        if codes_in_url and ticker not in codes_in_url:
+            return "ticker_mismatch"
+
+    return None
+
+
 def run_check_hypothesis_evidence(hyps, sources_by_id, cache_dir):
     """evidence_grade が primary の仮説だけを検査11にかけ、不合格なら inferred へ格下げする。
-    direction が minus の仮説は、この後で走る check_hypothesis の
-    「minus は primary 限定」ルールが自動的に該当仮説を削除する。
+    direction が minus の仮説は、この後で走る検査12(check_minus_direction)が
+    evidence_gradeがprimaryでなくなったことを検知して該当仮説を削除する。
     不合格の原因が出典ファイルの文字コード問題(evidence_source_unreadable)だった件数は、
     それ以外の原因と分けて返す(原因が違うため)。"""
     downgraded = 0
@@ -503,9 +666,13 @@ def run_check_hypothesis_evidence(hyps, sources_by_id, cache_dir):
     return downgraded, unreadable
 
 
-def check_hypothesis(hyp, edition, line_ids, business_days, ng_words):
-    if hyp.get("direction") == "minus" and hyp.get("evidence_grade") != "primary":
-        return "direction_minus_requires_primary"
+def check_hypothesis(hyp, edition, line_ids, business_days, ng_words, sources_by_id, cache_dir, edinet_companies):
+    if not check_minus_direction(hyp, sources_by_id, cache_dir):
+        return "minus_condition_failed"
+
+    ticker_reason = check_ticker_fields(hyp, edinet_companies)
+    if ticker_reason:
+        return ticker_reason
 
     for field in REQUIRED_HYPOTHESIS_FIELDS:
         value = hyp.get(field)
@@ -544,7 +711,7 @@ def check_hypothesis(hyp, edition, line_ids, business_days, ng_words):
     return None
 
 
-def run_hypothesis_checks(hypotheses_doc, edition, business_days, ng_words, cache_dir):
+def run_hypothesis_checks(hypotheses_doc, edition, business_days, ng_words, cache_dir, edinet_companies):
     line_ids = {}
     for section, article, line in iter_lines(edition):
         line_ids[line.get("line_id")] = line.get("mark")
@@ -553,9 +720,16 @@ def run_hypothesis_checks(hypotheses_doc, edition, business_days, ng_words, cach
     reasons = {}
     kept = []
 
-    if not edition.get("market_open", True):
-        for hyp in hyps:
-            reasons["market_closed"] = reasons.get("market_closed", 0) + 1
+    market_open = edition.get("market_open", True)
+    baseline_late = bool(edition.get("baseline_late"))
+    if not market_open or baseline_late:
+        if hyps:
+            # 検査14: market_openがfalse、またはbaseline_lateがtrueなのにhypothesesが
+            # 空でない場合は全件削除する。両方に該当する場合はmarket_closedとして数える。
+            if not market_open:
+                reasons["market_closed"] = reasons.get("market_closed", 0) + len(hyps)
+            else:
+                reasons["baseline_late"] = reasons.get("baseline_late", 0) + len(hyps)
         hypotheses_doc["hypotheses"] = []
         return len(hyps), reasons
 
@@ -567,7 +741,7 @@ def run_hypothesis_checks(hypotheses_doc, edition, business_days, ng_words, cach
         reasons["evidence_source_unreadable"] = evidence_unreadable
 
     for hyp in hyps:
-        reason = check_hypothesis(hyp, edition, line_ids, business_days, ng_words)
+        reason = check_hypothesis(hyp, edition, line_ids, business_days, ng_words, sources_by_id, cache_dir, edinet_companies)
         if reason:
             reasons[reason] = reasons.get(reason, 0) + 1
         else:
@@ -585,7 +759,8 @@ def run_hypothesis_checks(hypotheses_doc, edition, business_days, ng_words, cach
 
 def print_report(edition_path, stats, stop_hits, watch_hits, dropped_inferences, stale_hits,
                   unknown_published_at_hits, stale_skipped,
-                  hypothesis_violations, hypothesis_reasons, number_failure_details, ok):
+                  hypothesis_violations, hypothesis_reasons, number_failure_details, ok,
+                  baseline_late=False, ticker_crosscheck="skipped"):
     print("=" * 60)
     print(f"照合結果: {edition_path}")
     print("=" * 60)
@@ -610,6 +785,8 @@ def print_report(edition_path, stats, stop_hits, watch_hits, dropped_inferences,
             "number_not_in_excerpt": "数字が抜き出した文の中に見つからなかった",
             "mark_mismatch": "数字が入っているのに「解説」として申告されていた",
             "source_unreadable": "出典ファイルが文字コードの問題で読めなかった",
+            "numbers_empty": "数字を1つも書かずに「出典と数字が一致」と申告していた",
+            "excerpt_not_allowed": "本文を取得していない出典(quotable以外)からの抜き出しだった(excerptは削除した)",
         }
         for reason, count in stats["unverified_reasons"].items():
             print(f"  ・{reason_text.get(reason, reason)}: {count}件")
@@ -620,7 +797,11 @@ def print_report(edition_path, stats, stop_hits, watch_hits, dropped_inferences,
             values = ", ".join(str(n.get("value")) for n in detail["missing_numbers"])
             print(f"  ・{detail['line_id']}: {values}")
 
-    print(f"推奨表現(停止)の検出件数: {len(stop_hits)}")
+    print(f"推奨表現(停止)により削除した行数: {len(stop_hits)}")
+    if stop_hits:
+        print("  削除した行(号は保存されています):")
+        for hit in stop_hits:
+            print(f"    ・{hit['line_id']}: 「{hit['word']}」 (本文: {hit['text']})")
     print(f"推奨表現(注意)の検出件数: {len(watch_hits)}")
     if watch_hits:
         print("  注意に挙がった行(号は保存されています):")
@@ -630,11 +811,12 @@ def print_report(edition_path, stats, stop_hits, watch_hits, dropped_inferences,
     print(f"出典の公表時刻が分からず、鮮度を確認できなかったため落とした行の件数: {unknown_published_at_hits}")
     print(f"出典の日時が読み取れず判定できなかった行の件数: {stale_skipped}")
     print(f"必須項目が空で削除した推論の件数: {dropped_inferences}")
+    print(f"号の遅延判定(baseline_late): {baseline_late}")
+    print(f"証券コードの突き合わせ(ticker_crosscheck): {ticker_crosscheck}")
 
     if hypothesis_reasons:
         print(f"仮説に関する指摘件数: {hypothesis_violations}")
         reason_text = {
-            "direction_minus_requires_primary": "下振れ方向なのに根拠の強さが最上位でなかった(削除)",
             "missing_field": "必須項目が空だった(削除)",
             "line_id_not_found": "紙面に存在しない行を参照していた(削除)",
             "primary_requires_verified_line": "根拠が最上位なのに参照行が未確認だった(削除)",
@@ -642,9 +824,14 @@ def print_report(edition_path, stats, stop_hits, watch_hits, dropped_inferences,
             "relation_text_conclusive_word": "断定的な言葉(プラス/マイナス/好材料/悪材料)が入っていた(削除)",
             "relation_text_recommendation": "説明文に推奨表現が入っていた(削除)",
             "market_closed": "市場が休みの号に仮説が入っていた(削除)",
+            "baseline_late": "号が遅延していた(baseline_late)ため仮説が入っていた(削除)",
             "too_many_hypotheses": "仮説が上限(5件)を超えていた(削除)",
             "primary_evidence_unverified": "根拠が最上位(primary)の自己申告なのに、出典本文に会社名を確認できなかった(inferredへ格下げ。方向がminusならこの後さらに削除される)",
             "evidence_source_unreadable": "根拠の出典ファイルが文字コードの問題で読めなかった(inferredへ格下げ)",
+            "minus_condition_failed": "下振れ方向(minus)の3条件(根拠primary・提出者名の一致・抜き出しの実在)のいずれかを満たさなかった(削除)",
+            "ticker_missing": "証券コードが無い、または4桁の数字でなかった(削除)",
+            "ticker_source_missing": "証券コードの出典(ticker_source)が空だった(削除)",
+            "ticker_mismatch": "証券コードがEDINET書類一覧の記録と一致しなかった(削除)",
         }
         for reason, count in hypothesis_reasons.items():
             print(f"  ・{reason_text.get(reason, reason)}: {count}件")
@@ -677,15 +864,8 @@ def main():
         ng_words = load_ng_words(ng_words_path)
         ng_words_exclude = load_ng_words(ng_words_exclude_path)
 
+        # 検査7: 停止語を含む行はその行だけを削除する(号全体は保存する)。
         stop_hits = check_c_stop_words(edition, ng_words)
-        if stop_hits:
-            print("=" * 60)
-            print(f"照合結果: {args.edition}")
-            print("=" * 60)
-            print("→ この号は保存できません。推奨表現が見つかりました。")
-            for hit in stop_hits:
-                print(f"  ・{hit['line_id']}: 「{hit['word']}」 (本文: {hit['text']})")
-            return 1
 
         watch_hits = check_watch_proximity(edition, ng_words_exclude)
 
@@ -693,19 +873,27 @@ def main():
         dropped_inferences = run_check_d_inferences(edition)
         stale_hits, unknown_published_at_hits, stale_skipped = run_check_e_stale_sources(edition)
 
+        # 検査20: 号の遅延判定。市場のtrue/falseとは独立に、生成時刻から判定する。
+        baseline_late = run_check_baseline_late(edition)
+        edition["baseline_late"] = baseline_late
+
+        edinet_companies = load_edinet_companies(args.cache)
+        ticker_crosscheck = "applied" if edinet_companies is not None else "skipped"
+
         hypothesis_violations = 0
         hypothesis_reasons = {}
         hypotheses_doc = None
         if args.hypotheses:
             hypotheses_doc = load_json(args.hypotheses)
+            hypotheses_doc["baseline_late"] = baseline_late
             business_days = load_business_days(args.calendar)
             hypothesis_violations, hypothesis_reasons = run_hypothesis_checks(
-                hypotheses_doc, edition, business_days, ng_words, args.cache
+                hypotheses_doc, edition, business_days, ng_words, args.cache, edinet_companies
             )
 
         run_at = dt.datetime.now(dt.timezone(dt.timedelta(hours=9))).isoformat()
         edition["verification"] = {
-            "script_version": "1.1.0",
+            "script_version": "2.0.0",
             "run_at": run_at,
             "lines_total": stats["lines_total"],
             "passed": stats["passed"],
@@ -713,6 +901,7 @@ def main():
             "reported_unverified": stats["reported_unverified"],
             "explainer": stats["explainer"],
             "recommendation_stop_hits": len(stop_hits),
+            "recommendation_stop_removed": len(stop_hits),
             "recommendation_warn_hits": len(watch_hits),
             "recommendation_warnings": [
                 {"line_id": hit["line_id"], "word": hit["word"]} for hit in watch_hits
@@ -723,6 +912,8 @@ def main():
             "inference_dropped": dropped_inferences,
             "hypothesis_violations": hypothesis_violations,
             "unverified_reasons": stats["unverified_reasons"],
+            "ticker_crosscheck": ticker_crosscheck,
+            "baseline_late": baseline_late,
         }
 
         with open(edition_path, "w", encoding="utf-8") as f:
@@ -736,6 +927,7 @@ def main():
             args.edition, stats, stop_hits, watch_hits, dropped_inferences, stale_hits,
             unknown_published_at_hits, stale_skipped,
             hypothesis_violations, hypothesis_reasons, number_failure_details, ok=True,
+            baseline_late=baseline_late, ticker_crosscheck=ticker_crosscheck,
         )
         return 0
 
