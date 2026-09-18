@@ -119,6 +119,37 @@ def load_json(path):
         return json.load(f)
 
 
+SOURCE_TEXT_ENCODINGS = ("utf-8-sig", "utf-16", "cp932")
+_UTF16_BOMS = (b"\xff\xfe", b"\xfe\xff")
+
+
+def read_source_text(path):
+    """出典本文ファイルを候補の文字コードで順に読む。
+
+    EDINET(金融庁の開示システム)の書類取得APIはUTF-16LEでCSVを返すなど、
+    出典の文字コードはUTF-8とは限らない。utf-8-sig→utf-16→cp932の順に
+    デコードを試し、すべて失敗したら例外を投げずNoneを返す。読めない文字を
+    無理に読み進める(errors="replace"など)ことはしない。
+
+    utf-16はBOM(先頭の目印)が付いている場合に限って試す。BOMが無いのに
+    utf-16として読もうとすると、Pythonは並び順を機種依存の既定値で
+    決め打ちしてしまい、実際はcp932の文書を「化けた文字列」として
+    エラーも出さずに読めてしまうことがある(誤判定に気づけない)ため。
+    """
+    try:
+        raw_bytes = Path(path).read_bytes()
+    except OSError:
+        return None
+    for encoding in SOURCE_TEXT_ENCODINGS:
+        if encoding == "utf-16" and raw_bytes[:2] not in _UTF16_BOMS:
+            continue
+        try:
+            return raw_bytes.decode(encoding)
+        except (UnicodeDecodeError, LookupError):
+            continue
+    return None
+
+
 def load_ng_words(path):
     words = []
     with open(path, "r", encoding="utf-8") as f:
@@ -254,7 +285,9 @@ def verify_line(line, sources_by_id, cache_dir):
         if actual_hash != expected_hash:
             return "unverified", "hash_mismatch", None
 
-        body_text = raw_bytes.decode("utf-8")
+        body_text = read_source_text(cache_path)
+        if body_text is None:
+            return "unverified", "source_unreadable", None
         body_norm = normalize_text(body_text)
         excerpt_norm = normalize_text(excerpt)
         if excerpt_norm not in body_norm:
@@ -353,13 +386,14 @@ def parse_datetime_assume_jst(s):
 
 def run_check_e_stale_sources(edition):
     """検査9: change欄(新しい変化)の行について、出典の公表時刻が36時間以上前でないかを確かめる。
-    出典のpublished_atがnull(読み取れない)場合は、36時間ルールの判定ができないため、
-    change欄の行に限り安全側に倒して行そのものを落とす。change以外の欄(big/ripple/deep)は
-    36時間ルールの対象外なので、published_atがnullでも行を落とさない。"""
+    36時間以上前と分かった行、公表時刻が読み取れなかった(null)行は、どちらも安全側に倒して
+    行そのものを落とす。原因が違うため件数は別々に数える(stale_source_hits / unknown_published_at_hits)。
+    change以外の欄(big/ripple/deep)は36時間ルールの対象外なので、対象にしない。"""
     sources_by_id = {s.get("source_id"): s for s in edition.get("sources", [])}
     generated_dt = parse_datetime_assume_jst(edition.get("generated_at"))
 
     stale = 0
+    unknown_published_at = 0
     skipped = 0
     for section in edition["sections"]:
         for article in section.get("articles", []):
@@ -375,7 +409,7 @@ def run_check_e_stale_sources(edition):
                     continue
                 published_dt = parse_datetime_assume_jst(source.get("published_at"))
                 if published_dt is None:
-                    stale += 1
+                    unknown_published_at += 1
                     continue
                 if generated_dt is None:
                     skipped += 1
@@ -384,9 +418,10 @@ def run_check_e_stale_sources(edition):
                 delta_hours = (generated_dt - published_dt).total_seconds() / 3600
                 if delta_hours >= 36:
                     stale += 1
+                    continue
                 kept_lines.append(line)
             article["lines"] = kept_lines
-    return stale, skipped
+    return stale, unknown_published_at, skipped
 
 
 def load_business_days(calendar_dir):
@@ -435,10 +470,9 @@ def check_evidence_source_ref(hyp, sources_by_id, cache_dir):
     if not cache_path.is_file():
         return "evidence_source_not_found"
 
-    try:
-        body_text = cache_path.read_text(encoding="utf-8")
-    except OSError:
-        return "evidence_source_not_found"
+    body_text = read_source_text(cache_path)
+    if body_text is None:
+        return "evidence_source_unreadable"
 
     company_name = hyp.get("company_name")
     if not company_name or company_name not in body_text:
@@ -450,15 +484,23 @@ def check_evidence_source_ref(hyp, sources_by_id, cache_dir):
 def run_check_hypothesis_evidence(hyps, sources_by_id, cache_dir):
     """evidence_grade が primary の仮説だけを検査11にかけ、不合格なら inferred へ格下げする。
     direction が minus の仮説は、この後で走る check_hypothesis の
-    「minus は primary 限定」ルールが自動的に該当仮説を削除する。"""
+    「minus は primary 限定」ルールが自動的に該当仮説を削除する。
+    不合格の原因が出典ファイルの文字コード問題(evidence_source_unreadable)だった件数は、
+    それ以外の原因と分けて返す(原因が違うため)。"""
     downgraded = 0
+    unreadable = 0
     for hyp in hyps:
         if hyp.get("evidence_grade") != "primary":
             continue
-        if check_evidence_source_ref(hyp, sources_by_id, cache_dir):
-            hyp["evidence_grade"] = "inferred"
+        reason = check_evidence_source_ref(hyp, sources_by_id, cache_dir)
+        if not reason:
+            continue
+        hyp["evidence_grade"] = "inferred"
+        if reason == "evidence_source_unreadable":
+            unreadable += 1
+        else:
             downgraded += 1
-    return downgraded
+    return downgraded, unreadable
 
 
 def check_hypothesis(hyp, edition, line_ids, business_days, ng_words):
@@ -518,9 +560,11 @@ def run_hypothesis_checks(hypotheses_doc, edition, business_days, ng_words, cach
         return len(hyps), reasons
 
     sources_by_id = {s.get("source_id"): s for s in edition.get("sources", [])}
-    evidence_downgrades = run_check_hypothesis_evidence(hyps, sources_by_id, cache_dir)
+    evidence_downgrades, evidence_unreadable = run_check_hypothesis_evidence(hyps, sources_by_id, cache_dir)
     if evidence_downgrades:
         reasons["primary_evidence_unverified"] = evidence_downgrades
+    if evidence_unreadable:
+        reasons["evidence_source_unreadable"] = evidence_unreadable
 
     for hyp in hyps:
         reason = check_hypothesis(hyp, edition, line_ids, business_days, ng_words)
@@ -539,7 +583,8 @@ def run_hypothesis_checks(hypotheses_doc, edition, business_days, ng_words, cach
     return total_violations, reasons
 
 
-def print_report(edition_path, stats, stop_hits, watch_hits, dropped_inferences, stale_hits, stale_skipped,
+def print_report(edition_path, stats, stop_hits, watch_hits, dropped_inferences, stale_hits,
+                  unknown_published_at_hits, stale_skipped,
                   hypothesis_violations, hypothesis_reasons, number_failure_details, ok):
     print("=" * 60)
     print(f"照合結果: {edition_path}")
@@ -564,6 +609,7 @@ def print_report(edition_path, stats, stop_hits, watch_hits, dropped_inferences,
             "excerpt_not_found": "抜き出した文が出典の本文の中に見つからなかった",
             "number_not_in_excerpt": "数字が抜き出した文の中に見つからなかった",
             "mark_mismatch": "数字が入っているのに「解説」として申告されていた",
+            "source_unreadable": "出典ファイルが文字コードの問題で読めなかった",
         }
         for reason, count in stats["unverified_reasons"].items():
             print(f"  ・{reason_text.get(reason, reason)}: {count}件")
@@ -581,6 +627,7 @@ def print_report(edition_path, stats, stop_hits, watch_hits, dropped_inferences,
         for hit in watch_hits:
             print(f"    ・{hit['line_id']}: 「{hit['word']}」 (本文: {hit['text']})")
     print(f"出典が古い(36時間以上前)行の件数: {stale_hits}")
+    print(f"出典の公表時刻が分からず、鮮度を確認できなかったため落とした行の件数: {unknown_published_at_hits}")
     print(f"出典の日時が読み取れず判定できなかった行の件数: {stale_skipped}")
     print(f"必須項目が空で削除した推論の件数: {dropped_inferences}")
 
@@ -597,6 +644,7 @@ def print_report(edition_path, stats, stop_hits, watch_hits, dropped_inferences,
             "market_closed": "市場が休みの号に仮説が入っていた(削除)",
             "too_many_hypotheses": "仮説が上限(5件)を超えていた(削除)",
             "primary_evidence_unverified": "根拠が最上位(primary)の自己申告なのに、出典本文に会社名を確認できなかった(inferredへ格下げ。方向がminusならこの後さらに削除される)",
+            "evidence_source_unreadable": "根拠の出典ファイルが文字コードの問題で読めなかった(inferredへ格下げ)",
         }
         for reason, count in hypothesis_reasons.items():
             print(f"  ・{reason_text.get(reason, reason)}: {count}件")
@@ -643,7 +691,7 @@ def main():
 
         stats, number_failure_details = run_line_verification(edition, args.cache)
         dropped_inferences = run_check_d_inferences(edition)
-        stale_hits, stale_skipped = run_check_e_stale_sources(edition)
+        stale_hits, unknown_published_at_hits, stale_skipped = run_check_e_stale_sources(edition)
 
         hypothesis_violations = 0
         hypothesis_reasons = {}
@@ -670,6 +718,7 @@ def main():
                 {"line_id": hit["line_id"], "word": hit["word"]} for hit in watch_hits
             ],
             "stale_source_hits": stale_hits,
+            "unknown_published_at_hits": unknown_published_at_hits,
             "stale_check_skipped": stale_skipped,
             "inference_dropped": dropped_inferences,
             "hypothesis_violations": hypothesis_violations,
@@ -684,7 +733,8 @@ def main():
                 json.dump(hypotheses_doc, f, ensure_ascii=False, indent=1)
 
         print_report(
-            args.edition, stats, stop_hits, watch_hits, dropped_inferences, stale_hits, stale_skipped,
+            args.edition, stats, stop_hits, watch_hits, dropped_inferences, stale_hits,
+            unknown_published_at_hits, stale_skipped,
             hypothesis_violations, hypothesis_reasons, number_failure_details, ok=True,
         )
         return 0

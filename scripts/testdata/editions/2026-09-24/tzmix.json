@@ -24,24 +24,14 @@
    "articles": [
     {
      "article_id": "ART-TEST-004",
-     "lines": [
-      {
-       "line_id": "TZ-01",
-       "text": "テスト用の古い出典本文。",
-       "claimed_mark": "reported_unverified",
-       "numbers": [],
-       "source_ref": "SRC-101",
-       "mark": "reported_unverified",
-       "mark_reason": null
-      }
-     ]
+     "lines": []
     }
    ]
   }
  ],
  "verification": {
   "script_version": "1.1.0",
-  "run_at": "2026-09-18T16:07:59.365386+09:00",
+  "run_at": "2026-09-18T16:30:04.421338+09:00",
   "lines_total": 1,
   "passed": 0,
   "unverified": 0,
@@ -51,6 +41,7 @@
   "recommendation_warn_hits": 0,
   "recommendation_warnings": [],
   "stale_source_hits": 1,
+  "unknown_published_at_hits": 0,
   "stale_check_skipped": 0,
   "inference_dropped": 0,
   "hypothesis_violations": 0,

@@ -79,15 +79,15 @@
   },
   {
    "source_id": "SRC-006",
-   "url": "https://example.test/primary-example",
-   "publisher": "テスト物産",
-   "publisher_type": "company_ir",
-   "published_at": "2026-09-17T08:50:00+09:00",
+   "url": "https://disclosure.edinet-fsa.go.jp/api/v2/documents.json?type=2&date=2026-09-17",
+   "publisher": "金融庁",
+   "publisher_type": "company_disclosure",
+   "published_at": "2026-09-17T17:00:00+09:00",
    "fetched_at": "2026-09-24T07:58:11+09:00",
    "fetch_method": "webfetch",
-   "content_sha256": "877e0ea744a834087a4bb4cd788439300b186d474c582043b5431b8031d05dae",
+   "content_sha256": "4ba67aed994f9b3d7c11edef7ac7b1009960f7a0196d4189b0107ef8a10f1e8b",
    "usage": "quotable",
-   "attribution": "出典：テスト物産IR資料"
+   "attribution": "出典：金融庁 EDINET"
   }
  ],
  "sections": [
@@ -321,7 +321,7 @@
  ],
  "verification": {
   "script_version": "1.1.0",
-  "run_at": "2026-09-18T16:07:59.331813+09:00",
+  "run_at": "2026-09-18T16:33:17.763066+09:00",
   "lines_total": 14,
   "passed": 3,
   "unverified": 9,
@@ -331,9 +331,10 @@
   "recommendation_warn_hits": 0,
   "recommendation_warnings": [],
   "stale_source_hits": 0,
+  "unknown_published_at_hits": 0,
   "stale_check_skipped": 0,
   "inference_dropped": 0,
-  "hypothesis_violations": 0,
+  "hypothesis_violations": 3,
   "unverified_reasons": {
    "number_not_in_excerpt": 2,
    "excerpt_not_found": 1,

@@ -59,7 +59,7 @@
  ],
  "verification": {
   "script_version": "1.1.0",
-  "run_at": "2026-09-18T16:07:59.399299+09:00",
+  "run_at": "2026-09-18T16:30:04.460030+09:00",
   "lines_total": 5,
   "passed": 0,
   "unverified": 0,
@@ -74,6 +74,7 @@
    }
   ],
   "stale_source_hits": 0,
+  "unknown_published_at_hits": 0,
   "stale_check_skipped": 0,
   "inference_dropped": 0,
   "hypothesis_violations": 0,

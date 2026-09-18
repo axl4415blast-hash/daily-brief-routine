@@ -34,6 +34,23 @@
    "line_ids": [
     "L-01"
    ]
+  },
+  {
+   "hypothesis_id": "H-3",
+   "company_name": "テスト建設",
+   "ticker": "7010",
+   "relation_text": "海外の建設需要の動向に影響しうる",
+   "direction": "plus",
+   "evidence_grade": "inferred",
+   "evidence_source_ref": "SRC-001",
+   "falsifier": "受注動向が翌月大幅に悪化した場合",
+   "baseline_date": "2026-09-24",
+   "baseline_price_type": "close",
+   "horizon_business_days": 20,
+   "deadline_date": "2026-10-23",
+   "line_ids": [
+    "L-01"
+   ]
   }
  ]
 }
