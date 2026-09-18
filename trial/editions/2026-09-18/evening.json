@@ -1,9 +1,9 @@
 {
- "schema_version": 1,
+ "schema_version": 2,
  "edition_id": "2026-09-18-evening",
  "date": "2026-09-18",
  "slot": "evening",
- "generated_at": "2026-09-18T21:40:00+09:00",
+ "generated_at": "2026-09-19T00:48:00+09:00",
  "market_open": true,
  "baseline": {
   "date": "2026-09-24",
@@ -17,11 +17,12 @@
    "publisher_type": "central_bank",
    "title": "金融市場調節方針の変更について（2026年9月18日）",
    "published_at": "2026-09-18T11:54:00+09:00",
-   "fetched_at": "2026-09-18T21:30:00+09:00",
-   "fetch_method": "webfetch",
-   "content_sha256": "7ee2c42ab8fb1136d6538ffba296ba26d785ef59dbfa29edd173a4dc268add9f",
+   "fetched_at": "2026-09-19T00:20:00+09:00",
+   "fetch_method": "curl",
+   "content_sha256": "bd0689c1c35889a277e56c014a8964423dea55e3d9d7fdf6ae9f540889f5a5e0",
    "usage": "quotable",
-   "attribution": "出典：日本銀行「金融市場調節方針の変更について」（2026年9月18日）"
+   "attribution": "出典：日本銀行「金融市場調節方針の変更について」（2026年9月18日）",
+   "processing_note": "本サイトが同資料をもとに作成"
   },
   {
    "source_id": "SRC-002",
@@ -30,11 +31,12 @@
    "publisher_type": "company_disclosure",
    "title": "臨時報告書（兼松株式会社、2026年9月18日提出、書類管理番号S100Z147）",
    "published_at": "2026-09-18T16:03:00+09:00",
-   "fetched_at": "2026-09-18T21:30:00+09:00",
+   "fetched_at": "2026-09-18T15:18:00+09:00",
    "fetch_method": "curl",
-   "content_sha256": "4e19917c98a2d540995aca6595d918e67ae96c9b5e7645c5d15226a0a005cb9e",
+   "content_sha256": "cab5ed6356ada1527c841d4558471e51743b3ba641a7b8f8bd40c63a06f63af9",
    "usage": "quotable",
-   "attribution": "出典：兼松株式会社「臨時報告書」（EDINET、2026年9月18日提出）"
+   "attribution": "出典：兼松株式会社「臨時報告書」（EDINET、2026年9月18日提出）",
+   "processing_note": "本サイトが同資料をもとに作成"
   },
   {
    "source_id": "SRC-003",
@@ -42,25 +44,53 @@
    "publisher": "株式会社フェローテック（EDINET経由）",
    "publisher_type": "company_disclosure",
    "title": "公開買付届出書（株式会社フェローテック、2026年9月18日提出、書類管理番号S100Z392）",
-   "published_at": "2026-09-18T09:34:00+09:00",
-   "fetched_at": "2026-09-18T21:30:00+09:00",
+   "published_at": "2026-09-18T11:11:00+09:00",
+   "fetched_at": "2026-09-18T15:18:00+09:00",
    "fetch_method": "curl",
-   "content_sha256": "40152db0a333854230d32eabb7ae9ca2f25a067c8af2885955bd7aefa08911dc",
+   "content_sha256": "866093c3331ca620a71a80feb9ca0cb34e523bd1209d8278f9a6f956f3fda0f9",
    "usage": "quotable",
-   "attribution": "出典：株式会社フェローテック「公開買付届出書」（EDINET、2026年9月18日提出）"
+   "attribution": "出典：株式会社フェローテック「公開買付届出書」（EDINET、2026年9月18日提出）",
+   "processing_note": "本サイトが同資料をもとに作成"
   },
   {
    "source_id": "SRC-004",
    "url": "https://api.edinet-fsa.go.jp/api/v2/documents.json?date=2026-09-18&type=2",
    "publisher": "金融庁",
-   "publisher_type": "government_statistics",
+   "publisher_type": "company_disclosure",
    "title": "EDINET 書類一覧（2026年9月18日提出分）",
    "published_at": null,
-   "fetched_at": "2026-09-18T21:15:00+09:00",
+   "fetched_at": "2026-09-18T15:17:00+09:00",
    "fetch_method": "curl",
-   "content_sha256": "c93421c1f3ca2b4017d869bf8af339b539e7ebf952990862381730fe9aff3ca4",
+   "content_sha256": "aed70f5aef8950b2a7c1c76e3a507484297ecbe5fc2192c7052ec941f4cc55cb",
    "usage": "quotable",
-   "attribution": "出典：金融庁 EDINET（2026年9月18日提出分書類一覧）"
+   "attribution": "出典：EDINET閲覧（提出）サイト（https://api.edinet-fsa.go.jp/api/v2/documents.json?date=2026-09-18&type=2）",
+   "processing_note": "本サイトが同資料をもとに作成"
+  },
+  {
+   "source_id": "SRC-005",
+   "url": "https://www.nippon.com/ja/news/yjj2026091800484/",
+   "publisher": "nippon.com",
+   "publisher_type": "news",
+   "title": "日銀、１．２５％に利上げ＝決定会合、物価高でペース加速―３カ月ぶり、次は今冬の見方も",
+   "published_at": null,
+   "fetched_at": "2026-09-19T00:30:00+09:00",
+   "fetch_method": "websearch_snippet",
+   "content_sha256": null,
+   "usage": "snippet_only",
+   "attribution": "出典：nippon.com（https://www.nippon.com/ja/news/yjj2026091800484/）"
+  },
+  {
+   "source_id": "SRC-006",
+   "url": "https://www.oanda.jp/lab-education/market_news/boj-2026-sep-review/",
+   "publisher": "OANDA Japan",
+   "publisher_type": "news",
+   "title": "日銀は0.25%利上げで1.25%へ、賛成7・反対2 「政策の局面は変化した」植田総裁会見の要点と今後のドル円・日経225の見通し",
+   "published_at": null,
+   "fetched_at": "2026-09-19T00:30:00+09:00",
+   "fetch_method": "websearch_snippet",
+   "content_sha256": null,
+   "usage": "snippet_only",
+   "attribution": "出典：OANDA Japan（https://www.oanda.jp/lab-education/market_news/boj-2026-sep-review/）"
   }
  ],
  "sections": [
@@ -71,11 +101,11 @@
     {
      "article_id": "ART-2026-09-18-101",
      "event_id": "EVT-2026-09-18-101",
-     "headline": "日銀が政策金利1.25%への引き上げを決定、適用は9月24日から 同じ日にはEDINETで大型M&Aも相次ぎ開示",
+     "headline": "日銀が政策金利を1.25%に引き上げ、適用は9月24日から 同日はEDINETでも大型開示が相次ぐ",
      "lines": [
       {
        "line_id": "L-101-01",
-       "text": "日本銀行は18日、金融政策決定会合の結果を公表し、政策金利を1.25%程度に引き上げることを決めた。",
+       "text": "日本銀行は18日に開いた金融政策決定会合で、政策金利を1.25%程度に引き上げることを決定した。",
        "claimed_mark": "source_number_match",
        "numbers": [
         {
@@ -85,14 +115,15 @@
         }
        ],
        "source_ref": "SRC-001",
-       "excerpt": "無担保コールレート（オーバーナイト物）を、１．２５％程度で推移するよう\n    促す",
+       "excerpt": "１．２５％程度で推移するよう",
        "attribution": "出典：日本銀行「金融市場調節方針の変更について」（2026年9月18日）",
+       "processing_note": "本サイトが同資料をもとに作成",
        "mark": "source_number_match",
        "mark_reason": null
       },
       {
        "line_id": "L-101-02",
-       "text": "決定は政策委員9人のうち7人の賛成、2人の反対によるもので、全会一致ではなかった。",
+       "text": "この決定は、政策委員9人のうち7人が賛成し、2人が反対する形でなされた。",
        "claimed_mark": "source_number_match",
        "numbers": [
         {
@@ -107,14 +138,33 @@
         }
        ],
        "source_ref": "SRC-001",
-       "excerpt": "以下のとおりとすることを決定した（賛成７反対２）",
+       "excerpt": "決定した（賛成７反対２）",
        "attribution": "出典：日本銀行「金融市場調節方針の変更について」（2026年9月18日）",
+       "processing_note": "本サイトが同資料をもとに作成",
        "mark": "source_number_match",
        "mark_reason": null
       },
       {
        "line_id": "L-101-03",
-       "text": "新しい金融市場調節方針は、今日18日ではなく、翌営業日である9月24日から適用される。",
+       "text": "反対した委員のうち1人は、消費者物価(除く生鮮食品)の上昇率が2%を下回っている点を、政策据え置きを望ましいとする理由に挙げた。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 2,
+         "unit": "%",
+         "label": "反対理由で挙げられた消費者物価上昇率の水準"
+        }
+       ],
+       "source_ref": "SRC-001",
+       "excerpt": "消費者物価（除く生鮮食品）の上昇率が２％を下回るなか",
+       "attribution": "出典：日本銀行「金融市場調節方針の変更について」（2026年9月18日）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-101-04",
+       "text": "新しい金融市場調節方針は、18日ではなく、翌営業日の9月24日から適用される。",
        "claimed_mark": "source_number_match",
        "numbers": [
         {
@@ -124,22 +174,15 @@
         }
        ],
        "source_ref": "SRC-001",
-       "excerpt": "新たな金融市場調節方針は、翌営業日（９月 24 日）から適用する。",
+       "excerpt": "翌営業日（９月24日）から適用する。",
        "attribution": "出典：日本銀行「金融市場調節方針の変更について」（2026年9月18日）",
+       "processing_note": "本サイトが同資料をもとに作成",
        "mark": "source_number_match",
        "mark_reason": null
       },
       {
-       "line_id": "L-101-04",
-       "text": "つまり9月18日時点では、金融機関どうしの資金貸し借りの実際のレートは、まだ従来の水準のままである。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
-       "mark_reason": null
-      },
-      {
        "line_id": "L-101-05",
-       "text": "政策金利が実際に切り替わる9月24日以降、銀行の短期プライムレートや住宅ローンの変動金利など、民間の金利にも段階的に波及していくとみられている。",
+       "text": "つまり18日時点では、金融機関どうしの資金の貸し借りに実際に適用される金利は、まだ従来の水準のままである。",
        "claimed_mark": "explainer",
        "numbers": [],
        "mark": "explainer",
@@ -147,15 +190,25 @@
       },
       {
        "line_id": "L-101-06",
-       "text": "短期プライムレートは、多くの銀行が優良企業向けの短期融資に適用する基準金利で、政策金利の変更にあわせて見直されることが多いとされる。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
+       "text": "あわせて、日銀が金融機関に資金を貸し出す際の基準となる基準貸付利率も1.5%に変更された。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 1.5,
+         "unit": "%",
+         "label": "基準貸付利率の新水準"
+        }
+       ],
+       "source_ref": "SRC-001",
+       "excerpt": "基準貸付利率を１．５％とする。",
+       "attribution": "出典：日本銀行「金融市場調節方針の変更について」（2026年9月18日）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
        "mark_reason": null
       },
       {
        "line_id": "L-101-07",
-       "text": "住宅ローンの変動金利も、多くの金融機関でこの短期プライムレートを参考に決められているとされ、政策金利の変更が時間差を伴って利用者に届く仕組みになっているとされる。",
+       "text": "政策金利が実際に切り替わる9月24日以降、銀行の短期プライムレートや住宅ローンの変動金利など、民間の金利にも段階的に波及していくとみられている。",
        "claimed_mark": "explainer",
        "numbers": [],
        "mark": "explainer",
@@ -163,7 +216,7 @@
       },
       {
        "line_id": "L-101-08",
-       "text": "銀行にとっては、貸出金利と預金金利の差にあたる利ざやが、政策金利の水準に左右されやすい業種の一つとされる。",
+       "text": "日銀は同じ会合で、気候変動対応を支援する資金供給制度についても見直し、貸付金利を変動金利に変更するとともに、貸付総額に上限を設けることを全会一致で決めた。",
        "claimed_mark": "explainer",
        "numbers": [],
        "mark": "explainer",
@@ -171,31 +224,59 @@
       },
       {
        "line_id": "L-101-09",
-       "text": "生命保険会社や年金基金など、集めた資金を長期の国内債券で運用する業種も、金利水準の変化が運用成績に影響しうる立場にあるとされる。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
+       "text": "また、東日本大震災の被災地金融機関を支援する資金供給オペについては、2027年5月の貸付をもって対象災害から外すことも決めた。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 2027,
+         "unit": "年",
+         "label": "被災地金融機関支援オペを対象災害から解除する時期(西暦年)"
+        }
+       ],
+       "source_ref": "SRC-001",
+       "excerpt": "2027年５月の貸付をもって同オペの対象災害から解除する",
+       "attribution": "出典：日本銀行「金融市場調節方針の変更について」（2026年9月18日）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
        "mark_reason": null
       },
       {
        "line_id": "L-101-10",
-       "text": "一方、住宅ローンを変動金利で借りている家計や、借入れに頼って事業を営む企業は、返済負担や資金調達コストの面で金利上昇の影響を受けうる立場にある。",
-       "claimed_mark": "explainer",
+       "text": "今回の1.25%への引き上げは、1995年以来31年ぶりの高い水準になると報じられている。",
+       "claimed_mark": "reported_unverified",
        "numbers": [],
-       "mark": "explainer",
+       "source_ref": "SRC-005",
+       "mark": "reported_unverified",
        "mark_reason": null
       },
       {
        "line_id": "L-101-11",
-       "text": "不動産開発のように多額の借入れを前提として長期の事業を進める業種では、調達コストの変化が事業計画そのものに影響しうるとされる。",
+       "text": "外国為替市場では、公表の直後に円安方向へ振れる場面があったと報じられている。",
+       "claimed_mark": "reported_unverified",
+       "numbers": [],
+       "source_ref": "SRC-006",
+       "mark": "reported_unverified",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-101-12",
+       "text": "同じ18日には、EDINET(金融庁の開示システム)を通じて、兼松グループやフェローテックなど複数の上場企業からも、大型の資本取引に関する開示があった。",
        "claimed_mark": "explainer",
        "numbers": [],
        "mark": "explainer",
        "mark_reason": null
       },
       {
-       "line_id": "L-101-12",
-       "text": "あわせて、金融機関が日銀に預けている当座預金のうち所要準備額を超える部分に適用する、補完当座預金制度の適用利率も1.25%に見直された。",
+       "line_id": "L-101-13",
+       "text": "これらの開示は日銀の金融政策とは別の、個別企業の経営判断によるものであり、本紙では次項以降で内容を扱う。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-101-14",
+       "text": "日銀当座預金のうち、所要準備額相当部分を除く部分に適用する補完当座預金制度の適用利率も、1.25%とすることが決まった。",
        "claimed_mark": "source_number_match",
        "numbers": [
         {
@@ -205,55 +286,45 @@
         }
        ],
        "source_ref": "SRC-001",
-       "excerpt": "補完当座預金制度の適用利率（日本銀行当座預金＜所要準備額相当部分を除く＞\n    への付利金利）については、１．２５％とする。",
+       "excerpt": "補完当座預金制度の適用利率（日本銀行当座預金＜所要準備額相当部分を除く＞への付利金利）については、１．２５％とする。",
        "attribution": "出典：日本銀行「金融市場調節方針の変更について」（2026年9月18日）",
+       "processing_note": "本サイトが同資料をもとに作成",
        "mark": "source_number_match",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-101-13",
-       "text": "金融機関が資金繰りのために日銀から一時的に資金を借り入れる際に基準となる基準貸付利率も1.5%に見直された。",
-       "claimed_mark": "source_number_match",
-       "numbers": [
-        {
-         "value": 1.5,
-         "unit": "%",
-         "label": "基準貸付利率"
-        }
-       ],
-       "source_ref": "SRC-001",
-       "excerpt": "補完貸付制度については、その適用金利である基準貸付利率を１．５％とする。",
-       "attribution": "出典：日本銀行「金融市場調節方針の変更について」（2026年9月18日）",
-       "mark": "source_number_match",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-101-14",
-       "text": "こうした金利の環境が変わる同じ18日には、東京証券取引所に上場する企業どうしの大型の買収案件が2件、相次いで開示された。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
        "mark_reason": null
       },
       {
        "line_id": "L-101-15",
-       "text": "1件は電子部品メーカーに対する公開買付け(TOB)、もう1件は非上場のIT関連会社を子会社化する取引で、どちらも金融庁の開示システムであるEDINETを通じて法律に基づく書類が提出された。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
+       "text": "この適用利率も、基準貸付利率と同じく、9月24日から新しい水準に切り替わる。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 24,
+         "unit": "日",
+         "label": "補完当座預金制度の適用利率が切り替わる日(9月)"
+        }
+       ],
+       "source_ref": "SRC-001",
+       "excerpt": "補完当座預金制度の適用利率および基準貸付利率は、翌営業日（９月24日）から適用する。",
+       "attribution": "出典：日本銀行「金融市場調節方針の変更について」（2026年9月18日）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
        "mark_reason": null
       },
       {
        "line_id": "L-101-16",
-       "text": "買収や出資といった企業の資金計画も、調達コストの前提となる金利水準の影響を受けうる面があるとされ、詳しい内容は次項以降で扱う。",
+       "text": "気候変動対応オペの見直しは、金融調節の円滑な運営を確保しつつ、民間における気候変動対応を安定的に支援する観点から行われたとしている。",
        "claimed_mark": "explainer",
        "numbers": [],
+       "source_ref": "SRC-001",
+       "excerpt": "金融調節の円滑な運営を確保しつつ、民間における気候変動対応を安定的に支援する観点から",
+       "attribution": "出典：日本銀行「金融市場調節方針の変更について」（2026年9月18日）",
+       "processing_note": "本サイトが同資料をもとに作成",
        "mark": "explainer",
        "mark_reason": null
       },
       {
        "line_id": "L-101-17",
-       "text": "金融政策決定会合は原則として年8回開かれる定例の会合で、今回の会合は9月17日と18日の2日間にわたって開かれた。",
+       "text": "銀行預金の金利は政策金利に連動する部分があり、普通預金や定期預金の金利も、貸出金利と同様に見直されることがあるとされる。",
        "claimed_mark": "explainer",
        "numbers": [],
        "mark": "explainer",
@@ -261,45 +332,33 @@
       },
       {
        "line_id": "L-101-18",
-       "text": "植田和男総裁による記者会見が18日午後に開かれ、決定の背景や今後の見通しについて説明があったと報じられているが、会見の記録は本紙面の作成時点で日本銀行のウェブサイトにまだ掲載されていなかった。",
-       "claimed_mark": "reported_unverified",
-       "numbers": [],
-       "mark": "reported_unverified",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-101-19",
-       "text": "会合の具体的な議論の内容は、10月1日に「主な意見」として、11月5日には詳しい「議事要旨」として、それぞれ後日公表される予定になっている。",
-       "claimed_mark": "source_number_match",
-       "numbers": [
-        {
-         "value": 1,
-         "unit": "日",
-         "label": "「主な意見」公表予定日(10月)"
-        },
-        {
-         "value": 5,
-         "unit": "日",
-         "label": "「議事要旨」公表予定日(11月)"
-        }
-       ],
-       "source_ref": "SRC-001",
-       "excerpt": "主な意見――10 月 1 日（木）8:50 予定\n\n  議事要旨――11 月 5 日（木）8:50 予定",
-       "attribution": "出典：日本銀行「金融市場調節方針の変更について」（2026年9月18日）",
-       "mark": "source_number_match",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-101-20",
-       "text": "企業が発行する社債の利回りも、国債利回りなど市場金利の水準に連動する面があるとされ、政策金利の変化は企業の資金調達コストにも間接的に関わってくる。",
+       "text": "もっとも、預金金利の見直し幅や時期は金融機関ごとの経営判断によるため、借り手の金利ほど一律には決まらないとされる。",
        "claimed_mark": "explainer",
        "numbers": [],
        "mark": "explainer",
        "mark_reason": null
       },
       {
+       "line_id": "L-101-19",
+       "text": "報道によれば、今回は0.25%ポイントの引き上げ幅で、引き上げ前の政策金利は1.00%程度だったとみられる。",
+       "claimed_mark": "reported_unverified",
+       "numbers": [],
+       "source_ref": "SRC-005",
+       "mark": "reported_unverified",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-101-20",
+       "text": "今回の利上げは6月の会合以来3か月ぶりだと報じられている。",
+       "claimed_mark": "reported_unverified",
+       "numbers": [],
+       "source_ref": "SRC-005",
+       "mark": "reported_unverified",
+       "mark_reason": null
+      },
+      {
        "line_id": "L-101-21",
-       "text": "普通預金や定期預金の金利など、貯蓄する側にとって身近な金利も、政策金利の動きと無関係ではないとされ、引き上げが預金者にどう反映されるかは今後の各金融機関の対応次第となる。",
+       "text": "企業が発行する社債の利回りも、政策金利の上昇にあわせて緩やかに切り上がっていく可能性があるとされ、資金調達コストの増加を通じて設備投資計画に影響する場合があるとされる。",
        "claimed_mark": "explainer",
        "numbers": [],
        "mark": "explainer",
@@ -307,31 +366,7 @@
       },
       {
        "line_id": "L-101-22",
-       "text": "為替市場では日米の金利差が材料として意識されやすく、円相場の動きを通じて、原材料や燃料を輸入に頼る企業のコストにも波及しうるとされる。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-101-23",
-       "text": "米国の中央銀行にあたる連邦準備制度理事会(FRB)も9月16日に政策金利を引き上げており、日米の中央銀行の決定が重なった9月は、金利をめぐる材料が多い月だったといえる。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-101-24",
-       "text": "金利が上がる局面では、資金を借りて事業を営む企業にとって調達コストが意識されやすくなる一方、買収などの取引を自己資金でまかなえる企業にとっては、借入れへの依存度が低いこと自体が相対的な強みとして意識されることもあるとされる。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-101-25",
-       "text": "実際、この日にEDINETで開示された買収案件の一つは、買付け代金を借入れに頼らず、手元の預金でまかなう計画だと説明されており、詳しい内容は次項で扱う。",
+       "text": "日銀が保有する国債の利回りも、市場実勢を反映して緩やかに変動しうるが、国の利払い負担への具体的な影響については、本紙の号を改めて取り上げる。",
        "claimed_mark": "explainer",
        "numbers": [],
        "mark": "explainer",
@@ -341,17 +376,17 @@
      "inferences": [
       {
        "inference_id": "INF-2026-09-18-101-1",
-       "text": "9月24日に新しい政策金利が実際に適用されたあと、銀行の短期プライムレートや住宅ローン変動金利の見直しが相次げば、家計や企業への影響が具体的な数字として現れ始める可能性がある。",
-       "falsifier": "主要行が9月24日以降も短期プライムレートを据え置けば、この見方は当面成り立たない。",
-       "check_metric": "主要銀行が公表する短期プライムレートおよび住宅ローン変動金利の基準金利",
-       "check_by": "2026-10-22"
+       "text": "政策金利の引き上げが適用される9月24日以降、変動型の住宅ローン金利や企業の短期借入金利が段階的に上がる可能性がある。",
+       "falsifier": "9月24日以降も主要行が住宅ローンの基準金利を据え置けば、この見方は成り立たない。",
+       "check_metric": "主要行が公表する住宅ローン基準金利(短期プライムレート連動型)の10月分改定",
+       "check_by": "2026-10-05"
       },
       {
        "inference_id": "INF-2026-09-18-101-2",
-       "text": "企業の資金調達コストが金利上昇によって意識されやすくなれば、大型の買収案件では自己資金と借入れの配分が今後さらに注目されるようになる可能性がある。",
-       "falsifier": "政策金利の引き上げにもかかわらず、企業の資金調達コストにめだった変化がみられなければ、この見方は成り立たない。",
-       "check_metric": "国内企業の社債発行利回りおよび銀行貸出約定平均金利",
-       "check_by": "2026-10-22"
+       "text": "反対票を投じた委員がいたことから、次回以降の会合でも利上げペースを巡って意見が割れる可能性がある。",
+       "falsifier": "次回会合が全員一致で決定されれば、この見方は成り立たない。",
+       "check_metric": "次回金融政策決定会合の議決結果(賛成・反対の内訳)",
+       "check_by": "2026-10-31"
       }
      ]
     }
@@ -362,40 +397,473 @@
    "title": "新しい変化",
    "articles": [
     {
-     "article_id": "ART-2026-09-18-102",
-     "event_id": "EVT-2026-09-18-102",
-     "headline": "フェローテックが日本抵抗器製作所にTOB、兼松はIDAJなど3社を394億円弱で買収へ",
+     "article_id": "ART-2026-09-18-201",
+     "event_id": "EVT-2026-09-18-201",
+     "headline": "兼松グループ、車載・半導体向けCAE大手IDAJを傘下に 取得総額は概算393.6億円",
      "lines": [
       {
-       "line_id": "L-102-01",
-       "text": "18日、東京証券取引所に上場する2社が、それぞれ別の会社を買収する取引を明らかにした。",
+       "line_id": "L-201-01",
+       "text": "兼松株式会社は18日、連結子会社の兼松エレクトロニクス株式会社が、エンジニアリング会社IDAJを傘下に持つ持株会社の全株式を取得すると発表した。",
        "claimed_mark": "explainer",
        "numbers": [],
        "mark": "explainer",
        "mark_reason": null
       },
       {
-       "line_id": "L-102-02",
-       "text": "1件目は、半導体や薄型パネル(FPD)の製造装置向けの部材などを手がけるフェローテックが、電子部品メーカーの日本抵抗器製作所に対して公開買付け(TOB)を実施すると発表したものである。",
+       "line_id": "L-201-02",
+       "text": "取得の対象は株式会社BCJ-61で、株式会社IDAJや、その子会社を傘下に持つ持株会社である。",
        "claimed_mark": "explainer",
        "numbers": [],
        "mark": "explainer",
        "mark_reason": null
       },
       {
-       "line_id": "L-102-03",
-       "text": "公開買付届出書によれば、本書中で「対象者」と呼ばれているのは株式会社日本抵抗器製作所である。",
+       "line_id": "L-201-03",
+       "text": "本日、兼松エレクトロニクスがBCJ-61の全株式を取得することを決定し、株式譲渡契約を締結した。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "source_ref": "SRC-002",
+       "excerpt": "本日、兼松エレクトロニクスがBCJ-61の全株式を取得することを決定し",
+       "attribution": "出典：兼松株式会社「臨時報告書」（EDINET、2026年9月18日提出）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-201-04",
+       "text": "この株式取得により、IDAJおよびその子会社は、兼松の連結子会社となる予定である。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-201-05",
+       "text": "BCJ-61の株式取得額は390億円とされている。",
        "claimed_mark": "source_number_match",
-       "numbers": [],
-       "source_ref": "SRC-003",
-       "excerpt": "対象者」とは、株式会社日本抵抗器製作所をいいます。",
-       "attribution": "出典：株式会社フェローテック「公開買付届出書」（EDINET、2026年9月18日提出）",
+       "numbers": [
+        {
+         "value": 390,
+         "unit": "億円",
+         "label": "BCJ-61の株式取得額"
+        }
+       ],
+       "source_ref": "SRC-002",
+       "excerpt": "390億円",
+       "attribution": "出典：兼松株式会社「臨時報告書」（EDINET、2026年9月18日提出）",
+       "processing_note": "本サイトが同資料をもとに作成",
        "mark": "source_number_match",
        "mark_reason": null
       },
       {
-       "line_id": "L-102-04",
-       "text": "買付け等の価格は普通株式1株につき1,901円と定められた。",
+       "line_id": "L-201-06",
+       "text": "これにアドバイザリー費用等の概算額3.6億円が加わるという。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 3.6,
+         "unit": "億円",
+         "label": "アドバイザリー費用等の概算額"
+        }
+       ],
+       "source_ref": "SRC-002",
+       "excerpt": "3.6億円",
+       "attribution": "出典：兼松株式会社「臨時報告書」（EDINET、2026年9月18日提出）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-201-06b",
+       "text": "取得対価の合計の概算額は393.6億円になるとしている。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 393.6,
+         "unit": "億円",
+         "label": "取得対価の合計概算額"
+        }
+       ],
+       "source_ref": "SRC-002",
+       "excerpt": "393.6億円",
+       "attribution": "出典：兼松株式会社「臨時報告書」（EDINET、2026年9月18日提出）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-201-07",
+       "text": "この金額は、外部の専門家によるデューデリジェンスおよび株式価値算定の結果を踏まえて設定されたとしている。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-201-08",
+       "text": "BCJ-61は東京都千代田区に所在し、2023年2月14日に設立された、株式の所有を通じて事業を支配・管理することを事業内容とする会社である。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 2023,
+         "unit": "年",
+         "label": "BCJ-61の設立年(西暦)"
+        }
+       ],
+       "source_ref": "SRC-002",
+       "excerpt": "2023年２月14日",
+       "attribution": "出典：兼松株式会社「臨時報告書」（EDINET、2026年9月18日提出）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-201-09",
+       "text": "BCJ-61の資本金は100百万円である。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 100,
+         "unit": "百万円",
+         "label": "BCJ-61の資本金"
+        }
+       ],
+       "source_ref": "SRC-002",
+       "excerpt": "100百万円",
+       "attribution": "出典：兼松株式会社「臨時報告書」（EDINET、2026年9月18日提出）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-201-10",
+       "text": "取得対象子会社であるIDAJは、MBD(モデルベース開発)やCAE(シミュレーション解析)の分野で高度な技術力と専門人材、幅広いソフトウェアポートフォリオを持つとされる。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "source_ref": "SRC-002",
+       "excerpt": "IDAJは、MBD／CAE（モデルベース開発／シミュレーション解析）領域における高度な技術力",
+       "attribution": "出典：兼松株式会社「臨時報告書」（EDINET、2026年9月18日提出）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-201-11",
+       "text": "兼松グループは今回の取得により、自動車分野に加え、半導体、防衛、重工業、電気・電子といった成長領域への展開を加速することを見込んでいるという。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-201-12",
+       "text": "兼松は、この株式取得を通じて設計開発の効率化や開発リードタイムの短縮に資する「設計開発DX」ソリューションの提供が可能になると説明し、同社の株式を取得することを決定したとしている。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "source_ref": "SRC-002",
+       "excerpt": "同社の株式を取得することを決定いたしました",
+       "attribution": "出典：兼松株式会社「臨時報告書」（EDINET、2026年9月18日提出）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-201-13",
+       "text": "なお、この株式取得は関係当局の許認可の取得など、契約に定める前提条件が充足されることを条件に実行される予定である。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-201-14",
+       "text": "最終的な譲渡価額は、契約に定める価格調整を行ったうえで、取引完了(クロージング)時に確定するとしている。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-201-15",
+       "text": "IDAJは1994年10月1日に設立された会社で、本社は神奈川県横浜市西区にあるという。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 1994,
+         "unit": "年",
+         "label": "IDAJの設立年(西暦)"
+        }
+       ],
+       "source_ref": "SRC-002",
+       "excerpt": "1994年10月１日",
+       "attribution": "出典：兼松株式会社「臨時報告書」（EDINET、2026年9月18日提出）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-201-16",
+       "text": "IDAJの事業内容は、MBD・CAEに関するプロダクトの販売および技術サポートや、デジタルエンジニアリングに関する各種コンサルティングなどとされている。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "source_ref": "SRC-002",
+       "excerpt": "MBD・CAEに関するプロダクトの販売および技術サポート",
+       "attribution": "出典：兼松株式会社「臨時報告書」（EDINET、2026年9月18日提出）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-201-17",
+       "text": "臨時報告書に添付された参考資料によれば、IDAJと関連2社(IDxL、RC)を単純合算した2025年9月期の売上高は14,684百万円だったという。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 14684,
+         "unit": "百万円",
+         "label": "IDAJ・IDxL・RC3社合算の売上高(2025年9月期)"
+        }
+       ],
+       "source_ref": "SRC-002",
+       "excerpt": "14,684百万円",
+       "attribution": "出典：兼松株式会社「臨時報告書」（EDINET、2026年9月18日提出）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-201-18",
+       "text": "同じ資料によれば、2025年9月期の営業利益は2,698百万円だったとされている。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 2698,
+         "unit": "百万円",
+         "label": "IDAJ・IDxL・RC3社合算の営業利益(2025年9月期)"
+        }
+       ],
+       "source_ref": "SRC-002",
+       "excerpt": "2,698百万円",
+       "attribution": "出典：兼松株式会社「臨時報告書」（EDINET、2026年9月18日提出）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-201-18a",
+       "text": "同期の当期純利益は1,973百万円だったとされている。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 1973,
+         "unit": "百万円",
+         "label": "IDAJ・IDxL・RC3社合算の当期純利益(2025年9月期)"
+        }
+       ],
+       "source_ref": "SRC-002",
+       "excerpt": "1,973百万円",
+       "attribution": "出典：兼松株式会社「臨時報告書」（EDINET、2026年9月18日提出）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-201-18b",
+       "text": "2025年9月期の総資産は16,181百万円だったとされている。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 16181,
+         "unit": "百万円",
+         "label": "IDAJ・IDxL・RC3社合算の総資産(2025年9月期)"
+        }
+       ],
+       "source_ref": "SRC-002",
+       "excerpt": "16,181百万円",
+       "attribution": "出典：兼松株式会社「臨時報告書」（EDINET、2026年9月18日提出）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-201-19",
+       "text": "なお、この3社は連結財務諸表を作成していないため、これらの数値は内部取引を相殺していない単純合算の値だと注記されている。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-201-20",
+       "text": "取得対象となるBCJ-61の大株主は、投資ファンドのBCPE Advance Cayman, L.P.が50%、株式会社エイティアイシーホールディングスが50%を、それぞれ保有しているとされている。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 50,
+         "unit": "%",
+         "label": "BCPE Advance Cayman, L.P.のBCJ-61に対する持株比率"
+        }
+       ],
+       "source_ref": "SRC-002",
+       "excerpt": "BCPE Advance Cayman, L.P.：50％",
+       "attribution": "出典：兼松株式会社「臨時報告書」（EDINET、2026年9月18日提出）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-201-21",
+       "text": "兼松グループは、製造業・半導体をはじめとする顧客に対し、IT基盤や業務システム、PLM／PDM、MPM、MESおよび生産管理等のソリューションを提供し、設計・製造プロセスのデジタル化を支援してきたとしている。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "source_ref": "SRC-002",
+       "excerpt": "製造業・半導体をはじめとするお客様に対し",
+       "attribution": "出典：兼松株式会社「臨時報告書」（EDINET、2026年9月18日提出）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-201-22",
+       "text": "今回の株式取得により、兼松グループとIDAJの両社の顧客基盤を活用した相互提案およびクロスセルを推進する狙いもあるとしている。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "source_ref": "SRC-002",
+       "excerpt": "両社の顧客基盤を活用した相互提案およびクロスセルを推進する",
+       "attribution": "出典：兼松株式会社「臨時報告書」（EDINET、2026年9月18日提出）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-201-23",
+       "text": "兼松は、従来のシステム構築・実装領域に加え、製造における設計開発・解析を含む上流工程へ事業領域を拡大し、設計から製造までを一気通貫で支援できる体制を構築することが重要だと説明している。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-201-24",
+       "text": "兼松の取締役会は、2026年7月10日開催の取締役会において、取得条件が整った場合の最終的な決定を代表取締役社長に一任していたとされている。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 10,
+         "unit": "日",
+         "label": "取得条件成立時の最終決定を社長に一任した取締役会の開催日(7月)"
+        }
+       ],
+       "source_ref": "SRC-002",
+       "excerpt": "2026年７月10日開催の取締役会において",
+       "attribution": "出典：兼松株式会社「臨時報告書」（EDINET、2026年9月18日提出）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-201-25",
+       "text": "兼松は今回の取得により、自動車分野に加え、半導体、防衛、重工業および電気・電子等の成長領域への展開を加速することを見込んでいるとしている。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "source_ref": "SRC-002",
+       "excerpt": "自動車分野に加え、半導体、防衛、重工業および電気・電子等の成長領域への展開を加速する",
+       "attribution": "出典：兼松株式会社「臨時報告書」（EDINET、2026年9月18日提出）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-201-26",
+       "text": "IDAJグループは、ソフトウェアの販売・保守に加え、技術サポート、受託解析およびコンサルティングを通じて、製造業の顧客の設計開発プロセスを総合的に支援してきたとされている。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-201-27",
+       "text": "取得対象にはIDAJのほか、株式会社アイ・ディー・クロスリンク(IDxL)と、リアルコネクト株式会社(RC)の2社も含まれているとされている。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "source_ref": "SRC-002",
+       "excerpt": "株式会社アイ・ディー・クロスリンク",
+       "attribution": "出典：兼松株式会社「臨時報告書」（EDINET、2026年9月18日提出）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-201-28",
+       "text": "先に挙げた2025年9月期の業績は、決算期変更により2025年1月から9月までの9か月間の数値だと注記されている社もあるとしている。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 9,
+         "unit": "か月",
+         "label": "決算期変更に伴う変則決算の対象期間"
+        }
+       ],
+       "source_ref": "SRC-002",
+       "excerpt": "決算期変更により2025年１月から2025年９月までの９か月間です。",
+       "attribution": "出典：兼松株式会社「臨時報告書」（EDINET、2026年9月18日提出）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      }
+     ],
+     "inferences": [
+      {
+       "inference_id": "INF-2026-09-18-201-1",
+       "text": "IDAJの持つ解析人材やソフトウェア基盤が兼松グループのIT・エンジニアリング事業に組み込まれれば、同グループの半導体・防衛関連の受注機会が広がる可能性がある。",
+       "falsifier": "取引が許認可取得の条件を満たせず不成立に終われば、この見方は成り立たない。",
+       "check_metric": "兼松株式会社が今後提出する、本件の実行(クロージング)完了を知らせる開示の有無",
+       "check_by": "2027-03-31"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "section_id": "ripple",
+   "title": "波及を追う",
+   "articles": [
+    {
+     "article_id": "ART-2026-09-18-301",
+     "event_id": "EVT-2026-09-18-301",
+     "headline": "フェローテック、日本抵抗器製作所にTOB 完全子会社化で車載・海外販路を補完",
+     "lines": [
+      {
+       "line_id": "L-301-01",
+       "text": "株式会社フェローテックは18日、東京証券取引所スタンダード市場に上場する株式会社日本抵抗器製作所の株式を、公開買付け(TOB)で取得すると発表した。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-301-02",
+       "text": "本書中の「対象者」とは、株式会社日本抵抗器製作所をいう。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "source_ref": "SRC-003",
+       "excerpt": "本書中の「対象者」とは、株式会社日本抵抗器製作所をいいます。",
+       "attribution": "出典：株式会社フェローテック「公開買付届出書」（EDINET、2026年9月18日提出）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-301-03",
+       "text": "フェローテックは、対象者の普通株式の全て(自己株式を除く)を取得し、完全子会社とすることを目的としている。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-301-04",
+       "text": "買付け等の価格は、普通株式1株につき1,901円である。",
        "claimed_mark": "source_number_match",
        "numbers": [
         {
@@ -407,123 +875,126 @@
        "source_ref": "SRC-003",
        "excerpt": "普通株式１株につき、金1,901円",
        "attribution": "出典：株式会社フェローテック「公開買付届出書」（EDINET、2026年9月18日提出）",
+       "processing_note": "本サイトが同資料をもとに作成",
        "mark": "source_number_match",
        "mark_reason": null
       },
       {
-       "line_id": "L-102-05",
-       "text": "この価格は、公表日の前営業日にあたる2026年9月16日の東京証券取引所スタンダード市場における対象者株式の終値1,318円に対して、44.23%のプレミアムを加えた水準にあたる。",
+       "line_id": "L-301-05",
+       "text": "この価格は、公表日の前営業日である9月16日の対象者株式の終値1,318円に対して44.23%のプレミアムを加えた水準になるという。",
        "claimed_mark": "source_number_match",
        "numbers": [
-        {
-         "value": 1318,
-         "unit": "円",
-         "label": "対象者株式の2026年9月16日終値"
-        },
         {
          "value": 44.23,
          "unit": "%",
-         "label": "公開買付価格の終値に対するプレミアム"
+         "label": "直近終値に対するプレミアム率"
         }
        ],
        "source_ref": "SRC-003",
-       "excerpt": "本公開買付価格である1,901円は、本公開買付けの実施についての公表日の前営業日である2026年９月16日の東京証券取引所スタンダード市場における対象者株式の終値1,318円に対して44.23％",
+       "excerpt": "終値1,318円に対して44.23％",
        "attribution": "出典：株式会社フェローテック「公開買付届出書」（EDINET、2026年9月18日提出）",
+       "processing_note": "本サイトが同資料をもとに作成",
        "mark": "source_number_match",
        "mark_reason": null
       },
       {
-       "line_id": "L-102-06",
-       "text": "買付け等の期間は2026年9月18日から11月5日までの30営業日で、これは法令に定められた最短期間である20営業日よりも長い日数だとされる。",
-       "claimed_mark": "source_number_match",
-       "numbers": [
-        {
-         "value": 30,
-         "unit": "営業日",
-         "label": "公開買付けの期間"
-        }
-       ],
-       "source_ref": "SRC-003",
-       "excerpt": "2026年９月18日から2026年11月５日まで（30営業日）",
-       "attribution": "出典：株式会社フェローテック「公開買付届出書」（EDINET、2026年9月18日提出）",
-       "mark": "source_number_match",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-102-07",
-       "text": "買付け予定数の下限は618,700株で、これは対象者の総議決権の過半数に相当する株式数にあたるとされる。",
+       "line_id": "L-301-06",
+       "text": "フェローテックは、買付予定数の下限を618,700株(所有割合50.01%)に設定しており、応募がこれに満たない場合は買付けを行わないとしている。",
        "claimed_mark": "source_number_match",
        "numbers": [
         {
          "value": 618700,
          "unit": "株",
-         "label": "買付け予定数の下限"
-        }
-       ],
-       "source_ref": "SRC-003",
-       "excerpt": "618,700（株）",
-       "attribution": "出典：株式会社フェローテック「公開買付届出書」（EDINET、2026年9月18日提出）",
-       "mark": "source_number_match",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-102-08",
-       "text": "フェローテックはこの取引を通じて、対象者を完全子会社化することを目的としており、買付け予定数の上限は設定していない。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-102-09",
-       "text": "対象者の第2位株主であり代表取締役社長でもある人物が保有する106,500株と、社外取締役が保有する40,163株について、フェローテックとの間で公開買付けに応募する契約を結んだとされる。",
-       "claimed_mark": "source_number_match",
-       "numbers": [
-        {
-         "value": 106500,
-         "unit": "株",
-         "label": "対象者代表取締役社長の保有株数"
+         "label": "買付予定数の下限"
         },
         {
-         "value": 40163,
-         "unit": "株",
-         "label": "対象者社外取締役の保有株数"
+         "value": 50.01,
+         "unit": "%",
+         "label": "買付予定数の下限にあたる所有割合"
         }
        ],
        "source_ref": "SRC-003",
-       "excerpt": "所有株式数：106,500株、所有割合（注２）：8.61％、以下「木村氏」といいます。）、及び、対象者の第８位株主であり、かつ、対象者の社外取締役である今井芳範氏（所有株式数：40,163株",
+       "excerpt": "618,700株（所有割合：50.01％）",
        "attribution": "出典：株式会社フェローテック「公開買付届出書」（EDINET、2026年9月18日提出）",
+       "processing_note": "本サイトが同資料をもとに作成",
        "mark": "source_number_match",
        "mark_reason": null
       },
       {
-       "line_id": "L-102-09b",
-       "text": "この応募契約を結んだ2人があわせて保有する株式数は146,663株にのぼるとされる。",
+       "line_id": "L-301-07",
+       "text": "対象者の発行済株式総数は1,240,000株とされている。",
        "claimed_mark": "source_number_match",
        "numbers": [
         {
-         "value": 146663,
+         "value": 1240000,
          "unit": "株",
-         "label": "応募契約を結んだ株式数の合計"
+         "label": "対象者の発行済株式総数"
         }
        ],
        "source_ref": "SRC-003",
-       "excerpt": "本応募合意株主が所有する対象者株式の全て（所有株式数の合計：146,663株",
+       "excerpt": "発行済株式総数（1,240,000株）",
        "attribution": "出典：株式会社フェローテック「公開買付届出書」（EDINET、2026年9月18日提出）",
+       "processing_note": "本サイトが同資料をもとに作成",
        "mark": "source_number_match",
        "mark_reason": null
       },
       {
-       "line_id": "L-102-10",
-       "text": "対象者は電子部品のうち抵抗器やポテンショメーターなどを主に手がける会社で、1943年に富山県で設立され、1964年に東京証券取引所に上場したとされる。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
+       "line_id": "L-301-07b",
+       "text": "このうち、対象者が所有する自己株式数は2,797株とされている。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 2797,
+         "unit": "株",
+         "label": "対象者が所有する自己株式数"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "自己株式数（2,797株）",
+       "attribution": "出典：株式会社フェローテック「公開買付届出書」（EDINET、2026年9月18日提出）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
        "mark_reason": null
       },
       {
-       "line_id": "L-102-11",
-       "text": "対象者グループは、対象者と子会社10社で構成されているとされる。",
+       "line_id": "L-301-08",
+       "text": "対象者は、1943年5月に富山県で有限会社日本抵抗器製作所として設立された。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 1943,
+         "unit": "年",
+         "label": "対象者の設立年(西暦)"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "1943年５月に富山県にて有限会社日本抵抗器製作所として設立",
+       "attribution": "出典：株式会社フェローテック「公開買付届出書」（EDINET、2026年9月18日提出）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-301-09",
+       "text": "対象者株式は1964年10月に東京証券取引所市場第2部に上場したとされる。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 1964,
+         "unit": "年",
+         "label": "対象者株式が東証に上場した年(西暦)"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "1964年10月に東京証券取引所市場第２部に上場",
+       "attribution": "出典：株式会社フェローテック「公開買付届出書」（EDINET、2026年9月18日提出）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-301-10",
+       "text": "対象者グループは、対象者およびその子会社10社からなり、抵抗器やポテンショメーター、ハイブリッドICなどの電子部品の製造販売を主たる事業としているという。",
        "claimed_mark": "source_number_match",
        "numbers": [
         {
@@ -533,888 +1004,370 @@
         }
        ],
        "source_ref": "SRC-003",
-       "excerpt": "対象者グループ（対象者及び対象者の子会社10社をいいます。",
+       "excerpt": "対象者及び対象者の子会社10社をいいます",
        "attribution": "出典：株式会社フェローテック「公開買付届出書」（EDINET、2026年9月18日提出）",
+       "processing_note": "本サイトが同資料をもとに作成",
        "mark": "source_number_match",
        "mark_reason": null
       },
       {
-       "line_id": "L-102-12",
-       "text": "対象者は2025年12月期の連結業績を下方修正したほか、2026年8月にも今期第2四半期の連結業績予想を下方修正したとされ、資源・エネルギー価格の高止まりや物価上昇に伴うコスト上昇が要因の一つに挙げられている。",
+       "line_id": "L-301-11",
+       "text": "対象者の主な生産拠点には、連結子会社の日本抵抗器大分製作所やサンジェニックスのほか、中国・上海およびタイの拠点が含まれるとされている。",
        "claimed_mark": "explainer",
        "numbers": [],
        "mark": "explainer",
        "mark_reason": null
       },
       {
-       "line_id": "L-102-13",
-       "text": "公開買付届出書は、対象者グループが燃料・原材料価格や物流費、円安等を背景とするコスト上昇により厳しい事業環境に置かれ、直近2期連続で赤字を計上しているとの説明を記している。",
-       "claimed_mark": "source_number_match",
-       "numbers": [],
-       "source_ref": "SRC-003",
-       "excerpt": "対象者グループは、燃料・原材料価格、物流費、円安等を背景とするコスト上昇により厳しい事業環境に置かれ、直近２期連続で赤字を計上しており、進行期においても業績予想を下方修正している",
-       "attribution": "出典：株式会社フェローテック「公開買付届出書」（EDINET、2026年9月18日提出）",
-       "mark": "source_number_match",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-102-14",
-       "text": "対象者側は今回の話し合いが始まった経緯として、経営陣の高齢化が進むなかで明確な後継者が定まっていないことを踏まえ、フェローテックの完全子会社となることも有力な選択肢として協議を続けたいとの意向を伝えたとされる。",
-       "claimed_mark": "source_number_match",
-       "numbers": [],
-       "source_ref": "SRC-003",
-       "excerpt": "経営陣の高齢化が進む中で明確な後継者が定まっていないことを踏まえ、公開買付者の完全子会社となることも有力な選択肢として",
-       "attribution": "出典：株式会社フェローテック「公開買付届出書」（EDINET、2026年9月18日提出）",
-       "mark": "source_number_match",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-102-15",
-       "text": "2件目は、繊維から機械まで幅広い分野を扱う専門商社の兼松が、上場子会社の兼松エレクトロニクスを通じて、非上場の株式会社IDAJなどを買収すると発表したものである。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-102-16",
-       "text": "兼松の臨時報告書によれば、取得対象子会社にあたる連結子会社の名称は兼松エレクトロニクス株式会社とされている。",
-       "claimed_mark": "source_number_match",
-       "numbers": [],
-       "source_ref": "SRC-002",
-       "excerpt": "兼松エレクトロニクス株式会社（以下「兼松エレクトロニクス」）",
-       "attribution": "出典：兼松株式会社「臨時報告書」（EDINET、2026年9月18日提出）",
-       "mark": "source_number_match",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-102-17",
-       "text": "兼松エレクトロニクスは、特別目的会社である株式会社BCJ-61の全株式を取得することを決定し、株式譲渡契約を締結したとされる。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-102-18",
-       "text": "BCJ-61は持株会社のBCJ-62を通じて、実質的な買収対象であるIDAJの全株式を保有しているとされ、IDAJはさらに2つの子会社を持つ。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-102-19",
-       "text": "IDAJは、自動車の設計開発などで使われるMBD(モデルベース開発)やCAE(コンピューターによる解析)に関するソフトウェアの販売や技術サポートを手がける会社だとされる。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-102-20",
-       "text": "IDAJの2025年9月期(単体)の売上高は14,408百万円、経常利益は2,859百万円、当期純利益は2,034百万円だったとされる。",
+       "line_id": "L-301-12",
+       "text": "フェローテックは、2023年12月に完全子会社化した大泉製作所の再生プロセスで得た「技術開発と生産自動化の同時並行支援」の経験を、対象者にも適用する考えを示している。",
        "claimed_mark": "source_number_match",
        "numbers": [
         {
-         "value": 14408,
-         "unit": "百万円",
-         "label": "IDAJの2025年9月期売上高(単体)"
-        },
-        {
-         "value": 2859,
-         "unit": "百万円",
-         "label": "IDAJの2025年9月期経常利益(単体)"
-        },
-        {
-         "value": 2034,
-         "unit": "百万円",
-         "label": "IDAJの2025年9月期当期純利益(単体)"
-        }
-       ],
-       "source_ref": "SRC-002",
-       "excerpt": "売上高\n11,689百万円\n13,159百万円\n14,408百万円\n営業利益\n2,424百万円\n2,432百万円\n2,778百万円\n経常利益\n2,775百万円\n2,545百万円\n2,859百万円\n当期純利益\n2,366百万円\n2,199百万円\n2,034百万円",
-       "attribution": "出典：兼松株式会社「臨時報告書」（EDINET、2026年9月18日提出）",
-       "mark": "source_number_match",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-102-21",
-       "text": "IDAJと2つの子会社をあわせた2025年9月期の売上高は単純合算で14,684百万円だったとされる。",
-       "claimed_mark": "source_number_match",
-       "numbers": [
-        {
-         "value": 14684,
-         "unit": "百万円",
-         "label": "IDAJ・IDxL・RC3社合算の2025年9月期売上高"
-        }
-       ],
-       "source_ref": "SRC-002",
-       "excerpt": "売上高\n12,365百万円\n13,831百万円\n14,684百万円",
-       "attribution": "出典：兼松株式会社「臨時報告書」（EDINET、2026年9月18日提出）",
-       "mark": "source_number_match",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-102-22",
-       "text": "取得の対価は、BCJ-61の株式取得額390億円にアドバイザリー費用等の概算額3.6億円を加えた、概算で393.6億円になるとされる。",
-       "claimed_mark": "source_number_match",
-       "numbers": [
-        {
-         "value": 390,
-         "unit": "億円",
-         "label": "BCJ-61の株式取得額"
-        },
-        {
-         "value": 3.6,
-         "unit": "億円",
-         "label": "アドバイザリー費用等の概算額"
-        },
-        {
-         "value": 393.6,
-         "unit": "億円",
-         "label": "取得対価の合計(概算額)"
-        }
-       ],
-       "source_ref": "SRC-002",
-       "excerpt": "BCJ-61の株式取得額\n390億円\nアドバイザリー費用等（概算額）\n3.6億円\n合計（概算額）\n393.6億円",
-       "attribution": "出典：兼松株式会社「臨時報告書」（EDINET、2026年9月18日提出）",
-       "mark": "source_number_match",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-102-23",
-       "text": "この取得により、IDAJとその子会社は兼松の連結子会社となる予定だとされる。",
-       "claimed_mark": "source_number_match",
-       "numbers": [],
-       "source_ref": "SRC-002",
-       "excerpt": "本株式取得により、IDAJおよびその子会社は、当社の連結子会社となる予定です。",
-       "attribution": "出典：兼松株式会社「臨時報告書」（EDINET、2026年9月18日提出）",
-       "mark": "source_number_match",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-102-24",
-       "text": "兼松は買収の目的として、自動車分野に加え、半導体や防衛、重工業、電気・電子といった成長領域への展開を加速することで事業機会の拡大を見込めると説明している。",
-       "claimed_mark": "source_number_match",
-       "numbers": [],
-       "source_ref": "SRC-002",
-       "excerpt": "自動車分野に加え、半導体、防衛、重工業および電気・電子等の成長領域への展開を加速することで、事業機会の拡大を見込めると期待し",
-       "attribution": "出典：兼松株式会社「臨時報告書」（EDINET、2026年9月18日提出）",
-       "mark": "source_number_match",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-102-25",
-       "text": "なお、この取引は関係当局の許認可の取得など、契約に定める前提条件が満たされることを条件に実行される予定だとされる。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-102-26",
-       "text": "臨時報告書は、当初の取締役会決議が2026年7月10日にあり、その後の協議を経て9月18日に最終的な取得決定と契約締結に至ったとの経緯を記している。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-102-27a",
-       "text": "買付け等に要する資金についてみると、買付代金の欄には、買付予定数1,237,203株に買付価格1,901円を乗じた金額を記載しているとされる。",
-       "claimed_mark": "source_number_match",
-       "numbers": [
-        {
-         "value": 1237203,
-         "unit": "株",
-         "label": "買付予定数"
-        },
-        {
-         "value": 1901,
-         "unit": "円",
-         "label": "買付価格(買付代金算定に用いた単価)"
+         "value": 2023,
+         "unit": "年",
+         "label": "フェローテックが大泉製作所を完全子会社化した年(西暦)"
         }
        ],
        "source_ref": "SRC-003",
-       "excerpt": "買付予定数（1,237,203株）に本公開買付価格（1,901円）を乗じた金額を記載しております。",
+       "excerpt": "2023年12月に完全子会社化した大泉製作所",
        "attribution": "出典：株式会社フェローテック「公開買付届出書」（EDINET、2026年9月18日提出）",
+       "processing_note": "本サイトが同資料をもとに作成",
        "mark": "source_number_match",
        "mark_reason": null
       },
       {
-       "line_id": "L-102-27",
-       "text": "この計算による買付け代金は2,351,922,903円になるとされる。",
+       "line_id": "L-301-13",
+       "text": "フェローテックグループが持つ海外の販売網や、車載関連事業で培った自動化・生産効率化のノウハウを活用することで、対象者の海外展開や生産性向上を後押しする狙いがあるという。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-301-14",
+       "text": "対象者の車載向け抵抗器や角度センサと、フェローテックグループの車載関連事業のサーモモジュール等は用途面で補完関係にあり、両社の顧客基盤を相互に活用する狙いもあるとしている。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-301-15",
+       "text": "対象者の取締役会は9月17日、本公開買付けに賛同する意見を表明するとともに、株主に応募を推奨することを決議したとされている。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-301-16",
+       "text": "対象者は、2025年4月頃から資本政策や成長戦略の実現に関する事業提携・資本業務提携等の可能性の検討を始め、みずほ証券を通じてフェローテックに打診したとされる。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-301-17",
+       "text": "フェローテックは、法令上の最短期間が20営業日であるところ、公開買付期間を30営業日に設定したとしている。",
        "claimed_mark": "source_number_match",
        "numbers": [
         {
-         "value": 2351922903,
-         "unit": "円",
-         "label": "買付代金(買付予定数×買付価格)"
-        }
-       ],
-       "source_ref": "SRC-003",
-       "excerpt": "買付代金（円）(a)\n2,351,922,903",
-       "attribution": "出典：株式会社フェローテック「公開買付届出書」（EDINET、2026年9月18日提出）",
-       "mark": "source_number_match",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-102-28",
-       "text": "これに買付手数料20,000,000円やその他の諸費用5,000,000円を加えた合計は2,376,922,903円になるとされる。",
-       "claimed_mark": "source_number_match",
-       "numbers": [
+         "value": 20,
+         "unit": "営業日",
+         "label": "公開買付期間の法定最短日数"
+        },
         {
-         "value": 2376922903,
-         "unit": "円",
-         "label": "買付け等に要する資金の合計"
+         "value": 30,
+         "unit": "営業日",
+         "label": "今回設定された公開買付期間"
         }
        ],
        "source_ref": "SRC-003",
-       "excerpt": "合計(a)＋(b)＋(c)\n2,376,922,903",
+       "excerpt": "公開買付期間について、法令で定められた最短期間が20営業日であるところ、公開買付期間を30営業日に設定しております。",
        "attribution": "出典：株式会社フェローテック「公開買付届出書」（EDINET、2026年9月18日提出）",
+       "processing_note": "本サイトが同資料をもとに作成",
        "mark": "source_number_match",
        "mark_reason": null
       },
       {
-       "line_id": "L-102-29",
-       "text": "フェローテックは届出日の前々日または前日時点で、当座預金として5,358,850千円を保有しているとされ、この資金を買付け代金に充てる計画だとされる。",
+       "line_id": "L-301-18",
+       "text": "これは、対象者の株主に応募について適切な判断の機会を確保し、対抗的な買付けの機会も妨げないことで、価格の公正性を担保する狙いだとしている。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-301-19",
+       "text": "買付け等に要する資金に充当しうる預金等の合計は5,358,850千円とされ、借入先の一覧には具体的な金融機関名の記載がなく、自己資金でまかなう計画とみられる。",
        "claimed_mark": "source_number_match",
        "numbers": [
         {
          "value": 5358850,
          "unit": "千円",
-         "label": "フェローテックの当座預金残高(届出日前々日・前日時点)"
+         "label": "買付け等に要する資金に充当しうる預金等の合計"
         }
        ],
        "source_ref": "SRC-003",
-       "excerpt": "当座預金\n5,358,850",
+       "excerpt": "5,358,850千円",
        "attribution": "出典：株式会社フェローテック「公開買付届出書」（EDINET、2026年9月18日提出）",
+       "processing_note": "本サイトが同資料をもとに作成",
        "mark": "source_number_match",
        "mark_reason": null
       },
       {
-       "line_id": "L-102-30",
-       "text": "届出書の借入金の欄には金融機関からの借入れの記載がなく、今回の買付け等に要する資金は借入れに頼らず自己資金でまかなう計画だとされる。",
+       "line_id": "L-301-20",
+       "text": "決済の開始日は2026年11月12日とされている。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "source_ref": "SRC-003",
+       "excerpt": "2026年11月12日",
+       "attribution": "出典：株式会社フェローテック「公開買付届出書」（EDINET、2026年9月18日提出）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-301-21",
+       "text": "公開買付者であるフェローテック自身の株式は、1996年10月に日本証券業協会への店頭登録という形で公開されたとされている。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 1996,
+         "unit": "年",
+         "label": "フェローテック株式が店頭登録された年(西暦)"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "1996年10月に公開買付者の普通株式",
+       "attribution": "出典：株式会社フェローテック「公開買付届出書」（EDINET、2026年9月18日提出）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-301-22",
+       "text": "その後2004年12月に店頭登録を取り消してジャスダック証券取引所に上場したとされている。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 2004,
+         "unit": "年",
+         "label": "フェローテックがジャスダック証券取引所に上場した年(西暦)"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "2004年12月に日本証券業協会への店頭登録を取消し",
+       "attribution": "出典：株式会社フェローテック「公開買付届出書」（EDINET、2026年9月18日提出）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-301-22b",
+       "text": "2010年4月にはジャスダック証券取引所と大阪証券取引所の合併に伴い、大阪証券取引所JASDAQへ移行したとされている。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 2010,
+         "unit": "年",
+         "label": "フェローテック株式が大阪証券取引所JASDAQへ移行した年(西暦)"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "2010年４月にジャスダック証券取引所と大阪証券取引所の合併",
+       "attribution": "出典：株式会社フェローテック「公開買付届出書」（EDINET、2026年9月18日提出）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-301-23",
+       "text": "2013年7月には東京証券取引所と大阪証券取引所の合併に伴い、東京証券取引所JASDAQへ移行したとされている。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 2013,
+         "unit": "年",
+         "label": "フェローテック株式が東証JASDAQへ移行した年(西暦)"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "2013年７月には株式会社東京証券取引所",
+       "attribution": "出典：株式会社フェローテック「公開買付届出書」（EDINET、2026年9月18日提出）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-301-23b",
+       "text": "2022年4月4日には、東京証券取引所の市場区分見直しに伴い、東京証券取引所JASDAQからスタンダード市場へ移行したとされている。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 2022,
+         "unit": "年",
+         "label": "フェローテック株式がスタンダード市場へ移行した年(西暦)"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "2022年４月４日に東京証券取引所JASDAQから東京証券取引所スタンダード市場へ移行しました",
+       "attribution": "出典：株式会社フェローテック「公開買付届出書」（EDINET、2026年9月18日提出）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-301-24",
+       "text": "対象者との交渉過程では、対象者および対象者から独立した委員で構成される特別委員会が設置され、取引の是非や条件の妥当性について検討が行われたとされている。",
        "claimed_mark": "explainer",
        "numbers": [],
        "mark": "explainer",
        "mark_reason": null
       },
       {
-       "line_id": "L-102-31",
-       "text": "対象者側の資料によれば、対象者グループの連結売上高は、2023年12月期の7,166百万円から2024年12月期に6,454百万円、2025年12月期に5,905百万円と、2期連続で減収になったとされる。",
-       "claimed_mark": "source_number_match",
-       "numbers": [
-        {
-         "value": 7166,
-         "unit": "百万円",
-         "label": "対象者グループの2023年12月期連結売上高"
-        },
-        {
-         "value": 6454,
-         "unit": "百万円",
-         "label": "対象者グループの2024年12月期連結売上高"
-        },
-        {
-         "value": 5905,
-         "unit": "百万円",
-         "label": "対象者グループの2025年12月期連結売上高"
-        }
-       ],
-       "source_ref": "SRC-003",
-       "excerpt": "連結売上高は、2023年12月期では7,166百万円であったところ、2024年12月期には6,454百万円、2025年12月期には5,905百万円と２期連続で減収となっており",
-       "attribution": "出典：株式会社フェローテック「公開買付届出書」（EDINET、2026年9月18日提出）",
-       "mark": "source_number_match",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-102-32",
-       "text": "同じ資料は、2024年12月期に104百万円、2025年12月期に136百万円の経常損失を、それぞれ計上したとも記している。",
-       "claimed_mark": "source_number_match",
-       "numbers": [
-        {
-         "value": 104,
-         "unit": "百万円",
-         "label": "対象者グループの2024年12月期経常損失"
-        },
-        {
-         "value": 136,
-         "unit": "百万円",
-         "label": "対象者グループの2025年12月期経常損失"
-        }
-       ],
-       "source_ref": "SRC-003",
-       "excerpt": "2024年12月期には104百万円の経常損失を、2025年12月期には136百万円の経常損失をそれぞれ計上し",
-       "attribution": "出典：株式会社フェローテック「公開買付届出書」（EDINET、2026年9月18日提出）",
-       "mark": "source_number_match",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-102-33",
-       "text": "対象者は2025年4月ごろから、単独での企業価値向上にとどまらず、他社との事業提携や資本業務提携の可能性を検討し始め、2025年11月ごろにフェローテックをパートナー候補として検討を進めることにしたとされる。",
+       "line_id": "L-301-25",
+       "text": "公開買付価格については、対象者側から複数回の再提案の要請があり、フェローテックは2026年9月15日に1,901円とする再提案を行い、対象者側は9月16日にこれに応諾する回答をしたとされている。",
        "claimed_mark": "explainer",
        "numbers": [],
        "mark": "explainer",
        "mark_reason": null
       },
       {
-       "line_id": "L-102-34",
-       "text": "兼松の臨時報告書によれば、取得対象であるBCJ-61とBCJ-62はいずれも資本金100百万円、設立年月日は2023年2月14日で、株式を保有・管理するための特別目的会社にあたるとされる。",
+       "line_id": "L-301-26",
+       "text": "フェローテックは、対象者に対して独立した第三者算定機関(デロイト)による株式価値算定書を取得したうえで、最終的な公開買付価格を決定したとしている。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-301-27",
+       "text": "対象者は2025年11月頃、フェローテックを事業提携または資本業務提携等のパートナー候補として検討することとしたとされている。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "source_ref": "SRC-003",
+       "excerpt": "2025年11月頃に公開買付者を事業提携又は資本業務提携等のパートナー候補として、検討する",
+       "attribution": "出典：株式会社フェローテック「公開買付届出書」（EDINET、2026年9月18日提出）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-301-28",
+       "text": "フェローテックは2026年2月から4月にかけて、対象者の経営陣との複数回の面談や、富山工場・大分工場の視察等を行ったとされている。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "source_ref": "SRC-003",
+       "excerpt": "2026年２月から同年４月にかけて、対象者の経営陣との複数回の面談",
+       "attribution": "出典：株式会社フェローテック「公開買付届出書」（EDINET、2026年9月18日提出）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-301-29",
+       "text": "フェローテックは2026年5月21日、対象者の取締役会に対して、株式取得を通じた取引実施に関する意向表明書を提出したとされている。",
        "claimed_mark": "source_number_match",
        "numbers": [
         {
-         "value": 100,
-         "unit": "百万円",
-         "label": "BCJ-61の資本金"
-        },
-        {
-         "value": 14,
+         "value": 21,
          "unit": "日",
-         "label": "BCJ-61・BCJ-62の設立日(2月)"
-        }
-       ],
-       "source_ref": "SRC-002",
-       "excerpt": "資本金\n100百万円\n⑥　設立年月日\n2023年２月14日",
-       "attribution": "出典：兼松株式会社「臨時報告書」（EDINET、2026年9月18日提出）",
-       "mark": "source_number_match",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-102-35",
-       "text": "BCJ-61の大株主は、BCPE Advance Cayman, L.P.と株式会社エイティアイシーホールディングスで、それぞれ50%ずつを保有しているとされる。",
-       "claimed_mark": "source_number_match",
-       "numbers": [
-        {
-         "value": 50,
-         "unit": "%",
-         "label": "BCJ-61大株主(BCPE Advance Cayman, L.P.)の持株比率"
-        }
-       ],
-       "source_ref": "SRC-002",
-       "excerpt": "BCPE Advance Cayman, L.P.：50％\n株式会社エイティアイシーホールディングス：50％",
-       "attribution": "出典：兼松株式会社「臨時報告書」（EDINET、2026年9月18日提出）",
-       "mark": "source_number_match",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-102-36",
-       "text": "IDAJは1994年10月に設立された会社で、資本金は100百万円だとされる。",
-       "claimed_mark": "source_number_match",
-       "numbers": [
-        {
-         "value": 1994,
-         "unit": "年",
-         "label": "IDAJの設立年"
-        }
-       ],
-       "source_ref": "SRC-002",
-       "excerpt": "⑥　設立年月日\n1994年10月１日",
-       "attribution": "出典：兼松株式会社「臨時報告書」（EDINET、2026年9月18日提出）",
-       "mark": "source_number_match",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-102-37",
-       "text": "フェローテックの届出書は、自社の沿革についても記しており、1980年9月に米国フェローフルイディクス社によって、コンピュータシールや真空シール、磁性流体の輸入販売を目的とする日本フェローフルイディクス株式会社として設立されたとされる。",
-       "claimed_mark": "source_number_match",
-       "numbers": [
-        {
-         "value": 1980,
-         "unit": "年",
-         "label": "フェローテックの設立年"
+         "label": "フェローテックが意向表明書を提出した日(5月)"
         }
        ],
        "source_ref": "SRC-003",
-       "excerpt": "公開買付者は、1980年９月に、米国フェローフルイディクス社",
+       "excerpt": "2026年５月21日、対象者取締役会に対し",
        "attribution": "出典：株式会社フェローテック「公開買付届出書」（EDINET、2026年9月18日提出）",
+       "processing_note": "本サイトが同資料をもとに作成",
        "mark": "source_number_match",
        "mark_reason": null
       },
       {
-       "line_id": "L-102-38",
-       "text": "その後1995年10月に商号を株式会社フェローテックに変更し、1996年10月には日本証券業協会に株式を店頭登録、2004年12月にジャスダック証券取引所へ上場したとされる。",
-       "claimed_mark": "source_number_match",
-       "numbers": [
-        {
-         "value": 1995,
-         "unit": "年",
-         "label": "フェローテックへの商号変更年"
-        }
-       ],
+       "line_id": "L-301-30",
+       "text": "その後2026年6月上旬から8月上旬にかけて、対象者の財務・税務・法務に関するデューデリジェンスが行われたとされている。",
+       "claimed_mark": "explainer",
+       "numbers": [],
        "source_ref": "SRC-003",
-       "excerpt": "1995年10月に商号を株式会社フェローテックに変更しました",
+       "excerpt": "2026年６月上旬から同年８月上旬までの間、対象者に対する財務、税務及び法務に関するデュー・ディリジェンス",
        "attribution": "出典：株式会社フェローテック「公開買付届出書」（EDINET、2026年9月18日提出）",
-       "mark": "source_number_match",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "explainer",
        "mark_reason": null
       },
       {
-       "line_id": "L-102-39",
-       "text": "2022年4月には東京証券取引所の市場区分見直しに伴い、東証JASDAQからスタンダード市場へ移行し、2025年7月には持株会社から事業会社に移行して現在の商号になったとされる。",
+       "line_id": "L-301-31",
+       "text": "対象者の抵抗器製品は、自動車用、農電機器用、電源機器用、医療機器用、家電用など幅広い用途に使われているとされている。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "source_ref": "SRC-003",
+       "excerpt": "主な用途として自動車用、農電機器用、電源機器用、医療機器用、家電用等",
+       "attribution": "出典：株式会社フェローテック「公開買付届出書」（EDINET、2026年9月18日提出）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-301-32",
+       "text": "対象者グループの生産拠点には、連結子会社の日本抵抗器大分製作所やサンジェニックスのほか、中国・上海の解亜園（上海）電子製造有限公司、タイのJRM（Thailand）Co., Ltd.が含まれるとされている。",
        "claimed_mark": "explainer",
        "numbers": [],
        "mark": "explainer",
        "mark_reason": null
       },
       {
-       "line_id": "L-102-40",
-       "text": "フェローテックは今回の取引とは別に、2028年12月期を最終年度とする中期経営計画を掲げており、連結売上高4,500億円、連結営業利益570億円などの目標を挙げているとされる。",
-       "claimed_mark": "source_number_match",
-       "numbers": [
-        {
-         "value": 4500,
-         "unit": "億円",
-         "label": "フェローテックの2028年12月期目標(連結売上高)"
-        },
-        {
-         "value": 570,
-         "unit": "億円",
-         "label": "フェローテックの2028年12月期目標(連結営業利益)"
-        }
-       ],
-       "source_ref": "SRC-003",
-       "excerpt": "2028年12月期において、連結売上高4,500億円、連結営業利益570億円",
-       "attribution": "出典：株式会社フェローテック「公開買付届出書」（EDINET、2026年9月18日提出）",
-       "mark": "source_number_match",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-102-41",
-       "text": "こうした中期経営計画の位置づけの中で、対象者の買収がどの程度寄与するかについて、届出書は具体的な数値目標を示していない。",
+       "line_id": "L-301-33",
+       "text": "対象者のポテンショメーター製品は、自動車用や建設機械用、農電機器用などに使われているとされている。",
        "claimed_mark": "explainer",
        "numbers": [],
+       "source_ref": "SRC-003",
+       "excerpt": "主な用途として自動車用、建設機械用、農電機器用等",
+       "attribution": "出典：株式会社フェローテック「公開買付届出書」（EDINET、2026年9月18日提出）",
+       "processing_note": "本サイトが同資料をもとに作成",
        "mark": "explainer",
        "mark_reason": null
       },
       {
-       "line_id": "L-102-42",
-       "text": "フェローテックはさらに長期のビジョンとして、2030年度に連結売上高5,000億円、親会社株主に帰属する当期純利益500億円の達成を目指すとしている。",
-       "claimed_mark": "source_number_match",
-       "numbers": [
-        {
-         "value": 5000,
-         "unit": "億円",
-         "label": "フェローテックの2030年度目標(連結売上高)"
-        },
-        {
-         "value": 500,
-         "unit": "億円",
-         "label": "フェローテックの2030年度目標(当期純利益)"
-        }
-       ],
-       "source_ref": "SRC-003",
-       "excerpt": "2030年度（2030年12月期）には連結売上高5,000億円、親会社株主に帰属する当期純利益500億円の達成を目指していく",
-       "attribution": "出典：株式会社フェローテック「公開買付届出書」（EDINET、2026年9月18日提出）",
-       "mark": "source_number_match",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-102-43",
-       "text": "兼松の臨時報告書は、企業内容等の開示に関する内閣府令第19条第2項第16号の2の規定に基づいて提出されたともされている。",
+       "line_id": "L-301-34",
+       "text": "ハイブリッドIC製品は、自動車用や空調用、電源機器用、医療機器用、家電用などに使われているとされている。",
        "claimed_mark": "explainer",
        "numbers": [],
+       "source_ref": "SRC-003",
+       "excerpt": "主な用途として自動車用、空調用、電源機器用、医療機器用、家電用等",
+       "attribution": "出典：株式会社フェローテック「公開買付届出書」（EDINET、2026年9月18日提出）",
+       "processing_note": "本サイトが同資料をもとに作成",
        "mark": "explainer",
        "mark_reason": null
       },
       {
-       "line_id": "L-102-44",
-       "text": "この規定は、連結子会社が一定規模以上の他社の株式を取得することを決めた場合に、その内容を臨時報告書として開示するよう求めるものだとされる。",
+       "line_id": "L-301-35",
+       "text": "対象者は、基礎研究、商品設計、部材調達、生産技術、製造、販売という設計から販売までの一連の機能を有し、顧客の要望に基づくカスタム商品の提供を強みにしているとしている。",
        "claimed_mark": "explainer",
        "numbers": [],
+       "source_ref": "SRC-003",
+       "excerpt": "基礎研究、商品設計、部材調達、生産技術、製造、販売と設計から販売まで一連の機能を有し",
+       "attribution": "出典：株式会社フェローテック「公開買付届出書」（EDINET、2026年9月18日提出）",
+       "processing_note": "本サイトが同資料をもとに作成",
        "mark": "explainer",
        "mark_reason": null
       }
      ],
      "inferences": [
       {
-       "inference_id": "INF-2026-09-18-102-1",
-       "text": "フェローテックの公開買付けが成立すれば、日本抵抗器製作所の生産拠点や取引先の管理体制が、フェローテックグループの方針に沿って見直されていく可能性がある。",
-       "falsifier": "買付け予定数が下限の618,700株に届かず公開買付けが不成立となれば、この見方は成り立たない。",
-       "check_metric": "フェローテックが公表する公開買付けの結果(応募株式数)",
-       "check_by": "2026-11-05"
+       "inference_id": "INF-2026-09-18-301-1",
+       "text": "対象者が非公開化されれば、対象者の連結子会社である日本抵抗器大分製作所やサンジェニックスなどの生産体制も、フェローテックグループの自動化投資の対象に含まれていく可能性がある。",
+       "falsifier": "買付予定数の下限に届かず本公開買付けが不成立に終われば、この見方は成り立たない。",
+       "check_metric": "フェローテックが提出する公開買付けの結果に関する届出書(公開買付報告書)の内容",
+       "check_by": "2026-11-30"
       },
       {
-       "inference_id": "INF-2026-09-18-102-2",
-       "text": "兼松によるIDAJなどの買収が完了すれば、兼松グループの設計開発DX関連の売上高が、次の決算以降に上乗せされて現れてくる可能性がある。",
-       "falsifier": "関係当局の許認可が得られないなど前提条件が満たされず、取引そのものが実行されなければ、この見方は成り立たない。",
-       "check_metric": "兼松が開示する連結決算資料における設計開発DX関連事業の売上高",
-       "check_by": "2026-10-22"
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "section_id": "ripple",
-   "title": "波及を追う",
-   "articles": [
-    {
-     "article_id": "ART-2026-09-18-103",
-     "event_id": "EVT-2026-09-18-103",
-     "headline": "電子部品と設計開発DX、2つの買収が供給網に及ぼしうる波紋",
-     "lines": [
-      {
-       "line_id": "L-103-01",
-       "text": "2件の買収は、それぞれ異なる業種の供給網に波及しうる要素を含んでいるとみられる。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-103-02",
-       "text": "まずフェローテック側からみると、公開買付者であるフェローテックグループは、公開買付者本体と子会社・関連会社をあわせた98社(2026年3月31日時点)で構成されているとされる。",
-       "claimed_mark": "source_number_match",
-       "numbers": [
-        {
-         "value": 98,
-         "unit": "社",
-         "label": "フェローテックグループの会社数(2026年3月31日時点)"
-        }
-       ],
-       "source_ref": "SRC-003",
-       "excerpt": "公開買付者及び子会社等98社（連結子会社80社、持分法適用関連会社13社及び持分法非適用非連結子会社５社）（2026年３月31日現在）",
-       "attribution": "出典：株式会社フェローテック「公開買付届出書」（EDINET、2026年9月18日提出）",
-       "mark": "source_number_match",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-103-03",
-       "text": "その内訳は連結子会社80社、持分法適用関連会社13社、持分法非適用非連結子会社5社だとされる。",
-       "claimed_mark": "source_number_match",
-       "numbers": [
-        {
-         "value": 80,
-         "unit": "社",
-         "label": "フェローテックグループの連結子会社数"
-        },
-        {
-         "value": 13,
-         "unit": "社",
-         "label": "持分法適用関連会社数"
-        },
-        {
-         "value": 5,
-         "unit": "社",
-         "label": "持分法非適用非連結子会社数"
-        }
-       ],
-       "source_ref": "SRC-003",
-       "excerpt": "連結子会社80社、持分法適用関連会社13社及び持分法非適用非連結子会社５社",
-       "attribution": "出典：株式会社フェローテック「公開買付届出書」（EDINET、2026年9月18日提出）",
-       "mark": "source_number_match",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-103-04",
-       "text": "フェローテックグループは、半導体やFPD(薄型パネル)の製造装置向けに使う真空シールや石英製品、セラミックス製品、シリコン製品などを手がける事業や、パワー半導体用基板やセンサを手がける事業など、4つの事業セグメントで構成されているとされる。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-103-05",
-       "text": "一方、買収対象となる日本抵抗器製作所は、抵抗器やポテンショメーター、ハイブリッドICといった電子部品を、自動車や医療機器、家電、農電機器など幅広い用途向けに供給しているとされる。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-103-06",
-       "text": "この抵抗器という部品は、電流の流れを制限し、回路に適切な電圧や電流を作り出す働きを持つとされ、電子機器の設計には欠かせない部材の一つとされる。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-103-07",
-       "text": "公開買付届出書は、対象者の2026年12月期の増益要因として、半導体製造装置関連の基盤の受注が好調で売上高が回復する見通しにあると説明している。",
-       "claimed_mark": "source_number_match",
-       "numbers": [
-        {
-         "value": 227,
-         "unit": "百万円",
-         "label": "対象者の2026年12月期の対前年比増益見込み額"
-        }
-       ],
-       "source_ref": "SRC-003",
-       "excerpt": "2026年12月期（対前年比227百万円の増益）において、半導体製造装置関連の基盤の受注好調を通じた売上高の回復",
-       "attribution": "出典：株式会社フェローテック「公開買付届出書」（EDINET、2026年9月18日提出）",
-       "mark": "source_number_match",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-103-08",
-       "text": "半導体製造装置の受注動向が、部品を供給する対象者の業績にも及んでいるという説明は、装置メーカーの発注が部品・材料メーカーへと連なっていく構造の一例といえる。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-103-09",
-       "text": "フェローテック側は、対象者が持つ抵抗器などの設計・開発力やカスタム対応力を高く評価し、自社が持つ海外の販売網や生産効率化のノウハウを組み合わせることで、シナジーを見込んでいると説明している。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-103-10",
-       "text": "対象者の生産拠点は日本、中国、タイにまたがり、連結子会社の日本抵抗器大分製作所やサンジェニックス、タイのJRM(Thailand)などが実際の生産を担っているとされる。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-103-11",
-       "text": "完全子会社化が実現すれば、これらの生産拠点や、対象者の主要な販売先である自動車・農電機器・電源機器・医療機器・家電などの取引先との関係が、フェローテックグループの体制の中に組み込まれていくことになる。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-103-12",
-       "text": "対象者はこれまで、上場企業として独立した株主構成のもとで事業を続けてきたが、完全子会社化が実現すれば、フェローテックグループ全体の経営方針や投資計画の影響をより直接的に受ける立場に変わる。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-103-13",
-       "text": "他方、兼松・IDAJ側の波及をみると、IDAJが手がけるMBD(モデルベース開発)やCAE(コンピューターによる解析)は、自動車をはじめとする製造業の設計開発プロセスを支えるソフトウェアやサービスだとされる。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-103-14",
-       "text": "兼松グループはこれまで、IT基盤や業務システム、PLM(製品ライフサイクル管理)、MES(製造実行システム)といった、設計より後の実装・構築の領域でソリューションを提供してきたとされる。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-103-15",
-       "text": "IDAJの買収により、設計・解析を含む上流工程から製造までを一気通貫で支援する体制を目指すと兼松は説明しており、これはIDAJの既存の顧客基盤と兼松グループの顧客基盤を互いに活用する狙いもあるとされる。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-103-16",
-       "text": "IDAJの子会社である株式会社アイ・ディー・クロスリンクは、モデルベース開発支援やVR/AR/MRの可視化技術を使ったデジタルツイン環境の構築を手がけるとされ、製造業の設計現場のデジタル化を専門とする会社の一つである。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-103-17",
-       "text": "この分野では、自動車メーカーや部品メーカーなど、設計・解析ソフトウェアを利用する側の企業が多数存在しており、供給側の会社の再編は、利用企業がどの会社のツールやサポートを使い続けるかという選択にも間接的に関わりうる。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-103-18",
-       "text": "兼松は買収の目的の一つとして、自動車分野に加えて半導体、防衛、重工業、電気・電子といった成長領域への展開を挙げており、IDAJが持つ技術が、これらの業種の設計開発にも応用されうるとの見立てを示している。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-103-19",
-       "text": "一般に、専門商社が事業会社を買収する場合、買収先の既存の取引先との契約や、仕入れ・販売のネットワークがそのまま引き継がれることが多いとされ、供給網の末端にいる取引先企業にも、間接的に体制変更の影響が及びうる。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-103-20",
-       "text": "半導体や電子部品の分野では、装置・部材・設計ツールのいずれかを手がける企業どうしの合従連衡が、業界内の競合関係や取引関係の見取り図を変えていく面があるとされる。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-103-21",
-       "text": "こうした業界再編の動きが実際にどう波及するかは、当事者となった企業の今後の統合の進め方や、取引先企業の対応によって左右される面が大きく、現時点で確定的に見通せるものではない。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-103-22",
-       "text": "対象者グループの4つの製品群を細かくみると、それぞれ供給網の広がり方が少しずつ異なっているとされる。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-103-23",
-       "text": "主力の抵抗器は、自動車用や農電機器用、電源機器用、医療機器用、家電用など幅広い用途に使われ、主に子会社の日本抵抗器大分製作所やサンジェニックス、中国の解亜園(上海)電子製造有限公司、タイのJRM(Thailand)で生産されているとされる。",
-       "claimed_mark": "source_number_match",
-       "numbers": [],
-       "source_ref": "SRC-003",
-       "excerpt": "主な用途として自動車用、農電機器用、電源機器用、医療機器用、家電用等があり、主に対象者の連結子会社である株式会社日本抵抗器大分製作所",
-       "attribution": "出典：株式会社フェローテック「公開買付届出書」（EDINET、2026年9月18日提出）",
-       "mark": "source_number_match",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-103-24",
-       "text": "可変抵抗器の一種であるポテンショメーターは、自動車用や建設機械用、農電機器用が主な用途で、主にサンジェニックスで生産されているとされる。",
-       "claimed_mark": "source_number_match",
-       "numbers": [],
-       "source_ref": "SRC-003",
-       "excerpt": "主な用途として自動車用、建設機械用、農電機器用等があり、主にサンジェニックスで生産し",
-       "attribution": "出典：株式会社フェローテック「公開買付届出書」（EDINET、2026年9月18日提出）",
-       "mark": "source_number_match",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-103-25",
-       "text": "複数の部品を基板上に組み合わせたハイブリッドICは、自動車用や空調用、電源機器用、医療機器用、家電用などに使われ、サンジェニックスや解亜園(上海)電子製造有限公司で生産されているとされる。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-103-26",
-       "text": "対象者は、これら生産拠点と、自身の連結子会社である日本抵抗器販売を通じた販売網、あるいは外部顧客への直接販売という2つの経路で製品を供給しているとされる。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-103-27",
-       "text": "つまり自動車や医療機器、家電、農電機器、建設機械、空調機器といった業種の部品調達の一部が、間接的にこの買収の影響を受けうる範囲に含まれることになる。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-103-28",
-       "text": "対象者を取り巻く経営環境として、ヨーロッパを中心とした自動車の電動化(EV)や、5G・AIなどの普及に伴い、半導体・電子部品の需要自体は底堅いと見込まれる一方、価格競争が厳しいとの説明もある。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-103-29",
-       "text": "フェローテックグループが持つ海外の販売網や生産効率化のノウハウが対象者に持ち込まれれば、対象者の既存の取引先にとっては、納期や価格の面で調達条件が変わる可能性がある。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-103-30",
-       "text": "兼松・IDAJ側についても、買収対象にはIDAJの子会社であるアイ・ディー・クロスリンクと、その子会社であるリアルコネクトが含まれており、合わせて3社の事業が兼松グループに加わることになる。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-103-31",
-       "text": "リアルコネクトは、国内外の物資の販売や輸出入業、情報処理システムの企画・運営などを手がける会社だとされ、IDAJ本体とは異なる事業領域を持つ子会社である。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-103-32",
-       "text": "設計開発の川上工程を担うIDAJグループが兼松グループに加わることで、これまで兼松が手薄だった上流工程の顧客接点が広がり、既存のIT基盤・業務システム事業の顧客に対しても、新たな提案の窓口が生まれる可能性がある。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-103-33",
-       "text": "対象者グループを取り巻く経営環境としては、燃料・原材料価格の高騰や物流コストの上昇、円安による海外生産コストの上昇など、コスト面での逆風が続いているとされる。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-103-34",
-       "text": "産業機械に関する市況回復の遅れや為替相場の変動が収益に影響する外部要因であるほか、人材不足や生産工程の自動化といった内部の経営課題も抱えているとされる。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-103-35",
-       "text": "対象者は、欧州や東南アジア、中国市場での電気自動車(EV)関連向け電子部品や、産業機器市場向け電子部品の受注拡大に努めてきたとされ、これらの地域の需要動向が対象者の業績に直結する構造にあることがうかがえる。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-103-36",
-       "text": "フェローテックグループ自身も、中国に生産拠点を持ち、米国で生まれ日本で育ち中国で拡大する企業だと自らを説明しており、中国事業のノウハウを対象者の中国生産拠点である解亜園(上海)電子製造有限公司に生かせる可能性がある。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-103-37",
-       "text": "対象者の主要な取引先には、対象者の連結子会社である日本抵抗器販売を介する場合と、外部顧客に直接販売する場合の2通りがあるとされ、直接取引をしている顧客企業には、フェローテック入り後の窓口の変化が直接伝わる可能性がある。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-103-38",
-       "text": "半導体・電子部品業界では、装置や部材、設計ツールを手がける会社どうしの経営統合が、既存の取引先にとっての調達・発注先の選択肢を変えていく面があるとされ、今回の2件もその一例に位置づけられる。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
-       "mark_reason": null
-      }
-     ],
-     "inferences": [
-      {
-       "inference_id": "INF-2026-09-18-103-1",
-       "text": "日本抵抗器製作所がフェローテックグループに入れば、抵抗器などの取引先である自動車・医療機器・家電メーカーとの取引条件が、グループ全体の調達方針に合わせて見直される可能性がある。",
-       "falsifier": "完全子会社化後も対象者が独立した事業運営を維持すると公表すれば、この見方は当面成り立たない。",
-       "check_metric": "フェローテックが公表する対象者の経営体制・取引方針に関する開示",
-       "check_by": "2026-10-22"
-      },
-      {
-       "inference_id": "INF-2026-09-18-103-2",
-       "text": "IDAJの買収を機に、兼松が半導体や防衛、重工業向けの設計開発支援を拡大すれば、同分野で競合するCAE・MBD関連の他社にも顧客獲得競争の面で影響が及ぶ可能性がある。",
-       "falsifier": "兼松がIDAJの事業を既存顧客向けに限定し、新規分野への展開を進めなければ、この見方は成り立たない。",
-       "check_metric": "兼松グループが開示する設計開発DX関連事業の対象業種別の売上構成",
-       "check_by": "2026-10-22"
+       "inference_id": "INF-2026-09-18-301-2",
+       "text": "対象者が完全子会社化により上場を維持しなくなれば、対象者株式は東京証券取引所スタンダード市場での売買ができなくなる可能性がある。",
+       "falsifier": "公開買付け後も対象者株式の上場が維持される取り扱いになれば、この見方は成り立たない。",
+       "check_metric": "東京証券取引所が公表する対象者株式の上場廃止に関する情報",
+       "check_by": "2027-03-31"
       }
      ]
     }
@@ -1425,645 +1378,402 @@
    "title": "深掘り",
    "articles": [
     {
-     "article_id": "ART-2026-09-18-104",
-     "event_id": "EVT-2026-09-18-104",
-     "headline": "公開買付け(TOB)はどう決まるのか フェローテックの事例で読み解く",
+     "article_id": "ART-2026-09-18-401",
+     "event_id": "EVT-2026-09-18-401",
+     "headline": "深掘り：日銀の利上げは家計と企業にどう波及するか",
      "lines": [
       {
-       "line_id": "L-104-01",
-       "text": "きょうの紙面で扱った公開買付け(TOB)という制度は、ある会社の株式を、証券取引所を通さずに、あらかじめ決めた価格・期間・株数の条件を示したうえで、不特定多数の株主から買い集める仕組みである。",
+       "line_id": "L-401-01",
+       "text": "日銀は今回の判断の背景として、我が国の景気は中東情勢の影響もあって一部に弱めの動きもみられるが、緩やかに回復しているとの見方を示した。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "source_ref": "SRC-001",
+       "excerpt": "わが国の景気は、中東情勢の影響もあって一部に弱めの動きもみられるが、緩やかに回復している",
+       "attribution": "出典：日本銀行「金融市場調節方針の変更について」（2026年9月18日）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-401-02",
+       "text": "海外経済についても、一部に弱めの動きがあるものの、グローバルなAI関連需要の堅調な増加を背景に、輸出や鉱工業生産は緩やかながらも増加に転じているとの認識を示した。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "source_ref": "SRC-001",
+       "excerpt": "グローバルなＡＩ関連需要の堅調な増加などを背景に、輸出や鉱工業生産は緩やかながらも増加に転じており",
+       "attribution": "出典：日本銀行「金融市場調節方針の変更について」（2026年9月18日）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-401-03",
+       "text": "物価面では、中長期の予想物価上昇率が引き続き上昇しており、消費者物価の基調的な上昇率は2%に近づいているとしている。",
        "claimed_mark": "explainer",
        "numbers": [],
        "mark": "explainer",
        "mark_reason": null
       },
       {
-       "line_id": "L-104-02",
-       "text": "この制度は金融商品取引法に基づいており、買付け者は「公開買付届出書」という書類を関東財務局などに提出し、EDINETを通じて公表することが義務づけられているとされる。",
+       "line_id": "L-401-04",
+       "text": "そのうえで日銀は、基調的な物価上昇率が2%の「物価安定の目標」を超えて上振れていくリスクがあるとの認識を示した。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "source_ref": "SRC-001",
+       "excerpt": "２％の「物価安定の目標」を超えて上振れていくリスクがある",
+       "attribution": "出典：日本銀行「金融市場調節方針の変更について」（2026年9月18日）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-401-05",
+       "text": "日銀は、実質金利は短中期ゾーンを中心になお低い水準にあり、金融環境は緩和した状態にあるとも述べている。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "source_ref": "SRC-001",
+       "excerpt": "実質金利は短中期ゾーンを中心になお低い水準となっている",
+       "attribution": "出典：日本銀行「金融市場調節方針の変更について」（2026年9月18日）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-401-06",
+       "text": "こうした経済・物価情勢を踏まえ、日銀は2%の「物価安定の目標」の持続的・安定的な実現という観点から、金融緩和の度合いを調整することが適切だと判断したとしている。",
        "claimed_mark": "explainer",
        "numbers": [],
        "mark": "explainer",
        "mark_reason": null
       },
       {
-       "line_id": "L-104-03",
-       "text": "フェローテックが提出した公開買付届出書の表紙には、提出先が関東財務局長であることや、提出日が2026年9月18日であることが記載されている。",
-       "claimed_mark": "source_number_match",
-       "numbers": [],
-       "source_ref": "SRC-003",
-       "excerpt": "【提出先】\n関東財務局長",
-       "attribution": "出典：株式会社フェローテック「公開買付届出書」（EDINET、2026年9月18日提出）",
-       "mark": "source_number_match",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-104-04",
-       "text": "公開買付けの期間は、法令上、最短でも20営業日は確保しなければならないとされ、フェローテックは今回、それより長い30営業日を設定したとされる。",
-       "claimed_mark": "source_number_match",
-       "numbers": [
-        {
-         "value": 20,
-         "unit": "営業日",
-         "label": "公開買付け期間の法令上の最短日数"
-        }
-       ],
-       "source_ref": "SRC-003",
-       "excerpt": "法令に定められた最短期間の20営業日より長期の30営業日に設定する",
-       "attribution": "出典：株式会社フェローテック「公開買付届出書」（EDINET、2026年9月18日提出）",
-       "mark": "source_number_match",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-104-05",
-       "text": "期間を長めに取ることで、株主に応募するかどうかを判断する時間を十分に確保するとともに、他に買収を検討する会社が現れる余地も残す狙いがあるとされる。",
+       "line_id": "L-401-07",
+       "text": "政策金利の引き上げは、まず銀行間で資金を貸し借りする際の金利水準を直接動かす。",
        "claimed_mark": "explainer",
        "numbers": [],
        "mark": "explainer",
        "mark_reason": null
       },
       {
-       "line_id": "L-104-06",
-       "text": "買付け価格がどう決まるかも、この制度の重要な要素である。",
+       "line_id": "L-401-08",
+       "text": "多くの銀行は、優良企業向けの短期融資に適用する短期プライムレートを、政策金利の変更にあわせて見直すことが多いとされる。",
        "claimed_mark": "explainer",
        "numbers": [],
        "mark": "explainer",
        "mark_reason": null
       },
       {
-       "line_id": "L-104-07",
-       "text": "公開買付届出書によれば、フェローテックは2026年8月17日に対象者側へ最初の提案として1株1,740円を示したとされる。",
-       "claimed_mark": "source_number_match",
-       "numbers": [
-        {
-         "value": 1740,
-         "unit": "円",
-         "label": "フェローテックの当初提案価格(2026年8月17日)"
-        }
-       ],
-       "source_ref": "SRC-003",
-       "excerpt": "本公開買付価格を1,740円",
-       "attribution": "出典：株式会社フェローテック「公開買付届出書」（EDINET、2026年9月18日提出）",
-       "mark": "source_number_match",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-104-08",
-       "text": "この最初の提案は、対象者側の特別委員会から、企業価値や一般株主の利益保護の観点で十分な水準とはいえないとして、再提案を求められたとされる。",
+       "line_id": "L-401-09",
+       "text": "住宅ローンのうち変動金利型は、この短期プライムレートに連動する仕組みが一般的であり、政策金利の引き上げは、時間差を伴いながら住宅ローンを組む個人の返済額にも影響しうる。",
        "claimed_mark": "explainer",
        "numbers": [],
        "mark": "explainer",
        "mark_reason": null
       },
       {
-       "line_id": "L-104-09",
-       "text": "その後フェローテックは、8月24日に1,825円の再提案を行ったとされる。",
-       "claimed_mark": "source_number_match",
-       "numbers": [
-        {
-         "value": 1825,
-         "unit": "円",
-         "label": "フェローテックの再提案価格(2026年8月24日)"
-        }
-       ],
-       "source_ref": "SRC-003",
-       "excerpt": "本公開買付価格を1,825円",
-       "attribution": "出典：株式会社フェローテック「公開買付届出書」（EDINET、2026年9月18日提出）",
-       "mark": "source_number_match",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-104-09b",
-       "text": "さらに9月2日には、1,900円とする2度目の再提案を行ったとされる。",
-       "claimed_mark": "source_number_match",
-       "numbers": [
-        {
-         "value": 1900,
-         "unit": "円",
-         "label": "フェローテックの再提案価格(2026年9月2日)"
-        }
-       ],
-       "source_ref": "SRC-003",
-       "excerpt": "本公開買付価格を1,900円",
-       "attribution": "出典：株式会社フェローテック「公開買付届出書」（EDINET、2026年9月18日提出）",
-       "mark": "source_number_match",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-104-10",
-       "text": "最終的にフェローテックは9月15日、1株1,901円とする提案を示し、これが今回の公開買付価格として採用されたとされる。",
-       "claimed_mark": "source_number_match",
-       "numbers": [
-        {
-         "value": 1901,
-         "unit": "円",
-         "label": "最終的に採用された公開買付価格"
-        }
-       ],
-       "source_ref": "SRC-003",
-       "excerpt": "本公開買付価格を1,901円",
-       "attribution": "出典：株式会社フェローテック「公開買付届出書」（EDINET、2026年9月18日提出）",
-       "mark": "source_number_match",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-104-11",
-       "text": "こうした価格の交渉が複数回に分かれて行われた背景には、買収する側と、対象会社の少数株主の利益を代表する特別委員会との間で、価格の妥当性についてやり取りが重ねられたという経緯があるとされる。",
+       "line_id": "L-401-10",
+       "text": "一方、銀行にとっては、貸出金利と預金金利の差にあたる利ざやが変化することで、収益構造にも影響が及ぶとされる。",
        "claimed_mark": "explainer",
        "numbers": [],
        "mark": "explainer",
        "mark_reason": null
       },
       {
-       "line_id": "L-104-12",
-       "text": "対象会社の側に、買収する側の利害から独立した特別委員会を置くのは、買収価格の交渉過程に恣意性が入り込むのを防ぎ、少数株主の利益を保護するための仕組みの一つだとされる。",
+       "line_id": "L-401-11",
+       "text": "生命保険会社など、長期の国内債券で資産を運用する機関投資家にとっては、金利水準の変化が新規に購入する債券の利回りに影響するとされる。",
        "claimed_mark": "explainer",
        "numbers": [],
        "mark": "explainer",
        "mark_reason": null
       },
       {
-       "line_id": "L-104-13",
-       "text": "公開買付届出書には、外部の専門家による株式価値の算定結果も記載されている。",
+       "line_id": "L-401-12",
+       "text": "為替市場では、日本の金利が上がり日米の金利差が縮まると、円を買う動きにつながりやすいとされる一方、今回は公表直後に円安方向へ振れたとの報道もあり、市場の反応は金利差の縮小だけで単純には説明できない面がある。",
+       "claimed_mark": "reported_unverified",
+       "numbers": [],
+       "source_ref": "SRC-006",
+       "mark": "reported_unverified",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-401-13",
+       "text": "円相場の変動は、輸出企業にとっては採算に、輸入に頼る企業にとっては仕入れコストに、それぞれ影響しうる。",
        "claimed_mark": "explainer",
        "numbers": [],
        "mark": "explainer",
        "mark_reason": null
       },
       {
-       "line_id": "L-104-14",
-       "text": "市場株価法では、対象者株式の2026年9月16日時点の終値や、直近1か月・3か月・6か月の終値の単純平均値をもとに、1株あたりの株式価値の範囲が1,283円から1,486円までと算定されたとされる。",
-       "claimed_mark": "source_number_match",
-       "numbers": [
-        {
-         "value": 1283,
-         "unit": "円",
-         "label": "市場株価法による株式価値の下限"
-        },
-        {
-         "value": 1486,
-         "unit": "円",
-         "label": "市場株価法による株式価値の上限"
-        }
-       ],
-       "source_ref": "SRC-003",
-       "excerpt": "対象者株式１株当たりの株式価値の範囲を1,283円から1,486円までと算定しております。",
-       "attribution": "出典：株式会社フェローテック「公開買付届出書」（EDINET、2026年9月18日提出）",
-       "mark": "source_number_match",
+       "line_id": "L-401-14",
+       "text": "日銀は、リスク要因として、中東情勢が金融・為替市場や日本の経済・物価に及ぼす影響を特に注視する必要があるとしている。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "source_ref": "SRC-001",
+       "excerpt": "当面は、中東情勢が金融・為替市場やわが国の経済・物価に及ぼす影響をとくに注視する必要がある",
+       "attribution": "出典：日本銀行「金融市場調節方針の変更について」（2026年9月18日）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "explainer",
        "mark_reason": null
       },
       {
-       "line_id": "L-104-15",
-       "text": "もう一つの手法であるDCF法(将来のキャッシュフローを現在の価値に割り引いて計算する方法)では、1株あたりの株式価値の範囲が1,315円から1,992円までと、より幅の広い数字が示されたとされる。",
-       "claimed_mark": "source_number_match",
-       "numbers": [
-        {
-         "value": 1315,
-         "unit": "円",
-         "label": "DCF法による株式価値の下限"
-        },
-        {
-         "value": 1992,
-         "unit": "円",
-         "label": "DCF法による株式価値の上限"
-        }
-       ],
-       "source_ref": "SRC-003",
-       "excerpt": "対象者株式の１株当たりの株式価値の範囲を、1,315円から1,992円までと算定しております。",
-       "attribution": "出典：株式会社フェローテック「公開買付届出書」（EDINET、2026年9月18日提出）",
-       "mark": "source_number_match",
+       "line_id": "L-401-15",
+       "text": "このほか、グローバルなAI関連需要の動向や、今後の為替相場の変動が日本の経済・物価に及ぼす影響にも留意が必要だとしている。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "source_ref": "SRC-001",
+       "excerpt": "グローバルなＡＩ関連需要の動向や今後の為替相場の変動が、わが国の経済・物価に及ぼす影響にも留意が必要である",
+       "attribution": "出典：日本銀行「金融市場調節方針の変更について」（2026年9月18日）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "explainer",
        "mark_reason": null
       },
       {
-       "line_id": "L-104-16",
-       "text": "最終的な買付け価格1,901円は、市場株価法の上限を上回り、DCF法の算定レンジの範囲内かつ中央値を上回る水準にあったとされる。",
+       "line_id": "L-401-16",
+       "text": "反対した委員のうち1人は、消費者物価(除く生鮮食品)の上昇率が2%を下回るなかで、経済の状況も必ずしも強いとはいえない点を踏まえ、政策据え置きが望ましいとして反対したとされる。",
        "claimed_mark": "explainer",
        "numbers": [],
        "mark": "explainer",
        "mark_reason": null
       },
       {
-       "line_id": "L-104-17",
-       "text": "公開買付けの価格には「プレミアム」という考え方も関わってくる。",
+       "line_id": "L-401-17",
+       "text": "もう1人の反対委員は、経済・物価情勢がこれまでと比べて大きく加速している状態にあるわけではないとして、今回のタイミングでの利上げに反対したとされる。",
        "claimed_mark": "explainer",
        "numbers": [],
        "mark": "explainer",
        "mark_reason": null
       },
       {
-       "line_id": "L-104-18",
-       "text": "プレミアムとは、買付け価格が、公表前の市場での取引価格に対してどれだけ上乗せされているかを示す割合のことだとされる。",
+       "line_id": "L-401-18",
+       "text": "日銀は今後の運営方針について、基調的な物価上昇率が2%に近づくなか、経済・物価・金融情勢に応じて引き続き政策金利を引き上げ、金融緩和の度合いを調整していくことになるとの考えを示した。",
        "claimed_mark": "explainer",
        "numbers": [],
        "mark": "explainer",
        "mark_reason": null
       },
       {
-       "line_id": "L-104-19",
-       "text": "今回の場合、公表日の前営業日である9月16日の終値1,318円に対して44.23%、直近1か月間の終値平均1,441円に対して31.92%のプレミアムが加えられたとされる。",
-       "claimed_mark": "source_number_match",
-       "numbers": [
-        {
-         "value": 1441,
-         "unit": "円",
-         "label": "対象者株式の直近1か月間終値単純平均値"
-        },
-        {
-         "value": 31.92,
-         "unit": "%",
-         "label": "直近1か月間終値平均に対するプレミアム"
-        }
-       ],
-       "source_ref": "SRC-003",
-       "excerpt": "過去１ヶ月間の終値単純平均値1,441円に対して31.92％",
-       "attribution": "出典：株式会社フェローテック「公開買付届出書」（EDINET、2026年9月18日提出）",
-       "mark": "source_number_match",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-104-20",
-       "text": "みずほ証券は、2019年6月以降に成立した完全子会社化を目的とする公開買付けのうち、条件を絞り込んだ63件を過去の類似事例として調べたとされる。",
-       "claimed_mark": "source_number_match",
-       "numbers": [
-        {
-         "value": 63,
-         "unit": "件",
-         "label": "みずほ証券が参照した類似事例の件数"
-        }
-       ],
-       "source_ref": "SRC-003",
-       "excerpt": "事例63件（但し、マネジメント・バイアウト（ＭＢＯ）",
-       "attribution": "出典：株式会社フェローテック「公開買付届出書」（EDINET、2026年9月18日提出）",
-       "mark": "source_number_match",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-104-20b",
-       "text": "その結果、公表日前営業日の終値に対するプレミアムの中央値は45.09%だったとされる。",
-       "claimed_mark": "source_number_match",
-       "numbers": [
-        {
-         "value": 45.09,
-         "unit": "%",
-         "label": "類似事例のプレミアム中央値(公表日前営業日終値比)"
-        }
-       ],
-       "source_ref": "SRC-003",
-       "excerpt": "プレミアムの中央値は、順に45.09％、45.74％、46.13％、52.12％です。",
-       "attribution": "出典：株式会社フェローテック「公開買付届出書」（EDINET、2026年9月18日提出）",
-       "mark": "source_number_match",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-104-21",
-       "text": "今回のプレミアムは、この過去の類似事例の中央値と比べるとやや低い水準にあるとされ、公開買付届出書自身もその点に言及している。",
+       "line_id": "L-401-19",
+       "text": "調整のタイミングやペースについては、中東情勢やAI関連需要の拡大、為替相場の変動の影響を含め、経済・物価の中心的な見通しが実現する確度やリスクを点検しながら検討していく方針だとしている。",
        "claimed_mark": "explainer",
        "numbers": [],
        "mark": "explainer",
        "mark_reason": null
       },
       {
-       "line_id": "L-104-22",
-       "text": "そのうえで対象者側は、対象者グループが円安や資源価格の高止まりなどで厳しい事業環境に置かれ、直近2期連続で赤字を計上していることも踏まえ、この価格水準は一般株主に適切な売却機会を提供するものだと判断したと説明している。",
+       "line_id": "L-401-20",
+       "text": "以上のように、今回の利上げが家計や企業に及ぼす影響は、住宅ローンや企業の借入金利といった国内の資金調達コストの経路と、為替相場を通じた貿易・調達コストの経路の、大きく二つに分けて捉えることができる。",
        "claimed_mark": "explainer",
        "numbers": [],
        "mark": "explainer",
        "mark_reason": null
       },
       {
-       "line_id": "L-104-23",
-       "text": "公開買付けが成立した後、応募しなかった株主の株式をどう扱うかも、この制度を理解するうえで欠かせない論点である。",
+       "line_id": "L-401-21",
+       "text": "日銀は金融環境について、企業等の資金需要は増加しており、金融機関の貸出態度も引き続き積極的であるとの見方を示している。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "source_ref": "SRC-001",
+       "excerpt": "企業等の資金需要は増加しており、金融機関の貸出態度も引き続き積極的である",
+       "attribution": "出典：日本銀行「金融市場調節方針の変更について」（2026年9月18日）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-401-22",
+       "text": "この見方は、同じ18日にEDINETで開示された2件の大型資本取引とも重なる部分がある。",
        "claimed_mark": "explainer",
        "numbers": [],
        "mark": "explainer",
        "mark_reason": null
       },
       {
-       "line_id": "L-104-24",
-       "text": "フェローテックは対象者の全株式の取得を目指しており、公開買付けだけで全株を取得できなかった場合には、株式併合という手続きを通じて、残った株主の株式を金銭で取得する「スクイーズアウト」を行う方針だとされる。",
+       "line_id": "L-401-23",
+       "text": "兼松グループによるIDAJ買収は、外部の専門家による算定を経た株式取得額390億円に加えてアドバイザリー費用等を要する取引であり、フェローテックによる日本抵抗器製作所へのTOBも、買付代金に充てられる資金を借入ではなく自己資金でまかなう計画だとされている。",
        "claimed_mark": "explainer",
        "numbers": [],
        "mark": "explainer",
        "mark_reason": null
       },
       {
-       "line_id": "L-104-25",
-       "text": "株式併合による手続きを実施するには、対象会社の株主総会で議決権の3分の2以上の賛成という特別決議が必要だとされる。",
+       "line_id": "L-401-24",
+       "text": "いずれの取引も、金利が上昇局面にあるなかで、多額の資金を投じて成長分野への展開や生産体制の強化を進めるという判断がなされた点で共通している。",
        "claimed_mark": "explainer",
        "numbers": [],
        "mark": "explainer",
        "mark_reason": null
       },
       {
-       "line_id": "L-104-26",
-       "text": "買付け予定数の下限618,700株は、対象者の総議決権の過半数に相当する水準に設定されており、3分の2には届かない可能性も理論上は残るとされる。",
+       "line_id": "L-401-25",
+       "text": "兼松側は半導体や防衛、重工業といった成長領域への展開を、フェローテック側は車載関連事業での自動化ノウハウの移転を、それぞれ取得の狙いとして挙げている。",
        "claimed_mark": "explainer",
        "numbers": [],
        "mark": "explainer",
        "mark_reason": null
       },
       {
-       "line_id": "L-104-27",
-       "text": "この点についてフェローテックは、対象者の過去3年間の株主総会での議決権行使比率などをもとに、スクイーズアウトに必要な特別決議は実現可能だと見込んでいると説明している。",
+       "line_id": "L-401-26",
+       "text": "日銀が指摘するとおり、緩和的な金融環境がなお維持されるなかで、こうした設備投資やM&Aへの積極姿勢がどこまで続くかは、今後の政策金利の調整ペースにも左右されうる。",
        "claimed_mark": "explainer",
        "numbers": [],
        "mark": "explainer",
        "mark_reason": null
       },
       {
-       "line_id": "L-104-28",
-       "text": "対象者の過去3年間の定時株主総会における議決権行使比率は、平均57.08%、最大60.09%だったとされる。",
-       "claimed_mark": "source_number_match",
-       "numbers": [
-        {
-         "value": 57.08,
-         "unit": "%",
-         "label": "対象者の過去3年間の議決権行使比率の平均"
-        },
-        {
-         "value": 60.09,
-         "unit": "%",
-         "label": "対象者の過去3年間の議決権行使比率の最大値"
-        }
-       ],
-       "source_ref": "SRC-003",
-       "excerpt": "議決権行使比率の平均は57.08％、最大値は60.09％",
-       "attribution": "出典：株式会社フェローテック「公開買付届出書」（EDINET、2026年9月18日提出）",
-       "mark": "source_number_match",
+       "line_id": "L-401-27",
+       "text": "別紙で示された経済情勢の項目別の判断をみると、海外経済は一部に弱めの動きもみられるが、総じてみれば緩やかに成長しているとされている。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "source_ref": "SRC-001",
+       "excerpt": "海外経済は、一部に弱めの動きもみられるが、総じてみれば緩やかに成長している。",
+       "attribution": "出典：日本銀行「金融市場調節方針の変更について」（2026年9月18日）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "explainer",
        "mark_reason": null
       },
       {
-       "line_id": "L-104-29",
-       "text": "公開買付けの制度は、買収する側の利便性だけでなく、応募しない株主が不利な立場に置かれすぎないようにするための様々な手当ても組み込まれた仕組みだといえる。",
+       "line_id": "L-401-28",
+       "text": "設備投資については、建設コスト上昇の影響を受けつつも、緩やかな増加傾向にあるとの判断が示された。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "source_ref": "SRC-001",
+       "excerpt": "設備投資は、建設コスト上昇の影響を受けつつも、緩やかな増加傾向にある。",
+       "attribution": "出典：日本銀行「金融市場調節方針の変更について」（2026年9月18日）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-401-29",
+       "text": "個人消費は、家計マインドに弱さがみられるものの、雇用・所得環境の改善を背景に底堅く推移しているとされた。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "source_ref": "SRC-001",
+       "excerpt": "個人消費は、家計マインドに弱さがみられるものの、雇用・所得環境の改善を背景に底堅く推移している。",
+       "attribution": "出典：日本銀行「金融市場調節方針の変更について」（2026年9月18日）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-401-30",
+       "text": "一方で住宅投資は減少傾向にあるとされ、公共投資は横ばい圏内の動きを続けているとの判断が示された。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "source_ref": "SRC-001",
+       "excerpt": "住宅投資は減少傾向にある。",
+       "attribution": "出典：日本銀行「金融市場調節方針の変更について」（2026年9月18日）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-401-31",
+       "text": "労働需給については、引き締まった状態が続いているとの判断が示された。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "source_ref": "SRC-001",
+       "excerpt": "労働需給は、引き締まった状態が続いている。",
+       "attribution": "出典：日本銀行「金融市場調節方針の変更について」（2026年9月18日）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-401-32",
+       "text": "物価面では、消費者物価(除く生鮮食品)の前年比は、足もとでは1%台後半となっているとされている。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "source_ref": "SRC-001",
+       "excerpt": "足もとでは１％台後半となっている。",
+       "attribution": "出典：日本銀行「金融市場調節方針の変更について」（2026年9月18日）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-401-33",
+       "text": "企業の資金調達をめぐっては、CP・社債市場でも良好な発行環境が続いているとの判断が示された。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "source_ref": "SRC-001",
+       "excerpt": "ＣＰ・社債市場でも良好な発行環境が続いている。",
+       "attribution": "出典：日本銀行「金融市場調節方針の変更について」（2026年9月18日）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-401-34",
+       "text": "こうした項目別の判断を総合すると、輸出企業や設備投資に積極的な製造業には追い風となる一方、住宅投資については力強さを欠く状態が続いていることになる。",
        "claimed_mark": "explainer",
        "numbers": [],
        "mark": "explainer",
        "mark_reason": null
       },
       {
-       "line_id": "L-104-30",
-       "text": "なお、公開買付けとは別に、上場企業の株式を5%を超えて保有することになった株主には、「大量保有報告書」という別の書類の提出が義務づけられているとされる。",
+       "line_id": "L-401-35",
+       "text": "労働需給が引き締まった状態にあることは、賃金上昇が販売価格に転嫁される動きを下支えする要因にもなり、日銀が指摘する基調的な物価上昇率の上振れリスクとも整合的である。",
        "claimed_mark": "explainer",
        "numbers": [],
        "mark": "explainer",
        "mark_reason": null
       },
       {
-       "line_id": "L-104-31",
-       "text": "フェローテックの公開買付届出書は、2026年7月1日に大量保有報告書を提出した株主が2人おり、それぞれ62,100株(所有割合5.02%)、66,800株を保有していると説明している。",
-       "claimed_mark": "source_number_match",
-       "numbers": [
-        {
-         "value": 62100,
-         "unit": "株",
-         "label": "新規大株主1の保有株数"
-        },
-        {
-         "value": 5.02,
-         "unit": "%",
-         "label": "新規大株主1の所有割合"
-        },
-        {
-         "value": 66800,
-         "unit": "株",
-         "label": "新規大株主2の保有株数"
-        }
-       ],
-       "source_ref": "SRC-003",
-       "excerpt": "所有株式数：62,100株、所有割合：5.02％）（以下「新規大株主１」といいます。）、2026年７月１日に大量保有報告書を提出した株主（所有株式数：66,800株、所有割合：5.40％",
-       "attribution": "出典：株式会社フェローテック「公開買付届出書」（EDINET、2026年9月18日提出）",
-       "mark": "source_number_match",
+       "line_id": "L-401-36",
+       "text": "先行きの物価見通しについて日銀は、消費者物価(除く生鮮食品)の前年比が2026年度後半以降、2%をはっきりと上回る水準まで伸び率を高めていくと予想するとしている。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "source_ref": "SRC-001",
+       "excerpt": "2026年度後半以降、２％をはっきりと上回る水準まで伸び率を高めていくと予想される。",
+       "attribution": "出典：日本銀行「金融市場調節方針の変更について」（2026年9月18日）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "explainer",
        "mark_reason": null
       },
       {
-       "line_id": "L-104-32",
-       "text": "大量保有報告書は、株式の保有状況の透明性を確保するための制度で、公開買付けとは異なる法令上の根拠に基づいて提出が求められているとされる。",
+       "line_id": "L-401-37",
+       "text": "この間、人手不足感の強い状況が続くなかで、中長期的な予想物価上昇率は上昇していくと見込まれるとの見方も示された。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "source_ref": "SRC-001",
+       "excerpt": "中長期的な予想物価上昇率は上昇していくと見込まれる。",
+       "attribution": "出典：日本銀行「金融市場調節方針の変更について」（2026年9月18日）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-401-38",
+       "text": "このように、賃金と物価がともに上昇していく構図が続けば、日銀が上振れリスクとして警戒する状態がより現実味を帯びる可能性がある。",
        "claimed_mark": "explainer",
        "numbers": [],
        "mark": "explainer",
        "mark_reason": null
       },
       {
-       "line_id": "L-104-33",
-       "text": "本紙面がきょう金融庁のEDINETで確認した限り、2026年9月18日には公開買付届出書が1件、大量保有報告書や変更報告書といった株式保有に関する書類が複数件、それぞれ別々の会社から提出されていた。",
+       "line_id": "L-401-39",
+       "text": "逆に、中東情勢の緊張緩和などで原油価格の上昇が一服すれば、物価上昇率の伸びが日銀の想定より鈍る可能性もある。",
        "claimed_mark": "explainer",
        "numbers": [],
        "mark": "explainer",
        "mark_reason": null
       },
       {
-       "line_id": "L-104-34",
-       "text": "臨時報告書という書類も、EDINETを通じて日々提出されている書類の一つである。",
+       "line_id": "L-401-40",
+       "text": "日銀は成長率の先行きについて、原油高のマイナスの影響が減衰し、所得から支出への前向きな循環メカニズムが徐々に強まっていくことから、日本経済は成長率を緩やかに高めていくと考えられるとしている。",
        "claimed_mark": "explainer",
        "numbers": [],
+       "source_ref": "SRC-001",
+       "excerpt": "その後は、原油高のマイナスの影響が減衰し、所得から支出への前向きな循環メカニズムが徐々に強まっていくことから、わが国経済は成長率を緩やかに高めていくと考えられる。",
+       "attribution": "出典：日本銀行「金融市場調節方針の変更について」（2026年9月18日）",
+       "processing_note": "本サイトが同資料をもとに作成",
        "mark": "explainer",
        "mark_reason": null
       },
       {
-       "line_id": "L-104-35",
-       "text": "兼松が本日提出した臨時報告書は、金融商品取引法第24条の5第4項などの規定に基づいて提出されたとされ、子会社が一定規模以上の買収を決めた場合などに、その内容を開示する義務を果たすものだとされる。",
-       "claimed_mark": "source_number_match",
-       "numbers": [],
-       "source_ref": "SRC-002",
-       "excerpt": "金融商品取引法第24条の５第４項および企業内容等の開示に関する内閣府令第19条第２項第16号の２の規定に基づき、本臨時報告書を提出するものであります。",
-       "attribution": "出典：兼松株式会社「臨時報告書」（EDINET、2026年9月18日提出）",
-       "mark": "source_number_match",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-104-36",
-       "text": "臨時報告書には、買収対象となる会社の事業内容や、直近3年間の売上高・利益・純資産といった財務情報が、買収する側の会社の資料として開示される点も特徴の一つである。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-104-37",
-       "text": "こうした書類は、投資家が上場企業の動きを知るための一次情報として使われる一方、専門的な法律用語や会計用語が多く、読み解くにはある程度の知識が必要になる面もある。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-104-38",
-       "text": "本紙面では、こうした開示書類に書かれている内容を、数字も含めてできるだけ原文に沿って伝えることを心がけている。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-104-39",
-       "text": "ただし、ここで紹介した価格や株式価値の算定結果は、あくまで取引の当事者や専門家がその時点で示した見立てであり、将来の株価の動きを保証するものではない。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-104-40",
-       "text": "公開買付けの公正性を担保するための措置として、対象者は2026年6月5日の取締役会で、フェローテックや対象者、応募合意株主から独立したファイナンシャル・アドバイザーとしてみずほ証券を、独立したリーガル・アドバイザーとしてシティユーワ法律事務所を選任したとされる。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-104-41",
-       "text": "あわせて対象者は、独立した委員4人からなる特別委員会を設置したとされ、この委員会は今井治氏、白田幸春氏、石崎武氏、岡裕信氏の4人で構成されているとされる。",
-       "claimed_mark": "source_number_match",
-       "numbers": [
-        {
-         "value": 4,
-         "unit": "人",
-         "label": "対象者の特別委員会の委員数"
-        }
-       ],
-       "source_ref": "SRC-003",
-       "excerpt": "今井治氏（対象者社外取締役兼独立役員）、白田幸春氏（対象者社外監査役）、石崎武氏（対象者社外監査役）及び岡裕信氏（税理士、クライム・ヒル株式会社））の４名によって構成される本特別委員会",
-       "attribution": "出典：株式会社フェローテック「公開買付届出書」（EDINET、2026年9月18日提出）",
-       "mark": "source_number_match",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-104-42",
-       "text": "本公開買付けに応募する契約を結んでいる社外取締役の今井氏や、応募合意株主と親族関係にある監査役は、利益相反を避ける観点から、この特別委員会の委員には選ばれていないとされる。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-104-43",
-       "text": "フェローテック側も、みずほ証券とは別に、合同会社デロイトトーマツへ株式価値の算定を依頼したとされ、買収する側とされる側で、それぞれ別々の第三者算定機関が関わった形になっている。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-104-44",
-       "text": "こうした独立した助言者や委員会を両当事者がそれぞれ立てる仕組みは、価格交渉が一方の利害に偏らないようにするための、実務上の工夫の一つとされる。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-104-45",
-       "text": "「マジョリティ・オブ・マイノリティ」と呼ばれる、少数株主の過半数の賛同を買付け成立の条件に加える仕組みについて、今回の公開買付けでは設定していないとされる。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-104-46",
-       "text": "特別委員会は、この条件を設定するとかえって公開買付けの成立が不安定になり、応募を希望する一般株主の利益に資さない可能性があるとして、設定していないこと自体は取引条件の公正性を否定するものではないとの見方を示したとされる。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-104-47",
-       "text": "公開買付けの期間中、対象者がフェローテック以外の買収提案者と接触することを禁じるような取り決めは結んでいないとされ、対抗的な買収提案が出てくる余地も一応残されているとされる。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-104-48",
-       "text": "みずほ証券が算定に用いたDCF法では、対象者の2026年12月期から2030年12月期までの事業計画をもとに、将来のキャッシュフローを一定の割引率で現在の価値に割り引く方法が使われたとされる。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-104-49",
-       "text": "この事業計画では、2026年12月期に前年比227百万円、2027年12月期に前年比222百万円の増益を見込んでいるとされる。",
-       "claimed_mark": "source_number_match",
-       "numbers": [
-        {
-         "value": 222,
-         "unit": "百万円",
-         "label": "対象者事業計画における2027年12月期の対前年比増益見込み額"
-        }
-       ],
-       "source_ref": "SRC-003",
-       "excerpt": "2027年12月期（対前年比222百万円の増益）",
-       "attribution": "出典：株式会社フェローテック「公開買付届出書」（EDINET、2026年9月18日提出）",
-       "mark": "source_number_match",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-104-50",
-       "text": "この増益は、物価高騰による部材や諸経費の増加分を価格に転嫁したり、部材の調達先を見直して原価率を下げたりすることによる利益率の改善が要因とされる。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-104-51",
-       "text": "以上のように、公開買付けの価格は、市場での取引価格や複数の算定手法、独立した第三者による助言、過去の類似事例との比較など、いくつもの材料を組み合わせて決まっていく仕組みになっている。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-104-52",
-       "text": "対象者は本書提出日現在、フェローテックの子会社ではなく、支配株主やその他の関係会社による公開買付けにはあたらないとされる。",
-       "claimed_mark": "source_number_match",
-       "numbers": [],
-       "source_ref": "SRC-003",
-       "excerpt": "本書提出日現在において、対象者は公開買付者の子会社ではなく、本公開買付けは、支配株主その他の関係会社による公開買付けには該当いたしません。",
-       "attribution": "出典：株式会社フェローテック「公開買付届出書」（EDINET、2026年9月18日提出）",
-       "mark": "source_number_match",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-104-53",
-       "text": "対象者の経営陣が買付け者側に出資する計画もなく、いわゆるマネジメント・バイアウト(MBO)にもあたらないとされる。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-104-54",
-       "text": "MBOや支配株主による買収の場合は、利益相反の懸念がより強く意識されるため、一般に、より厳格な公正性担保措置が求められるとされる。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-104-55",
-       "text": "今回はそうした類型には該当しないものの、対象者の一般株主が最終的に金銭を対価としてスクイーズアウトされることが想定されるため、取引条件の適切さが重要だとして、独立した助言者の選任などの措置がとられたとされる。",
-       "claimed_mark": "explainer",
-       "numbers": [],
-       "mark": "explainer",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-104-56",
-       "text": "経済産業省は2019年6月に「公正なM&Aの在り方に関する指針」を公表しており、みずほ証券が参照した過去の類似事例63件は、この指針の公表以降に成立した案件から一定の条件で絞り込んだものだとされる。",
-       "claimed_mark": "source_number_match",
-       "numbers": [],
-       "source_ref": "SRC-003",
-       "excerpt": "経済産業省が「公正なＭ＆Ａの在り方に関する指針」（以下「Ｍ＆Ａ指針」といいます。）を公表した2019年６月28日以降",
-       "attribution": "出典：株式会社フェローテック「公開買付届出書」（EDINET、2026年9月18日提出）",
-       "mark": "source_number_match",
-       "mark_reason": null
-      },
-      {
-       "line_id": "L-104-57",
-       "text": "こうした指針の存在は、公開買付けの実務が、法律の条文だけでなく、行政が示す考え方にも影響を受けながら形づくられていることを示す一例だといえる。",
+       "line_id": "L-401-41",
+       "text": "所得から支出への好循環が想定どおりに強まるかどうかは、今回のような利上げが個人消費を下押ししすぎないかという点でも、今後注視すべき論点になる。",
        "claimed_mark": "explainer",
        "numbers": [],
        "mark": "explainer",
@@ -2072,42 +1782,43 @@
      ],
      "inferences": [
       {
-       "inference_id": "INF-2026-09-18-104-1",
-       "text": "スクイーズアウト手続きに必要な議決権の3分の2に届かない場合、フェローテックが公開買付け終了後に追加の買付けを実施する可能性がある。",
-       "falsifier": "公開買付けの応募株式数だけで対象者の総議決権の3分の2以上を確保できれば、追加の買付けを行う必要はなくなる。",
-       "check_metric": "フェローテックが公表する公開買付け結果および完全子会社化に向けた続報",
+       "inference_id": "INF-2026-09-18-401-1",
+       "text": "日銀が示したリスク要因(中東情勢、AI関連需要、為替変動)のいずれかが顕在化すれば、次回以降の利上げペースが今回想定されているものから変わる可能性がある。",
+       "falsifier": "これらのリスク要因に大きな変化がないまま、次回会合でも同じペースでの判断が続けば、この見方は成り立たない。",
+       "check_metric": "日本銀行が公表する次回金融政策決定会合の「主な意見」および「議事要旨」",
        "check_by": "2026-11-05"
+      },
+      {
+       "inference_id": "INF-2026-09-18-401-2",
+       "text": "生命保険会社など長期の国内債券で運用する機関投資家は、今回の金利水準の変化を受けて、新規の資産配分方針を見直す可能性がある。",
+       "falsifier": "各社が資産配分方針に変更がないと表明すれば、この見方は成り立たない。",
+       "check_metric": "主要生命保険会社が公表する2026年度下期の資産運用計画",
+       "check_by": "2026-11-30"
       }
      ]
     }
    ]
   }
  ],
+ "baseline_late": false,
  "verification": {
-  "script_version": "1.1.0",
-  "run_at": "2026-09-18T21:38:29.485719+09:00",
-  "lines_total": 168,
-  "passed": 58,
+  "script_version": "2.0.0",
+  "run_at": "2026-09-19T00:47:51.202433+09:00",
+  "lines_total": 132,
+  "passed": 38,
   "unverified": 0,
-  "reported_unverified": 1,
-  "explainer": 109,
+  "reported_unverified": 5,
+  "explainer": 89,
   "recommendation_stop_hits": 0,
-  "recommendation_warn_hits": 4,
+  "recommendation_stop_removed": 0,
+  "recommendation_warn_hits": 2,
   "recommendation_warnings": [
    {
-    "line_id": "L-102-04",
+    "line_id": "L-301-01",
     "word": "株式(周辺15文字以内に買/売)"
    },
    {
-    "line_id": "L-104-16",
-    "word": "株価(周辺15文字以内に買/売)"
-   },
-   {
-    "line_id": "L-104-24",
-    "word": "株式(周辺15文字以内に買/売)"
-   },
-   {
-    "line_id": "L-104-30",
+    "line_id": "L-301-04",
     "word": "株式(周辺15文字以内に買/売)"
    }
   ],
@@ -2116,6 +1827,9 @@
   "stale_check_skipped": 0,
   "inference_dropped": 0,
   "hypothesis_violations": 0,
-  "unverified_reasons": {}
+  "unverified_reasons": {},
+  "ticker_crosscheck": "applied",
+  "baseline_late": false,
+  "source_usage_invalid_hits": 0
  }
 }
