@@ -1,0 +1,96 @@
+{
+ "schema_version": 1,
+ "edition_id": "2026-09-18-noon",
+ "generated_at": "2026-09-18T13:57:35+09:00",
+ "market_open": true,
+ "hypotheses": [
+  {
+   "hypothesis_id": "2026-09-18-noon-1",
+   "event_id": "EVT-2026-09-18-002",
+   "company_name": "三菱UFJフィナンシャル・グループ",
+   "ticker": "8306",
+   "article_id": "ART-2026-09-18-002",
+   "line_ids": [
+    "L-002-03"
+   ],
+   "evidence_grade": "primary",
+   "relation_text": "国内で預金・貸出業務を営む大手銀行グループであり、政策金利の水準は預貸金利ざやに影響する立場にある。",
+   "direction": "plus",
+   "falsifier": "銀行の貸出・預金の金利設定が政策金利の変更と連動しない形で運営されれば、この位置づけは成り立たない。",
+   "baseline_date": "2026-09-18",
+   "baseline_price_type": "close",
+   "horizon_business_days": 20,
+   "deadline_date": "2026-10-22",
+   "links": {
+    "price_history": "https://finance.yahoo.co.jp/quote/8306.T/history",
+    "disclosure_search": "https://www.release.tdnet.info/inbs/I_main_00.html"
+   }
+  },
+  {
+   "hypothesis_id": "2026-09-18-noon-2",
+   "event_id": "EVT-2026-09-18-002",
+   "company_name": "東京海上ホールディングス",
+   "ticker": "8766",
+   "article_id": "ART-2026-09-18-002",
+   "line_ids": [
+    "L-002-03"
+   ],
+   "evidence_grade": "primary",
+   "relation_text": "国内債券を中心に資産運用を行う保険グループであり、金利水準は運用利回りに影響する立場にある。",
+   "direction": "plus",
+   "falsifier": "資産運用における国内債券の比率が小さく、金利水準の変化が運用成績にほとんど影響しない場合、この位置づけは成り立たない。",
+   "baseline_date": "2026-09-18",
+   "baseline_price_type": "close",
+   "horizon_business_days": 20,
+   "deadline_date": "2026-10-22",
+   "links": {
+    "price_history": "https://finance.yahoo.co.jp/quote/8766.T/history",
+    "disclosure_search": "https://www.release.tdnet.info/inbs/I_main_00.html"
+   }
+  },
+  {
+   "hypothesis_id": "2026-09-18-noon-3",
+   "event_id": "EVT-2026-09-18-002",
+   "company_name": "三井不動産",
+   "ticker": "8801",
+   "article_id": "ART-2026-09-18-002",
+   "line_ids": [
+    "L-002-03"
+   ],
+   "evidence_grade": "primary",
+   "relation_text": "借入れを活用して不動産開発事業を営んでおり、政策金利の水準は資金調達コストに影響する立場にある。",
+   "direction": "minus",
+   "falsifier": "資金調達の大半を固定金利の長期借入れでまかなっており、政策金利の変化が調達コストにほとんど影響しない場合、この位置づけは成り立たない。",
+   "baseline_date": "2026-09-18",
+   "baseline_price_type": "close",
+   "horizon_business_days": 20,
+   "deadline_date": "2026-10-22",
+   "links": {
+    "price_history": "https://finance.yahoo.co.jp/quote/8801.T/history",
+    "disclosure_search": "https://www.release.tdnet.info/inbs/I_main_00.html"
+   }
+  },
+  {
+   "hypothesis_id": "2026-09-18-noon-4",
+   "event_id": "EVT-2026-09-18-003",
+   "company_name": "東京エレクトロン",
+   "ticker": "8035",
+   "article_id": "ART-2026-09-18-003",
+   "line_ids": [
+    "L-003-03"
+   ],
+   "evidence_grade": "primary",
+   "relation_text": "半導体等製造装置を輸出する企業の一つであり、この分野の輸出動向に業績が連動しうる立場にある。",
+   "direction": "plus",
+   "falsifier": "半導体等製造装置の輸出額が翌月以降、前年同月比で明確に減少に転じれば、この位置づけは成り立たない。",
+   "baseline_date": "2026-09-18",
+   "baseline_price_type": "close",
+   "horizon_business_days": 5,
+   "deadline_date": "2026-09-30",
+   "links": {
+    "price_history": "https://finance.yahoo.co.jp/quote/8035.T/history",
+    "disclosure_search": "https://www.release.tdnet.info/inbs/I_main_00.html"
+   }
+  }
+ ]
+}
