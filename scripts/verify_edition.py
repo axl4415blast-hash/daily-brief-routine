@@ -64,8 +64,10 @@ REQUIRED_HYPOTHESIS_FIELDS = [
     "company_name", "relation_text", "falsifier",
     "baseline_date", "baseline_price_type", "horizon_business_days",
 ]
-TICKER_RE = re.compile(r"^[0-9]{4}$")
-NON_QUOTABLE_USAGES = {"snippet_only", "link_only"}
+# links.price_history のURL(https://finance.yahoo.co.jp/quote/{証券コード}.T/history)から
+# /quote/ と .T の間の文字列を取り出す(検査13の条件3で使う)。
+PRICE_HISTORY_CODE_RE = re.compile(r"/quote/([^/]+)\.T(?:/|$)")
+VALID_SOURCE_USAGES = {"quotable", "link_only", "snippet_only"}
 MORNING_DEADLINE = dt.time(8, 50)
 NOON_DEADLINE = dt.time(14, 50)
 
@@ -297,19 +299,28 @@ def check_watch_proximity(edition, exclude_words):
     return hits
 
 
+def count_invalid_source_usages(edition):
+    """usageがquotable/link_only/snippet_onlyのいずれでもない出典の数を数える(検査16関連)。
+    usageが無い・null・空文字・想定外の値のものが対象。verification.source_usage_invalid_hits
+    として画面に出す(usageの書き忘れなどを、実害の有無に関わらず気づけるようにするため)。"""
+    return sum(1 for s in edition.get("sources", []) if s.get("usage") not in VALID_SOURCE_USAGES)
+
+
 def verify_line(line, sources_by_id, cache_dir):
     claimed = line["claimed_mark"]
     numbers = line.get("numbers", [])
     source_ref = line.get("source_ref")
     excerpt = line.get("excerpt")
 
-    # 検査16: 本文を取得していない出典(usageがsnippet_only/link_only)からのexcerptは
-    # 認めない。claimed_markの種類を問わず、行にsource_refとexcerptの両方があれば対象になる。
-    # usageが記録されていない出典(想定外のデータ)はこの検査の対象にしない(検査6など、
-    # 他の既存検査に判定を委ねる)。
+    # 検査16: 本文を取得していない出典(usageがquotable以外)からのexcerptは認めない。
+    # claimed_markの種類を問わず、行にsource_refとexcerptの両方があれば対象になる。
+    # usageが記録されていない・null・空文字・想定外の値の出典も「quotableではない」ものと
+    # して扱う(usageの書き忘れが、抜き出しを通す抜け道にならないようにするため)。
+    # source_refがsources一覧に見つからない場合は対象にしない(該当する出典自体が
+    # 特定できないため、他の既存検査に判定を委ねる)。
     if source_ref and excerpt:
         source = sources_by_id.get(source_ref)
-        if source is not None and source.get("usage") in NON_QUOTABLE_USAGES:
+        if source is not None and source.get("usage") != "quotable":
             line["excerpt"] = None
             return "unverified", "excerpt_not_allowed", None
 
@@ -611,13 +622,17 @@ def load_edinet_companies(cache_dir):
 
 def check_ticker_fields(hyp, edinet_companies):
     """検査13: ticker/ticker_sourceの確認。次のいずれかに当たったら不合格(None以外を返す)。
-      1. ticker が null・空・4桁の数字以外
+      1. ticker が null・空、または証券コードの形(edinet_fetch.is_valid_ticker、英字混在を含む)
+         に合わない
       2. ticker_source が null・空
       3. EDINET書類一覧が読める場合に、company_name と ticker の組がその一覧に見つからない
-         (links.price_history のURLに含まれる証券コードが ticker と違う場合も含む)
-    EDINET書類一覧が読めない(edinet_companiesがNone)場合、条件3は適用しない。"""
+         (links.price_history のURL「https://finance.yahoo.co.jp/quote/{証券コード}.T/history」の
+         /quote/ と .T の間の文字列が ticker と違う場合も含む。その形に合わないURLは比較せず飛ばす)
+    EDINET書類一覧が読めない(edinet_companiesがNone)場合、条件3は適用しない。
+    証券コードの形の判定はedinet_fetch.is_valid_ticker()を使う(derive_ticker()と同じ判定を
+    2か所に書かないため)。"""
     ticker = hyp.get("ticker")
-    if not (isinstance(ticker, str) and TICKER_RE.match(ticker)):
+    if not (isinstance(ticker, str) and edinet_fetch.is_valid_ticker(ticker)):
         return "ticker_missing"
 
     if not hyp.get("ticker_source"):
@@ -637,8 +652,8 @@ def check_ticker_fields(hyp, edinet_companies):
 
     price_history = (hyp.get("links") or {}).get("price_history")
     if price_history:
-        codes_in_url = re.findall(r"\d{4}", price_history)
-        if codes_in_url and ticker not in codes_in_url:
+        m = PRICE_HISTORY_CODE_RE.search(price_history)
+        if m and m.group(1) != ticker:
             return "ticker_mismatch"
 
     return None
@@ -760,7 +775,7 @@ def run_hypothesis_checks(hypotheses_doc, edition, business_days, ng_words, cach
 def print_report(edition_path, stats, stop_hits, watch_hits, dropped_inferences, stale_hits,
                   unknown_published_at_hits, stale_skipped,
                   hypothesis_violations, hypothesis_reasons, number_failure_details, ok,
-                  baseline_late=False, ticker_crosscheck="skipped"):
+                  baseline_late=False, ticker_crosscheck="skipped", source_usage_invalid_hits=0):
     print("=" * 60)
     print(f"照合結果: {edition_path}")
     print("=" * 60)
@@ -813,6 +828,7 @@ def print_report(edition_path, stats, stop_hits, watch_hits, dropped_inferences,
     print(f"必須項目が空で削除した推論の件数: {dropped_inferences}")
     print(f"号の遅延判定(baseline_late): {baseline_late}")
     print(f"証券コードの突き合わせ(ticker_crosscheck): {ticker_crosscheck}")
+    print(f"usageが正しく書かれていない出典の件数(source_usage_invalid_hits): {source_usage_invalid_hits}")
 
     if hypothesis_reasons:
         print(f"仮説に関する指摘件数: {hypothesis_violations}")
@@ -829,7 +845,7 @@ def print_report(edition_path, stats, stop_hits, watch_hits, dropped_inferences,
             "primary_evidence_unverified": "根拠が最上位(primary)の自己申告なのに、出典本文に会社名を確認できなかった(inferredへ格下げ。方向がminusならこの後さらに削除される)",
             "evidence_source_unreadable": "根拠の出典ファイルが文字コードの問題で読めなかった(inferredへ格下げ)",
             "minus_condition_failed": "下振れ方向(minus)の3条件(根拠primary・提出者名の一致・抜き出しの実在)のいずれかを満たさなかった(削除)",
-            "ticker_missing": "証券コードが無い、または4桁の数字でなかった(削除)",
+            "ticker_missing": "証券コードが無い、または証券コードの形に合わなかった(削除)",
             "ticker_source_missing": "証券コードの出典(ticker_source)が空だった(削除)",
             "ticker_mismatch": "証券コードがEDINET書類一覧の記録と一致しなかった(削除)",
         }
@@ -870,6 +886,7 @@ def main():
         watch_hits = check_watch_proximity(edition, ng_words_exclude)
 
         stats, number_failure_details = run_line_verification(edition, args.cache)
+        source_usage_invalid_hits = count_invalid_source_usages(edition)
         dropped_inferences = run_check_d_inferences(edition)
         stale_hits, unknown_published_at_hits, stale_skipped = run_check_e_stale_sources(edition)
 
@@ -914,6 +931,7 @@ def main():
             "unverified_reasons": stats["unverified_reasons"],
             "ticker_crosscheck": ticker_crosscheck,
             "baseline_late": baseline_late,
+            "source_usage_invalid_hits": source_usage_invalid_hits,
         }
 
         with open(edition_path, "w", encoding="utf-8") as f:
@@ -928,6 +946,7 @@ def main():
             unknown_published_at_hits, stale_skipped,
             hypothesis_violations, hypothesis_reasons, number_failure_details, ok=True,
             baseline_late=baseline_late, ticker_crosscheck=ticker_crosscheck,
+            source_usage_invalid_hits=source_usage_invalid_hits,
         )
         return 0
 

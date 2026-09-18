@@ -26,6 +26,7 @@ import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import edinet_fetch
 import verify_edition as ve
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -161,6 +162,7 @@ def test_verify_line_source_unreadable():
         source = {
             "source_id": "SRC-BROKEN",
             "content_sha256": hashlib.sha256(broken_bytes).hexdigest(),
+            "usage": "quotable",
         }
         line = {
             "claimed_mark": "source_number_match",
@@ -401,9 +403,9 @@ def test_check_ticker_fields():
         "ticker_mismatch",
     )
     check(
-        "検査13/正例: links.price_historyのURLに違う証券コードが入っていれば不合格",
+        "検査13/正例: links.price_historyのURL(/quote/と.Tの間)に違う証券コードが入っていれば不合格",
         ve.check_ticker_fields(
-            base(links={"price_history": "https://example.test/chart/9998"}), edinet_companies
+            base(links={"price_history": "https://finance.yahoo.co.jp/quote/9998.T/history"}), edinet_companies
         ),
         "ticker_mismatch",
     )
@@ -430,12 +432,95 @@ def test_check_ticker_fields():
         None,
     )
     check(
-        "検査13/負例: links.price_historyに証券コードらしき4桁が無ければ比較せず合格",
+        "検査13/負例: links.price_historyが/quote/{コード}.Tの形でなければ比較せず合格",
         ve.check_ticker_fields(
             base(links={"price_history": "https://example.test/chart?name=test"}), edinet_companies
         ),
         None,
     )
+
+    # --- 英字入りの証券コード(2024年1月以降の新規上場を想定) ---
+    edinet_companies_with_letter = edinet_companies + [
+        {"filer_name": "テスト新興", "ticker": "130A"},
+    ]
+
+    def base_letter(**overrides):
+        hyp = {
+            "company_name": "テスト新興",
+            "ticker": "130A",
+            "ticker_source": "edinet",
+        }
+        hyp.update(overrides)
+        return hyp
+
+    check(
+        "検査13/負例(英字コード): tickerが130AでEDINET一覧にも130A(元の証券コードは130A0)の会社がいれば合格",
+        ve.check_ticker_fields(base_letter(), edinet_companies_with_letter),
+        None,
+    )
+    check(
+        "検査13/負例(英字コード): links.price_historyがhttps://finance.yahoo.co.jp/quote/130A.T/historyでも合格",
+        ve.check_ticker_fields(
+            base_letter(links={"price_history": "https://finance.yahoo.co.jp/quote/130A.T/history"}),
+            edinet_companies_with_letter,
+        ),
+        None,
+    )
+    check(
+        "検査13/正例(英字コード): links.price_historyが別会社の証券コード(9730)を指していれば不合格",
+        ve.check_ticker_fields(
+            base_letter(links={"price_history": "https://finance.yahoo.co.jp/quote/9730.T/history"}),
+            edinet_companies_with_letter,
+        ),
+        "ticker_mismatch",
+    )
+
+
+def test_derive_ticker_and_is_valid_ticker():
+    """証券コードの形(edinet_fetch.derive_ticker / is_valid_ticker)の正例・負例。
+    2024年1月4日以降に新規上場承認を受けた株式は、証券コードの2桁目・4桁目のいずれか、
+    または両方に英大文字(B・E・I・O・Q・V・Zを除く19文字)が入る場合がある。"""
+
+    # --- 反応してほしい例(通るべき) ---
+    check("derive_ticker/正例: 数字だけの5桁('12340')は'1234'になる", edinet_fetch.derive_ticker("12340"), ("1234", None))
+    check("derive_ticker/正例: 4桁目が英字('130A0')は'130A'になる", edinet_fetch.derive_ticker("130A0"), ("130A", None))
+    check("derive_ticker/正例: 2桁目が英字('2A460')は'2A46'になる", edinet_fetch.derive_ticker("2A460"), ("2A46", None))
+    check("derive_ticker/正例: 2桁目・4桁目とも英字('8A9A0')は'8A9A'になる", edinet_fetch.derive_ticker("8A9A0"), ("8A9A", None))
+    check("derive_ticker/正例: 数字だけの5桁('99990')は'9999'になる", edinet_fetch.derive_ticker("99990"), ("9999", None))
+
+    check("is_valid_ticker/正例: '1234'は正しい形", edinet_fetch.is_valid_ticker("1234"), True)
+    check("is_valid_ticker/正例: '130A'(4桁目が英字)は正しい形", edinet_fetch.is_valid_ticker("130A"), True)
+    check("is_valid_ticker/正例: '2A46'(2桁目が英字)は正しい形", edinet_fetch.is_valid_ticker("2A46"), True)
+    check("is_valid_ticker/正例: '8A9A'(2桁目・4桁目とも英字)は正しい形", edinet_fetch.is_valid_ticker("8A9A"), True)
+    check("is_valid_ticker/正例: '9999'は正しい形", edinet_fetch.is_valid_ticker("9999"), True)
+
+    # --- 反応してほしくない例(落ちるべき) ---
+    check("derive_ticker/負例: Noneはsec_code_null", edinet_fetch.derive_ticker(None), (None, "sec_code_null"))
+    check("derive_ticker/負例: 空文字はsec_code_empty", edinet_fetch.derive_ticker(""), (None, "sec_code_empty"))
+    check("derive_ticker/負例: 4文字('1234')はsec_code_not_5chars", edinet_fetch.derive_ticker("1234"), (None, "sec_code_not_5chars"))
+    check(
+        "derive_ticker/負例: 末尾が0でない('12345')はsec_code_not_ending_zero",
+        edinet_fetch.derive_ticker("12345"), (None, "sec_code_not_ending_zero"),
+    )
+    check(
+        "derive_ticker/負例: 使われない英字('1B3A0'のB)はsec_code_unexpected_format",
+        edinet_fetch.derive_ticker("1B3A0"), (None, "sec_code_unexpected_format"),
+    )
+    check(
+        "derive_ticker/負例: 小文字('130a0')はsec_code_unexpected_format(大文字に直して通さない)",
+        edinet_fetch.derive_ticker("130a0"), (None, "sec_code_unexpected_format"),
+    )
+    check(
+        "derive_ticker/負例: 1桁目が英字('A1230')はsec_code_unexpected_format",
+        edinet_fetch.derive_ticker("A1230"), (None, "sec_code_unexpected_format"),
+    )
+
+    check("is_valid_ticker/負例: Noneは正しい形でない", edinet_fetch.is_valid_ticker(None), False)
+    check("is_valid_ticker/負例: 空文字は正しい形でない", edinet_fetch.is_valid_ticker(""), False)
+    check("is_valid_ticker/負例: 4文字でない('12345')は正しい形でない", edinet_fetch.is_valid_ticker("12345"), False)
+    check("is_valid_ticker/負例: 使われない英字('1B3A'のB)は正しい形でない", edinet_fetch.is_valid_ticker("1B3A"), False)
+    check("is_valid_ticker/負例: 小文字('130a')は正しい形でない", edinet_fetch.is_valid_ticker("130a"), False)
+    check("is_valid_ticker/負例: 1桁目が英字('A123')は正しい形でない", edinet_fetch.is_valid_ticker("A123"), False)
 
 
 def test_check_numbers_empty():
@@ -502,12 +587,16 @@ def test_check_numbers_empty():
 
 
 def test_check_excerpt_not_allowed():
-    """検査16(quotableでない出典を参照する行にexcerptがある)の正例・負例。"""
+    """検査16(usageがquotableでない、またはusageが正しく書かれていない出典を参照する行に
+    excerptがある)の正例・負例。usageが無い・null・想定外の値の出典は、以前は検査の対象外
+    (穴)だったが、今回の修正で「quotableではないもの」として扱うようにした。"""
     sources = {
         "SRC-SNIPPET": {"source_id": "SRC-SNIPPET", "usage": "snippet_only"},
         "SRC-LINK": {"source_id": "SRC-LINK", "usage": "link_only"},
         "SRC-QUOTABLE": {"source_id": "SRC-QUOTABLE", "usage": "quotable"},
         "SRC-NOUSAGE": {"source_id": "SRC-NOUSAGE"},
+        "SRC-NULLUSAGE": {"source_id": "SRC-NULLUSAGE", "usage": None},
+        "SRC-BADUSAGE": {"source_id": "SRC-BADUSAGE", "usage": "quotable "},
     }
 
     # --- 正例(反応してほしい: excerptがnullに書き換わりunverified/excerpt_not_allowedになる) ---
@@ -526,6 +615,36 @@ def test_check_excerpt_not_allowed():
     }
     mark, reason, _ = ve.verify_line(line2, sources, "/nonexistent")
     check("検査16/正例: usageがlink_onlyの出典を参照しexcerptがあれば不合格", (mark, reason), ("unverified", "excerpt_not_allowed"))
+
+    line_nousage_key = {
+        "claimed_mark": "reported_unverified", "numbers": [],
+        "source_ref": "SRC-NOUSAGE", "excerpt": "何かの抜き出し",
+    }
+    mark, reason, _ = ve.verify_line(line_nousage_key, sources, "/nonexistent")
+    check(
+        "検査16/正例: usageのキーが無い出典を参照しexcerptがあれば不合格(以前は穴だった)",
+        (mark, reason), ("unverified", "excerpt_not_allowed"),
+    )
+
+    line_nullusage = {
+        "claimed_mark": "reported_unverified", "numbers": [],
+        "source_ref": "SRC-NULLUSAGE", "excerpt": "何かの抜き出し",
+    }
+    mark, reason, _ = ve.verify_line(line_nullusage, sources, "/nonexistent")
+    check(
+        "検査16/正例: usageがnullの出典を参照しexcerptがあれば不合格(以前は穴だった)",
+        (mark, reason), ("unverified", "excerpt_not_allowed"),
+    )
+
+    line_badusage = {
+        "claimed_mark": "reported_unverified", "numbers": [],
+        "source_ref": "SRC-BADUSAGE", "excerpt": "何かの抜き出し",
+    }
+    mark, reason, _ = ve.verify_line(line_badusage, sources, "/nonexistent")
+    check(
+        "検査16/正例: usageが想定外の値(quotableに余計な空白)の出典を参照しexcerptがあれば不合格",
+        (mark, reason), ("unverified", "excerpt_not_allowed"),
+    )
 
     # --- 負例(反応してほしくない) ---
     with tempfile.TemporaryDirectory() as d:
@@ -552,6 +671,13 @@ def test_check_excerpt_not_allowed():
     mark, reason, _ = ve.verify_line(line_no_excerpt, sources, "/nonexistent")
     check("検査16/負例: excerptが無ければsnippet_onlyの出典を参照していてもexcerpt_not_allowedにならない", mark, "explainer")
 
+    line_link_no_excerpt = {
+        "claimed_mark": "explainer", "numbers": [],
+        "source_ref": "SRC-LINK", "excerpt": None,
+    }
+    mark, reason, _ = ve.verify_line(line_link_no_excerpt, sources, "/nonexistent")
+    check("検査16/負例: excerptが無ければlink_onlyの出典を参照していてもexcerpt_not_allowedにならない", mark, "explainer")
+
     line_unknown_ref = {
         "claimed_mark": "reported_unverified", "numbers": [],
         "source_ref": "SRC-NOT-IN-LIST", "excerpt": "何か",
@@ -562,14 +688,14 @@ def test_check_excerpt_not_allowed():
         reason != "excerpt_not_allowed", True,
     )
 
-    line_nousage = {
-        "claimed_mark": "reported_unverified", "numbers": [],
-        "source_ref": "SRC-NOUSAGE", "excerpt": "何か",
+    line_nousage_no_excerpt = {
+        "claimed_mark": "explainer", "numbers": [],
+        "source_ref": "SRC-NOUSAGE", "excerpt": None,
     }
-    mark, reason, _ = ve.verify_line(line_nousage, sources, "/nonexistent")
+    mark, reason, _ = ve.verify_line(line_nousage_no_excerpt, sources, "/nonexistent")
     check(
-        "検査16/負例: usageが記録されていない出典はexcerpt_not_allowedの対象にしない(想定外データは他の検査に委ねる)",
-        reason != "excerpt_not_allowed", True,
+        "検査16/負例: usageが記録されていない出典でもexcerptがNoneならexcerpt_not_allowedにならない(これは通るべき)",
+        mark, "explainer",
     )
 
     line_explainer_quotable = {
@@ -578,6 +704,43 @@ def test_check_excerpt_not_allowed():
     }
     mark, reason, _ = ve.verify_line(line_explainer_quotable, sources, "/nonexistent")
     check("検査16/負例: excerptがNoneのexplainer行はquotable以外の出典でも合格のまま", mark, "explainer")
+
+
+def test_count_invalid_source_usages():
+    """source_usage_invalid_hits(usageが正しく書かれていない出典の数)の正例・負例。"""
+    edition_mixed = {
+        "sources": [
+            {"source_id": "SRC-1", "usage": "quotable"},
+            {"source_id": "SRC-2", "usage": "link_only"},
+            {"source_id": "SRC-3", "usage": "snippet_only"},
+            {"source_id": "SRC-4"},
+            {"source_id": "SRC-5", "usage": None},
+            {"source_id": "SRC-6", "usage": ""},
+            {"source_id": "SRC-7", "usage": "quotable "},
+        ]
+    }
+    check(
+        "source_usage_invalid_hits/正例: usage無し・null・空文字・想定外の値の4件を数える",
+        ve.count_invalid_source_usages(edition_mixed), 4,
+    )
+
+    edition_all_valid = {
+        "sources": [
+            {"source_id": "SRC-1", "usage": "quotable"},
+            {"source_id": "SRC-2", "usage": "link_only"},
+            {"source_id": "SRC-3", "usage": "snippet_only"},
+        ]
+    }
+    check(
+        "source_usage_invalid_hits/負例: 3種類とも正しいusageなら0件",
+        ve.count_invalid_source_usages(edition_all_valid), 0,
+    )
+
+    edition_no_sources = {"sources": []}
+    check(
+        "source_usage_invalid_hits/負例: sourcesが空配列なら0件",
+        ve.count_invalid_source_usages(edition_no_sources), 0,
+    )
 
 
 def test_check_baseline_late():
@@ -697,9 +860,11 @@ def main():
     test_stale_sources()
     test_stop_and_watch_split()
     test_check_minus_direction()
+    test_derive_ticker_and_is_valid_ticker()
     test_check_ticker_fields()
     test_check_numbers_empty()
     test_check_excerpt_not_allowed()
+    test_count_invalid_source_usages()
     test_check_baseline_late()
     test_stop_words_remove_line_not_whole_edition()
     test_testdata_copy_integration()

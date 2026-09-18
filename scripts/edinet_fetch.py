@@ -49,9 +49,15 @@ UTF16BE_BOM = b"\xfe\xff"
 SEC_CODE_REASON_TEXT = {
     "sec_code_null": "証券コードがnull",
     "sec_code_empty": "証券コードが空",
-    "sec_code_not_5digit": "証券コードが5桁でない",
+    "sec_code_not_5chars": "証券コードが5文字でない",
     "sec_code_not_ending_zero": "証券コードの末尾が0でない",
+    "sec_code_unexpected_format": "証券コードの形が想定と違う",
 }
+
+# 証券コード協議会は2024年1月4日以降に新規上場承認を受けた株式について、証券コードの
+# 2桁目・4桁目のいずれか、または両方に英大文字を組み入れている(例: 130A)。数字と紛らわしい
+# B・E・I・O・Q・V・Z の7文字は使われないため、残り19文字だけを許可する。小文字は許可しない。
+ALLOWED_CODE_LETTERS = "ACDFGHJKLMNPRSTUWXY"
 
 
 class EdinetError(Exception):
@@ -86,22 +92,43 @@ def _http_get(url):
         raise EdinetError("通信に失敗しました(接続エラー)") from None
 
 
-def derive_ticker(sec_code_raw):
-    """secCodeから4桁の証券コードを作る。作れないときは (None, 理由) を返す。
+def is_valid_ticker(ticker):
+    """4文字の証券コードが、想定する形に合っているかどうかを判定する。
 
-    5桁で末尾が'0'のときだけ末尾の1文字を落として4桁にする。
-    それ以外(null・空・5桁でない・末尾が0でない)は None にする。
+    1文字目・3文字目は数字。2文字目・4文字目は数字、または ALLOWED_CODE_LETTERS の
+    英大文字。小文字は認めない。derive_ticker()と verify_edition.py の検査13が
+    どちらもこの関数を使う(同じ判定を2か所に書かないため)。
+    """
+    if not isinstance(ticker, str) or len(ticker) != 4:
+        return False
+    if not (ticker[0].isdigit() and ticker[2].isdigit()):
+        return False
+    for i in (1, 3):
+        if not (ticker[i].isdigit() or ticker[i] in ALLOWED_CODE_LETTERS):
+            return False
+    return True
+
+
+def derive_ticker(sec_code_raw):
+    """secCodeから4桁(英字混在を含む)の証券コードを作る。作れないときは (None, 理由) を返す。
+
+    5桁で末尾が'0'のときだけ末尾の1文字を落として先頭4文字を候補にする。数字かどうかでは
+    なく、is_valid_ticker() による形の一致で判定する(2024年1月4日以降に新規上場承認を
+    受けた株式は、証券コードの2桁目・4桁目のいずれか、または両方に英大文字が入るため)。
     """
     if sec_code_raw is None:
         return None, "sec_code_null"
-    s = str(sec_code_raw)
+    s = str(sec_code_raw).strip()
     if s == "":
         return None, "sec_code_empty"
-    if not (len(s) == 5 and s.isdigit()):
-        return None, "sec_code_not_5digit"
+    if len(s) != 5:
+        return None, "sec_code_not_5chars"
     if not s.endswith("0"):
         return None, "sec_code_not_ending_zero"
-    return s[:4], None
+    candidate = s[:4]
+    if not is_valid_ticker(candidate):
+        return None, "sec_code_unexpected_format"
+    return candidate, None
 
 
 def build_companies(raw_doc):
