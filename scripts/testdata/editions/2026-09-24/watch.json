@@ -59,14 +59,20 @@
  ],
  "verification": {
   "script_version": "1.1.0",
-  "run_at": "2026-09-18T13:24:57.915699+09:00",
+  "run_at": "2026-09-18T16:07:59.399299+09:00",
   "lines_total": 5,
   "passed": 0,
   "unverified": 0,
   "reported_unverified": 5,
   "explainer": 0,
-  "recommendation_hits": 0,
-  "recommendation_watch_hits": 1,
+  "recommendation_stop_hits": 0,
+  "recommendation_warn_hits": 1,
+  "recommendation_warnings": [
+   {
+    "line_id": "W-06",
+    "word": "株価(周辺15文字以内に買/売)"
+   }
+  ],
   "stale_source_hits": 0,
   "stale_check_skipped": 0,
   "inference_dropped": 0,

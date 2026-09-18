@@ -7,7 +7,25 @@
    "ticker": "9999",
    "relation_text": "輸出関連の業績に影響しうる",
    "direction": "plus",
+   "evidence_grade": "inferred",
+   "evidence_source_ref": null,
+   "falsifier": "輸出額が翌月大幅に減少した場合",
+   "baseline_date": "2026-09-24",
+   "baseline_price_type": "close",
+   "horizon_business_days": 20,
+   "deadline_date": "2026-10-23",
+   "line_ids": [
+    "L-01"
+   ]
+  },
+  {
+   "hypothesis_id": "H-2",
+   "company_name": "テスト物産",
+   "ticker": "8801",
+   "relation_text": "輸出関連の業績に影響しうる",
+   "direction": "plus",
    "evidence_grade": "primary",
+   "evidence_source_ref": "SRC-006",
    "falsifier": "輸出額が翌月大幅に減少した場合",
    "baseline_date": "2026-09-24",
    "baseline_price_type": "close",

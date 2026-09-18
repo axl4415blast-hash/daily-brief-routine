@@ -19,7 +19,8 @@
       "ticker": "1234",
       "relation_text": "...",
       "direction": "plus" | "minus",
-      "evidence_grade": "primary" | "secondary" | ...,
+      "evidence_grade": "primary" | "reported" | "inferred",
+      "evidence_source_ref": "SRC-001" | null,
       "falsifier": "...",
       "baseline_date": "2026-09-24",
       "baseline_price_type": "close" | "open" | ...,
@@ -351,25 +352,40 @@ def parse_datetime_assume_jst(s):
 
 
 def run_check_e_stale_sources(edition):
+    """検査9: change欄(新しい変化)の行について、出典の公表時刻が36時間以上前でないかを確かめる。
+    出典のpublished_atがnull(読み取れない)場合は、36時間ルールの判定ができないため、
+    change欄の行に限り安全側に倒して行そのものを落とす。change以外の欄(big/ripple/deep)は
+    36時間ルールの対象外なので、published_atがnullでも行を落とさない。"""
     sources_by_id = {s.get("source_id"): s for s in edition.get("sources", [])}
     generated_dt = parse_datetime_assume_jst(edition.get("generated_at"))
 
     stale = 0
     skipped = 0
-    for section, article, line in iter_lines(edition):
-        if section.get("section_id") != "change":
-            continue
-        source_ref = line.get("source_ref")
-        source = sources_by_id.get(source_ref)
-        if not source:
-            continue
-        published_dt = parse_datetime_assume_jst(source.get("published_at"))
-        if generated_dt is None or published_dt is None:
-            skipped += 1
-            continue
-        delta_hours = (generated_dt - published_dt).total_seconds() / 3600
-        if delta_hours >= 36:
-            stale += 1
+    for section in edition["sections"]:
+        for article in section.get("articles", []):
+            lines = article.get("lines", [])
+            if section.get("section_id") != "change":
+                continue
+            kept_lines = []
+            for line in lines:
+                source_ref = line.get("source_ref")
+                source = sources_by_id.get(source_ref)
+                if not source:
+                    kept_lines.append(line)
+                    continue
+                published_dt = parse_datetime_assume_jst(source.get("published_at"))
+                if published_dt is None:
+                    stale += 1
+                    continue
+                if generated_dt is None:
+                    skipped += 1
+                    kept_lines.append(line)
+                    continue
+                delta_hours = (generated_dt - published_dt).total_seconds() / 3600
+                if delta_hours >= 36:
+                    stale += 1
+                kept_lines.append(line)
+            article["lines"] = kept_lines
     return stale, skipped
 
 
@@ -391,6 +407,58 @@ def compute_deadline(business_days, baseline_date, horizon):
         return business_days[idx + horizon]
     except (ValueError, IndexError):
         return None
+
+
+LINK_ONLY_USAGE = "link_only"
+
+
+def check_evidence_source_ref(hyp, sources_by_id, cache_dir):
+    """検査11: evidence_grade が primary の自己申告を機械で確かめる。
+    合格なら None、不合格なら理由の文字列を返す。
+
+    既知の限界: この検査は「その出典に会社名がそのまま出ている」ことしか確かめられない。
+    無関係な文脈での言及(例えばある会社の開示資料に取引先として別の会社名が挙がっている場合など)
+    を一次情報と誤認する可能性がある。
+    """
+    ref = hyp.get("evidence_source_ref")
+    if not ref:
+        return "evidence_source_ref_missing"
+
+    source = sources_by_id.get(ref)
+    if source is None:
+        return "evidence_source_not_found"
+
+    if source.get("usage") == LINK_ONLY_USAGE:
+        return "evidence_source_link_only"
+
+    cache_path = Path(cache_dir) / f"{ref}.txt"
+    if not cache_path.is_file():
+        return "evidence_source_not_found"
+
+    try:
+        body_text = cache_path.read_text(encoding="utf-8")
+    except OSError:
+        return "evidence_source_not_found"
+
+    company_name = hyp.get("company_name")
+    if not company_name or company_name not in body_text:
+        return "evidence_company_name_not_found"
+
+    return None
+
+
+def run_check_hypothesis_evidence(hyps, sources_by_id, cache_dir):
+    """evidence_grade が primary の仮説だけを検査11にかけ、不合格なら inferred へ格下げする。
+    direction が minus の仮説は、この後で走る check_hypothesis の
+    「minus は primary 限定」ルールが自動的に該当仮説を削除する。"""
+    downgraded = 0
+    for hyp in hyps:
+        if hyp.get("evidence_grade") != "primary":
+            continue
+        if check_evidence_source_ref(hyp, sources_by_id, cache_dir):
+            hyp["evidence_grade"] = "inferred"
+            downgraded += 1
+    return downgraded
 
 
 def check_hypothesis(hyp, edition, line_ids, business_days, ng_words):
@@ -434,7 +502,7 @@ def check_hypothesis(hyp, edition, line_ids, business_days, ng_words):
     return None
 
 
-def run_hypothesis_checks(hypotheses_doc, edition, business_days, ng_words):
+def run_hypothesis_checks(hypotheses_doc, edition, business_days, ng_words, cache_dir):
     line_ids = {}
     for section, article, line in iter_lines(edition):
         line_ids[line.get("line_id")] = line.get("mark")
@@ -448,6 +516,11 @@ def run_hypothesis_checks(hypotheses_doc, edition, business_days, ng_words):
             reasons["market_closed"] = reasons.get("market_closed", 0) + 1
         hypotheses_doc["hypotheses"] = []
         return len(hyps), reasons
+
+    sources_by_id = {s.get("source_id"): s for s in edition.get("sources", [])}
+    evidence_downgrades = run_check_hypothesis_evidence(hyps, sources_by_id, cache_dir)
+    if evidence_downgrades:
+        reasons["primary_evidence_unverified"] = evidence_downgrades
 
     for hyp in hyps:
         reason = check_hypothesis(hyp, edition, line_ids, business_days, ng_words)
@@ -512,22 +585,23 @@ def print_report(edition_path, stats, stop_hits, watch_hits, dropped_inferences,
     print(f"必須項目が空で削除した推論の件数: {dropped_inferences}")
 
     if hypothesis_reasons:
-        print(f"仮説の削除件数: {hypothesis_violations}")
+        print(f"仮説に関する指摘件数: {hypothesis_violations}")
         reason_text = {
-            "direction_minus_requires_primary": "下振れ方向なのに根拠の強さが最上位でなかった",
-            "missing_field": "必須項目が空だった",
-            "line_id_not_found": "紙面に存在しない行を参照していた",
-            "primary_requires_verified_line": "根拠が最上位なのに参照行が未確認だった",
-            "deadline_date_mismatch": "確認期限の日付が営業日計算と合わなかった",
-            "relation_text_conclusive_word": "断定的な言葉(プラス/マイナス/好材料/悪材料)が入っていた",
-            "relation_text_recommendation": "説明文に推奨表現が入っていた",
-            "market_closed": "市場が休みの号に仮説が入っていた",
-            "too_many_hypotheses": "仮説が上限(5件)を超えていた",
+            "direction_minus_requires_primary": "下振れ方向なのに根拠の強さが最上位でなかった(削除)",
+            "missing_field": "必須項目が空だった(削除)",
+            "line_id_not_found": "紙面に存在しない行を参照していた(削除)",
+            "primary_requires_verified_line": "根拠が最上位なのに参照行が未確認だった(削除)",
+            "deadline_date_mismatch": "確認期限の日付が営業日計算と合わなかった(削除)",
+            "relation_text_conclusive_word": "断定的な言葉(プラス/マイナス/好材料/悪材料)が入っていた(削除)",
+            "relation_text_recommendation": "説明文に推奨表現が入っていた(削除)",
+            "market_closed": "市場が休みの号に仮説が入っていた(削除)",
+            "too_many_hypotheses": "仮説が上限(5件)を超えていた(削除)",
+            "primary_evidence_unverified": "根拠が最上位(primary)の自己申告なのに、出典本文に会社名を確認できなかった(inferredへ格下げ。方向がminusならこの後さらに削除される)",
         }
         for reason, count in hypothesis_reasons.items():
             print(f"  ・{reason_text.get(reason, reason)}: {count}件")
     elif hypothesis_violations:
-        print(f"仮説の削除件数: {hypothesis_violations}")
+        print(f"仮説に関する指摘件数: {hypothesis_violations}")
 
 
 def main():
@@ -578,7 +652,7 @@ def main():
             hypotheses_doc = load_json(args.hypotheses)
             business_days = load_business_days(args.calendar)
             hypothesis_violations, hypothesis_reasons = run_hypothesis_checks(
-                hypotheses_doc, edition, business_days, ng_words
+                hypotheses_doc, edition, business_days, ng_words, args.cache
             )
 
         run_at = dt.datetime.now(dt.timezone(dt.timedelta(hours=9))).isoformat()
@@ -590,8 +664,11 @@ def main():
             "unverified": stats["unverified"],
             "reported_unverified": stats["reported_unverified"],
             "explainer": stats["explainer"],
-            "recommendation_hits": len(stop_hits),
-            "recommendation_watch_hits": len(watch_hits),
+            "recommendation_stop_hits": len(stop_hits),
+            "recommendation_warn_hits": len(watch_hits),
+            "recommendation_warnings": [
+                {"line_id": hit["line_id"], "word": hit["word"]} for hit in watch_hits
+            ],
             "stale_source_hits": stale_hits,
             "stale_check_skipped": stale_skipped,
             "inference_dropped": dropped_inferences,
