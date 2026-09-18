@@ -178,7 +178,8 @@ def iter_lines(edition):
                 yield section, article, line
 
 
-def check_c_ng_words(edition, ng_words):
+def check_c_stop_words(edition, ng_words):
+    """停止側: ng_words.txt に載っている語そのものの検出。1件でもあれば号は保存されない。"""
     hits = []
     for section, article, line in iter_lines(edition):
         text = line.get("text", "")
@@ -187,15 +188,37 @@ def check_c_ng_words(edition, ng_words):
         for word in ng_words:
             if word in text:
                 hits.append({"line_id": line.get("line_id"), "word": word, "text": text})
+    return hits
+
+
+def mask_excluded_words(text, exclude_words):
+    """近接ルールの判定用に、除外語を同じ文字数の○へ置き換えたコピーを作る(元の文字列は変更しない)。"""
+    masked = text
+    for word in exclude_words:
+        if word:
+            masked = masked.replace(word, "○" * len(word))
+    return masked
+
+
+def check_watch_proximity(edition, exclude_words):
+    """注意側: 「株価」「株式」「銘柄」の前後15文字以内に「買」または「売」がある行を検出する。
+    ただし除外語リストに載っている語(株式会社・売上高など)は判定用コピーでは○に置き換えてから見る。
+    号は止めない(終了コードに影響しない)。"""
+    hits = []
+    for section, article, line in iter_lines(edition):
+        text = line.get("text", "")
+        if not text:
+            continue
+        masked = mask_excluded_words(text, exclude_words)
         for trigger in ("株価", "株式", "銘柄"):
             start = 0
             while True:
-                idx = text.find(trigger, start)
+                idx = masked.find(trigger, start)
                 if idx == -1:
                     break
                 window_start = max(0, idx - 15)
-                window_end = min(len(text), idx + len(trigger) + 15)
-                window = text[window_start:window_end]
+                window_end = min(len(masked), idx + len(trigger) + 15)
+                window = masked[window_start:window_end]
                 if "買" in window or "売" in window:
                     hits.append({
                         "line_id": line.get("line_id"),
@@ -225,7 +248,9 @@ def verify_line(line, sources_by_id, cache_dir):
         raw_bytes = cache_path.read_bytes()
         actual_hash = hashlib.sha256(raw_bytes).hexdigest()
         expected_hash = source.get("content_sha256")
-        if expected_hash and actual_hash != expected_hash:
+        if not expected_hash:
+            return "unverified", "hash_missing", None
+        if actual_hash != expected_hash:
             return "unverified", "hash_mismatch", None
 
         body_text = raw_bytes.decode("utf-8")
@@ -309,15 +334,28 @@ def run_check_d_inferences(edition):
     return dropped
 
 
+JST = dt.timezone(dt.timedelta(hours=9))
+
+
+def parse_datetime_assume_jst(s):
+    """タイムゾーンが付いていない日時は日本時間とみなして補う。読み取れなければ None。"""
+    if not s:
+        return None
+    try:
+        d = dt.datetime.fromisoformat(s)
+    except (TypeError, ValueError):
+        return None
+    if d.tzinfo is None:
+        d = d.replace(tzinfo=JST)
+    return d
+
+
 def run_check_e_stale_sources(edition):
     sources_by_id = {s.get("source_id"): s for s in edition.get("sources", [])}
-    generated_at = edition.get("generated_at")
-    try:
-        generated_dt = dt.datetime.fromisoformat(generated_at)
-    except (TypeError, ValueError):
-        return 0
+    generated_dt = parse_datetime_assume_jst(edition.get("generated_at"))
 
     stale = 0
+    skipped = 0
     for section, article, line in iter_lines(edition):
         if section.get("section_id") != "change":
             continue
@@ -325,15 +363,14 @@ def run_check_e_stale_sources(edition):
         source = sources_by_id.get(source_ref)
         if not source:
             continue
-        published_at = source.get("published_at")
-        try:
-            published_dt = dt.datetime.fromisoformat(published_at)
-        except (TypeError, ValueError):
+        published_dt = parse_datetime_assume_jst(source.get("published_at"))
+        if generated_dt is None or published_dt is None:
+            skipped += 1
             continue
         delta_hours = (generated_dt - published_dt).total_seconds() / 3600
         if delta_hours >= 36:
             stale += 1
-    return stale
+    return stale, skipped
 
 
 def load_business_days(calendar_dir):
@@ -356,7 +393,7 @@ def compute_deadline(business_days, baseline_date, horizon):
         return None
 
 
-def check_hypothesis(hyp, edition, line_ids, business_days):
+def check_hypothesis(hyp, edition, line_ids, business_days, ng_words):
     if hyp.get("direction") == "minus" and hyp.get("evidence_grade") != "primary":
         return "direction_minus_requires_primary"
 
@@ -387,6 +424,9 @@ def check_hypothesis(hyp, edition, line_ids, business_days):
         return "deadline_date_mismatch"
 
     relation_text = hyp.get("relation_text", "")
+    for word in ng_words:
+        if word in relation_text:
+            return "relation_text_recommendation"
     for banned in ("プラス", "マイナス", "好材料", "悪材料"):
         if banned in relation_text:
             return "relation_text_conclusive_word"
@@ -394,7 +434,7 @@ def check_hypothesis(hyp, edition, line_ids, business_days):
     return None
 
 
-def run_hypothesis_checks(hypotheses_doc, edition, business_days):
+def run_hypothesis_checks(hypotheses_doc, edition, business_days, ng_words):
     line_ids = {}
     for section, article, line in iter_lines(edition):
         line_ids[line.get("line_id")] = line.get("mark")
@@ -410,7 +450,7 @@ def run_hypothesis_checks(hypotheses_doc, edition, business_days):
         return len(hyps), reasons
 
     for hyp in hyps:
-        reason = check_hypothesis(hyp, edition, line_ids, business_days)
+        reason = check_hypothesis(hyp, edition, line_ids, business_days, ng_words)
         if reason:
             reasons[reason] = reasons.get(reason, 0) + 1
         else:
@@ -426,7 +466,7 @@ def run_hypothesis_checks(hypotheses_doc, edition, business_days):
     return total_violations, reasons
 
 
-def print_report(edition_path, stats, ng_hits, dropped_inferences, stale_hits,
+def print_report(edition_path, stats, stop_hits, watch_hits, dropped_inferences, stale_hits, stale_skipped,
                   hypothesis_violations, hypothesis_reasons, number_failure_details, ok):
     print("=" * 60)
     print(f"照合結果: {edition_path}")
@@ -447,6 +487,7 @@ def print_report(edition_path, stats, ng_hits, dropped_inferences, stale_hits,
             "missing_field": "出典番号・抜き出し・出典表記のいずれかが空だった",
             "source_unfetchable": "出典の本文が手元に保存されていなかった",
             "hash_mismatch": "保存されている出典の本文が、記録されたハッシュと一致しなかった",
+            "hash_missing": "出典の本文のハッシュが記録されていなかった",
             "excerpt_not_found": "抜き出した文が出典の本文の中に見つからなかった",
             "number_not_in_excerpt": "数字が抜き出した文の中に見つからなかった",
             "mark_mismatch": "数字が入っているのに「解説」として申告されていた",
@@ -460,8 +501,14 @@ def print_report(edition_path, stats, ng_hits, dropped_inferences, stale_hits,
             values = ", ".join(str(n.get("value")) for n in detail["missing_numbers"])
             print(f"  ・{detail['line_id']}: {values}")
 
-    print(f"推奨表現の検出件数: {len(ng_hits)}")
+    print(f"推奨表現(停止)の検出件数: {len(stop_hits)}")
+    print(f"推奨表現(注意)の検出件数: {len(watch_hits)}")
+    if watch_hits:
+        print("  注意に挙がった行(号は保存されています):")
+        for hit in watch_hits:
+            print(f"    ・{hit['line_id']}: 「{hit['word']}」 (本文: {hit['text']})")
     print(f"出典が古い(36時間以上前)行の件数: {stale_hits}")
+    print(f"出典の日時が読み取れず判定できなかった行の件数: {stale_skipped}")
     print(f"必須項目が空で削除した推論の件数: {dropped_inferences}")
 
     if hypothesis_reasons:
@@ -473,6 +520,7 @@ def print_report(edition_path, stats, ng_hits, dropped_inferences, stale_hits,
             "primary_requires_verified_line": "根拠が最上位なのに参照行が未確認だった",
             "deadline_date_mismatch": "確認期限の日付が営業日計算と合わなかった",
             "relation_text_conclusive_word": "断定的な言葉(プラス/マイナス/好材料/悪材料)が入っていた",
+            "relation_text_recommendation": "説明文に推奨表現が入っていた",
             "market_closed": "市場が休みの号に仮説が入っていた",
             "too_many_hypotheses": "仮説が上限(5件)を超えていた",
         }
@@ -492,6 +540,7 @@ def main():
 
     script_dir = Path(__file__).resolve().parent
     ng_words_path = script_dir / "ng_words.txt"
+    ng_words_exclude_path = script_dir / "ng_words_exclude.txt"
 
     try:
         edition_path = Path(args.edition)
@@ -504,19 +553,23 @@ def main():
         check_b_edition_id(edition, edition_path)
 
         ng_words = load_ng_words(ng_words_path)
-        ng_hits = check_c_ng_words(edition, ng_words)
-        if ng_hits:
+        ng_words_exclude = load_ng_words(ng_words_exclude_path)
+
+        stop_hits = check_c_stop_words(edition, ng_words)
+        if stop_hits:
             print("=" * 60)
             print(f"照合結果: {args.edition}")
             print("=" * 60)
             print("→ この号は保存できません。推奨表現が見つかりました。")
-            for hit in ng_hits:
+            for hit in stop_hits:
                 print(f"  ・{hit['line_id']}: 「{hit['word']}」 (本文: {hit['text']})")
             return 1
 
+        watch_hits = check_watch_proximity(edition, ng_words_exclude)
+
         stats, number_failure_details = run_line_verification(edition, args.cache)
         dropped_inferences = run_check_d_inferences(edition)
-        stale_hits = run_check_e_stale_sources(edition)
+        stale_hits, stale_skipped = run_check_e_stale_sources(edition)
 
         hypothesis_violations = 0
         hypothesis_reasons = {}
@@ -525,20 +578,22 @@ def main():
             hypotheses_doc = load_json(args.hypotheses)
             business_days = load_business_days(args.calendar)
             hypothesis_violations, hypothesis_reasons = run_hypothesis_checks(
-                hypotheses_doc, edition, business_days
+                hypotheses_doc, edition, business_days, ng_words
             )
 
         run_at = dt.datetime.now(dt.timezone(dt.timedelta(hours=9))).isoformat()
         edition["verification"] = {
-            "script_version": "1.0.0",
+            "script_version": "1.1.0",
             "run_at": run_at,
             "lines_total": stats["lines_total"],
             "passed": stats["passed"],
             "unverified": stats["unverified"],
             "reported_unverified": stats["reported_unverified"],
             "explainer": stats["explainer"],
-            "recommendation_hits": len(ng_hits),
+            "recommendation_hits": len(stop_hits),
+            "recommendation_watch_hits": len(watch_hits),
             "stale_source_hits": stale_hits,
+            "stale_check_skipped": stale_skipped,
             "inference_dropped": dropped_inferences,
             "hypothesis_violations": hypothesis_violations,
             "unverified_reasons": stats["unverified_reasons"],
@@ -552,7 +607,7 @@ def main():
                 json.dump(hypotheses_doc, f, ensure_ascii=False, indent=1)
 
         print_report(
-            args.edition, stats, ng_hits, dropped_inferences, stale_hits,
+            args.edition, stats, stop_hits, watch_hits, dropped_inferences, stale_hits, stale_skipped,
             hypothesis_violations, hypothesis_reasons, number_failure_details, ok=True,
         )
         return 0

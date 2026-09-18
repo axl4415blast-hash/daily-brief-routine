@@ -64,6 +64,18 @@
    "content_sha256": "a403029bd845afa0e347f1caa5d5c630254b8ea0cf15f1b545191c03976c611a",
    "usage": "quotable",
    "attribution": "出典：テスト資料（境界確認用）"
+  },
+  {
+   "source_id": "SRC-005",
+   "url": "https://example.test/nohash",
+   "publisher": "テスト工業",
+   "publisher_type": "company_ir",
+   "published_at": "2026-09-17T08:50:00+09:00",
+   "fetched_at": "2026-09-24T07:58:11+09:00",
+   "fetch_method": "webfetch",
+   "content_sha256": "",
+   "usage": "quotable",
+   "attribution": "出典：テスト工業IR資料"
   }
  ],
  "sections": [
@@ -255,6 +267,31 @@
        "numbers": [],
        "mark": "reported_unverified",
        "mark_reason": null
+      },
+      {
+       "line_id": "L-13",
+       "text": "この情報はまだ確認が取れていない。",
+       "claimed_mark": "unverified",
+       "numbers": [],
+       "mark": "unverified",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-14",
+       "text": "テスト工業の輸出は前年同月比3.2%増となった。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 3.2,
+         "unit": "%",
+         "label": "輸出の前年同月比"
+        }
+       ],
+       "source_ref": "SRC-005",
+       "excerpt": "輸出は前年同月比3.2%増となった。",
+       "attribution": "出典：テスト工業IR資料",
+       "mark": "unverified",
+       "mark_reason": "hash_missing"
       }
      ],
      "inferences": [
@@ -271,24 +308,27 @@
   }
  ],
  "verification": {
-  "script_version": "1.0.0",
-  "run_at": "2026-09-18T13:06:57.168044+09:00",
-  "lines_total": 12,
+  "script_version": "1.1.0",
+  "run_at": "2026-09-18T13:24:49.705192+09:00",
+  "lines_total": 14,
   "passed": 3,
-  "unverified": 7,
+  "unverified": 9,
   "reported_unverified": 1,
   "explainer": 1,
   "recommendation_hits": 0,
+  "recommendation_watch_hits": 0,
   "stale_source_hits": 0,
+  "stale_check_skipped": 0,
   "inference_dropped": 1,
-  "hypothesis_violations": 1,
+  "hypothesis_violations": 2,
   "unverified_reasons": {
    "number_not_in_excerpt": 2,
    "excerpt_not_found": 1,
    "missing_field": 1,
    "source_unfetchable": 1,
    "hash_mismatch": 1,
-   "mark_mismatch": 1
+   "mark_mismatch": 1,
+   "hash_missing": 1
   }
  }
 }

@@ -1,0 +1,76 @@
+{
+ "edition_id": "2026-09-24-watch",
+ "date": "2026-09-24",
+ "slot": "watch",
+ "generated_at": "2026-09-24T08:14:32+09:00",
+ "market_open": true,
+ "sources": [],
+ "sections": [
+  {
+   "section_id": "test",
+   "articles": [
+    {
+     "article_id": "ART-TEST-003",
+     "lines": [
+      {
+       "line_id": "W-01",
+       "text": "トヨタ自動車株式会社の売上高は前年同月比で3.2%増えた。",
+       "claimed_mark": "reported_unverified",
+       "numbers": [],
+       "mark": "reported_unverified",
+       "mark_reason": null
+      },
+      {
+       "line_id": "W-02",
+       "text": "この銘柄の売上高は過去最高となった。",
+       "claimed_mark": "reported_unverified",
+       "numbers": [],
+       "mark": "reported_unverified",
+       "mark_reason": null
+      },
+      {
+       "line_id": "W-03",
+       "text": "同社は株式を追加取得し、買収手続きを進めている。",
+       "claimed_mark": "reported_unverified",
+       "numbers": [],
+       "mark": "reported_unverified",
+       "mark_reason": null
+      },
+      {
+       "line_id": "W-04",
+       "text": "東証株価指数に連動する上場投資信託の売買代金が増えた。",
+       "claimed_mark": "reported_unverified",
+       "numbers": [],
+       "mark": "reported_unverified",
+       "mark_reason": null
+      },
+      {
+       "line_id": "W-06",
+       "text": "株価はこの先も伸びるとみて、買っておきたい。",
+       "claimed_mark": "reported_unverified",
+       "numbers": [],
+       "mark": "reported_unverified",
+       "mark_reason": null
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "verification": {
+  "script_version": "1.1.0",
+  "run_at": "2026-09-18T13:24:57.915699+09:00",
+  "lines_total": 5,
+  "passed": 0,
+  "unverified": 0,
+  "reported_unverified": 5,
+  "explainer": 0,
+  "recommendation_hits": 0,
+  "recommendation_watch_hits": 1,
+  "stale_source_hits": 0,
+  "stale_check_skipped": 0,
+  "inference_dropped": 0,
+  "hypothesis_violations": 0,
+  "unverified_reasons": {}
+ }
+}

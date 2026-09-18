@@ -1,0 +1,58 @@
+{
+ "edition_id": "2026-09-24-tzmix",
+ "date": "2026-09-24",
+ "slot": "tzmix",
+ "generated_at": "2026-09-24T08:14:32+09:00",
+ "market_open": true,
+ "sources": [
+  {
+   "source_id": "SRC-101",
+   "url": "https://example.test/tzmix",
+   "publisher": "テスト資料",
+   "publisher_type": "government_statistics",
+   "published_at": "2026-09-17T08:50:00",
+   "fetched_at": "2026-09-24T07:58:11+09:00",
+   "fetch_method": "webfetch",
+   "content_sha256": "79a7c1b8ed32efec1e02c802fd3f7d0e28263381deb8140bf95d5ec869795b00",
+   "usage": "quotable",
+   "attribution": "出典：テスト資料"
+  }
+ ],
+ "sections": [
+  {
+   "section_id": "change",
+   "articles": [
+    {
+     "article_id": "ART-TEST-004",
+     "lines": [
+      {
+       "line_id": "TZ-01",
+       "text": "テスト用の古い出典本文。",
+       "claimed_mark": "reported_unverified",
+       "numbers": [],
+       "source_ref": "SRC-101",
+       "mark": "reported_unverified",
+       "mark_reason": null
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "verification": {
+  "script_version": "1.1.0",
+  "run_at": "2026-09-18T13:25:01.453415+09:00",
+  "lines_total": 1,
+  "passed": 0,
+  "unverified": 0,
+  "reported_unverified": 1,
+  "explainer": 0,
+  "recommendation_hits": 0,
+  "recommendation_watch_hits": 0,
+  "stale_source_hits": 1,
+  "stale_check_skipped": 0,
+  "inference_dropped": 0,
+  "hypothesis_violations": 0,
+  "unverified_reasons": {}
+ }
+}
