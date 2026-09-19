@@ -1,0 +1,56 @@
+{
+  "generated_at": "2026-09-19T00:00:00+09:00",
+  "note": "task17追試（2回目）の対象5件。1回目のtrial/reports/actions_reach_targets.jsonから該当target_idの情報をそのまま引き継いだもの。URLは書き直していない。",
+  "targets": [
+    {
+      "target_id": "T-01",
+      "url": "https://www.boj.or.jp/mopo/mpmdeci/mpr_2026/k260918a.pdf",
+      "publisher": "日本銀行",
+      "from_edition": "2026-09-18-evening",
+      "source_id": "SRC-001",
+      "line_id": "L-101-01",
+      "excerpt": "１．２５％程度で推移するよう",
+      "mode": "pdf_excerpt"
+    },
+    {
+      "target_id": "T-05",
+      "url": "https://www.customs.go.jp/toukei/shinbun/trade-st/gaiyo2026_08.pdf",
+      "publisher": "財務省",
+      "from_edition": "2026-09-18-noon",
+      "source_id": "SRC-003",
+      "line_id": "L-001-14",
+      "excerpt": "令和８年８月 :     １６０．６４円／ドル（対前年同月比：８．７％の円安）",
+      "mode": "pdf_excerpt"
+    },
+    {
+      "target_id": "T-06",
+      "url": "https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf",
+      "publisher": "財務省",
+      "from_edition": "2026-09-19-evening",
+      "source_id": "SRC-003",
+      "line_id": "L-003-06",
+      "excerpt": "10,048,375",
+      "mode": "pdf_excerpt"
+    },
+    {
+      "target_id": "T-04",
+      "url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20260916a.htm",
+      "publisher": "Federal Reserve Board",
+      "from_edition": "2026-09-18-noon",
+      "source_id": "SRC-002",
+      "line_id": "L-001-04",
+      "excerpt": "The Committee decided to raise the target range for the federal funds rate by 1/4 percentage point to 3-3/4 to 4 percent",
+      "mode": "ua_probe"
+    },
+    {
+      "target_id": "T-07",
+      "url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20260916a1.htm",
+      "publisher": "Board of Governors of the Federal Reserve System",
+      "from_edition": "2026-09-19-evening",
+      "source_id": "SRC-002",
+      "line_id": "L-003-51",
+      "excerpt": "Conduct standing overnight reverse repurchase agreement operations at an offering rate of 3.75 percent and with a per-counterparty limit of $160 billion per day.",
+      "mode": "ua_probe"
+    }
+  ]
+}
