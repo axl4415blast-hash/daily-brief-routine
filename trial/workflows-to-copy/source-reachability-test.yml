@@ -1,0 +1,22 @@
+name: source-reachability-test
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: claude/pages
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python scripts/actions_reach_test.py
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add trial/reports/
+          git commit -m "task17: actions reachability test result" || echo "no changes"
+          git push origin HEAD:claude/pages
