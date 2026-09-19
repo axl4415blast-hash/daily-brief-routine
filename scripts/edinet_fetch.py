@@ -14,19 +14,14 @@
   # (c) 証券コードを問い合わせる(通信しない。保存済みのファイルだけを読む)
   python3 scripts/edinet_fetch.py ticker --list .cache/sources/SRC-EDINET-LIST.json --name "○○製作所株式会社"
 
-終了コード: 0=成功 1=想定内の失敗(鍵未設定・通信失敗・該当なし等) 2=スクリプト自体のエラー
+終了コード: 0=成功 1=想定内の失敗(通信失敗・該当なし・API側のエラー応答等) 2=スクリプト自体のエラー
 
-鍵の扱い:
-  - EDINET_API_KEY 環境変数から読む。
-  - 鍵の値は標準出力・標準エラー出力・例外メッセージ・保存するファイルの
-    どこにも出さない。URLを組み立てるのは _build_url() の中だけであり、
-    エラー時にURL全体を表示することもしない(鍵が混ざるため)。
+# EDINETの鍵はクラウド環境の「API認証情報」で付与される。このスクリプトは鍵を扱わない。
 """
 import argparse
 import hashlib
 import io
 import json
-import os
 import sys
 import time
 import urllib.error
@@ -64,25 +59,13 @@ class EdinetError(Exception):
     """通信・APIまわりの想定内のエラー(終了コード1で扱う)。"""
 
 
-def _get_api_key():
-    return os.environ.get("EDINET_API_KEY")
-
-
-def _require_api_key():
-    key = _get_api_key()
-    if not key:
-        print("EDINET_API_KEY が設定されていません", file=sys.stderr)
-        return None
-    return key
-
-
 def _build_url(base, params):
-    """URLを組み立てる唯一の関数。鍵を含むクエリを作るのはここだけにする。"""
+    """URLを組み立てる唯一の関数。"""
     return f"{base}?{urlencode(params)}"
 
 
 def _http_get(url):
-    """通信を行う唯一の関数。失敗時は状態コードだけを含む例外を投げる(URL・鍵は含めない)。"""
+    """通信を1回だけ行う。失敗時は状態コードだけを含む例外を投げる(URLは含めない)。"""
     try:
         with urllib.request.urlopen(url, timeout=30) as resp:
             return resp.read()
@@ -90,6 +73,27 @@ def _http_get(url):
         raise EdinetError(f"HTTPエラー: 状態コード {e.code}") from None
     except urllib.error.URLError:
         raise EdinetError("通信に失敗しました(接続エラー)") from None
+
+
+def _http_get_with_retry(url):
+    """通信を行う。失敗したら5秒待って1回だけ再試行する。"""
+    try:
+        return _http_get(url)
+    except EdinetError:
+        time.sleep(RATE_LIMIT_SECONDS)
+        return _http_get(url)
+
+
+def _check_metadata_status(data):
+    """応答JSONの metadata.status を確認する。'200'でなければエラーメッセージを返す
+    (=失敗)。'200'ならNoneを返す(=成功)。HTTPステータスが200でも中身が失敗している
+    ことがあるため、この確認を必ず行う。"""
+    metadata = data.get("metadata") or {}
+    status = metadata.get("status")
+    if status != "200":
+        message = metadata.get("message")
+        return f"EDINET APIがエラーを返しました(metadata.status={status}, metadata.message={message})"
+    return None
 
 
 def is_valid_ticker(ticker):
@@ -236,14 +240,10 @@ def find_company(companies, name):
 
 
 def cmd_list(args):
-    api_key = _require_api_key()
-    if not api_key:
-        return 1
-
-    url = _build_url(EDINET_LIST_URL, {"date": args.date, "type": "2", "Subscription-Key": api_key})
+    url = _build_url(EDINET_LIST_URL, {"date": args.date, "type": "2"})
     time.sleep(RATE_LIMIT_SECONDS)
     try:
-        raw_bytes = _http_get(url)
+        raw_bytes = _http_get_with_retry(url)
     except EdinetError as e:
         print(str(e), file=sys.stderr)
         return 1
@@ -253,6 +253,11 @@ def cmd_list(args):
         raw_doc = json.loads(text)
     except (UnicodeDecodeError, json.JSONDecodeError) as e:
         print(f"取得した書類一覧の解析に失敗しました: {type(e).__name__}", file=sys.stderr)
+        return 1
+
+    status_error = _check_metadata_status(raw_doc)
+    if status_error:
+        print(status_error, file=sys.stderr)
         return 1
 
     out_path = Path(args.out)
@@ -286,20 +291,26 @@ def cmd_list(args):
 
 
 def cmd_doc(args):
-    api_key = _require_api_key()
-    if not api_key:
-        return 1
-
     url = _build_url(
         EDINET_DOC_URL_TMPL.format(doc_id=args.doc_id),
-        {"type": args.type, "Subscription-Key": api_key},
+        {"type": args.type},
     )
     time.sleep(RATE_LIMIT_SECONDS)
     try:
-        raw_bytes = _http_get(url)
+        raw_bytes = _http_get_with_retry(url)
     except EdinetError as e:
         print(str(e), file=sys.stderr)
         return 1
+
+    try:
+        possible_json = json.loads(raw_bytes.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        possible_json = None
+    if isinstance(possible_json, dict) and "metadata" in possible_json:
+        status_error = _check_metadata_status(possible_json)
+        if status_error:
+            print(status_error, file=sys.stderr)
+            return 1
 
     try:
         payload, chosen_name = extract_text_payload(raw_bytes)
