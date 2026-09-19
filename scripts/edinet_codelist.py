@@ -13,6 +13,9 @@ EDINETコードリストは、書類一覧API(edinet_fetch.py)とは別物で、
   # (c) 業種を指定して、資本金の多い順に会社を引く
   python3 scripts/edinet_codelist.py industry 銀行業 --limit 5
 
+  # (d) ニュースの呼び名 -> 上場会社 の対応表(aliases.csv)を作り直す
+  python3 scripts/edinet_codelist.py build-aliases --input aliases_input.csv --out scripts/aliases.csv
+
 終了コード: 0=成功 1=想定内の失敗(通信失敗・保存済みCSV無し等) 2=スクリプト自体のエラー
 """
 import argparse
@@ -21,8 +24,10 @@ import datetime as dt
 import hashlib
 import io
 import json
+import re
 import sys
 import time
+import unicodedata
 import urllib.error
 import urllib.request
 import zipfile
@@ -61,6 +66,32 @@ PROCESSING_NOTE = (
     "EDINET閲覧（提出）サイトをもとに本サイト作成"
     "（上場区分が「上場」の行を抽出し、証券コードの末尾0を除いた）"
 )
+
+# 法人格の表記ゆれ(前後どちらに付くか・略記か)を吸収するために取り除く語。
+# 長い語を先に置くこと(例: 「合同会社」を「合」で誤って壊さないため、
+# 単純な部分文字列置換なので順序は結果に影響しないが、意図を明確にするため)。
+CORPORATE_DESIGNATORS = [
+    "株式会社", "有限会社", "合同会社", "合名会社", "合資会社", "相互会社",
+    "（株）", "(株)", "㈱",
+    "（有）", "(有)", "㈲",
+]
+
+
+def _normalize_industry_name(s):
+    """業種名を比較用に正規化する。NFKC正規化(全角英数字・全角空白を半角に
+    揃える)をした上で、前後・途中の空白をすべて除く。中黒(・)と長音(ー)は
+    業種名の一部なのでそのまま残す。"""
+    normalized = unicodedata.normalize("NFKC", s or "")
+    return re.sub(r"\s+", "", normalized)
+
+
+def _normalize_company_name(s):
+    """会社名を比較用に正規化する。NFKC正規化をした上で、法人格(株式会社・
+    (株)・㈱・合同会社など、前後どちらに付いていても)と空白を取り除く。"""
+    normalized = unicodedata.normalize("NFKC", s or "")
+    for token in CORPORATE_DESIGNATORS:
+        normalized = normalized.replace(token, "")
+    return re.sub(r"\s+", "", normalized)
 
 
 class CodelistError(Exception):
@@ -154,29 +185,54 @@ def _industry_counts(rows):
     return sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
 
 
+def _resolve_industry_name(industry, known_industries):
+    """指定された業種名を正規化して、コードリストに実在する業種名(表記ゆれ無し
+    の原文)に解決する。一致するものが無ければNoneを返す。"""
+    target = _normalize_industry_name(industry)
+    for name in known_industries:
+        if _normalize_industry_name(name) == target:
+            return name
+    return None
+
+
 def get_companies_by_industry(industry, limit=5):
     """指定された業種の会社を、上場かつ証券コードありの行から資本金(百万円)の
     多い順にlimit件返す。資本金が同じ場合はEDINETコードの昇順にする(何度実行
     しても同じ順序になるようにするため)。
 
+    業種名の比較はNFKC正規化と空白除去をした上で行う(紙面を作るAI側の文字列に
+    空白・全角半角の違いが混じっても、完全一致でないだけで静かに0件になる
+    ことを防ぐため)。
+
     戻り値:
       - 使えない業種(EXCLUDED_INDUSTRIES)が指定された場合:
         {"reason": "この業種は対象外です", "companies": []}
       - 保存済みCSVが無い場合: None(呼び出し側が案内する)
+      - 正規化しても一致する業種名がコードリストに無い場合:
+        {"error": "指定された業種名がコードリストに見つかりません", "known_industries": [...]}
       - それ以外: {"attribution": ..., "processing_note": ..., "companies": [...]}
     """
-    if industry in EXCLUDED_INDUSTRIES:
+    normalized_input = _normalize_industry_name(industry)
+    if any(_normalize_industry_name(x) == normalized_input for x in EXCLUDED_INDUSTRIES):
         return {"reason": EXCLUDED_REASON, "companies": []}
 
     rows, retrieved_date = load_codelist()
     if rows is None:
         return None
 
+    known_industries = [name for name, _cnt in _industry_counts(rows)]
+    resolved_industry = _resolve_industry_name(industry, known_industries)
+    if resolved_industry is None:
+        return {
+            "error": "指定された業種名がコードリストに見つかりません",
+            "known_industries": known_industries,
+        }
+
     candidates = []
     for r in rows:
         if r.get(COL_LISTED) != LISTED_VALUE:
             continue
-        if r.get(COL_INDUSTRY) != industry:
+        if r.get(COL_INDUSTRY) != resolved_industry:
             continue
         sec_code_raw = (r.get(COL_TICKER_RAW) or "").strip()
         if not sec_code_raw:
@@ -188,7 +244,7 @@ def get_companies_by_industry(industry, limit=5):
             "company_name": r.get(COL_FILER_NAME),
             "edinet_code": r.get(COL_EDINET_CODE),
             "ticker": ticker,
-            "industry": industry,
+            "industry": resolved_industry,
             "capital_million": _parse_capital(r.get(COL_CAPITAL)),
             "retrieved_date": retrieved_date,
         })
@@ -277,10 +333,108 @@ def cmd_industries(args):
     return 0
 
 
+ALIASES_FIELDNAMES = ["news_name", "official_name", "entity_relation", "edinet_code", "ticker"]
+
+
+def _build_listed_name_index(rows):
+    """上場かつ証券コードありの行を、正規化した提出者名をキーにして引けるように
+    する。1つの正規化名に複数行が対応することがある(=official_nameだけでは
+    会社を1つに決められない)ため、値は常にリストにする。"""
+    index = {}
+    for r in rows:
+        if r.get(COL_LISTED) != LISTED_VALUE:
+            continue
+        if not (r.get(COL_TICKER_RAW) or "").strip():
+            continue
+        key = _normalize_company_name(r.get(COL_FILER_NAME))
+        index.setdefault(key, []).append(r)
+    return index
+
+
+def build_aliases(input_rows, rows):
+    """news_name/official_name/entity_relationの入力行を、コードリストの
+    「提出者名」と突き合わせてedinet_code・tickerを引く。
+
+    official_name はEDINETの知識から書かず、必ずここでコードリストから引いた
+    値だけを使う(思い出して書いた値には上場廃止・誤番号が混ざるため)。
+
+    戻り値: (resolved, unresolved, ambiguous)
+      resolved: aliases.csv に書く5列の辞書のリスト
+      unresolved: 1つも当たらなかった official_name のリスト
+      ambiguous: (official_name, 当たった行のリスト) のリスト(2件以上当たった場合)
+    """
+    index = _build_listed_name_index(rows)
+    resolved = []
+    unresolved = []
+    ambiguous = []
+    for item in input_rows:
+        official_name = item["official_name"]
+        matches = index.get(_normalize_company_name(official_name), [])
+        if len(matches) == 0:
+            unresolved.append(official_name)
+            continue
+        if len(matches) > 1:
+            ambiguous.append((official_name, matches))
+            continue
+        r = matches[0]
+        sec_code_raw = (r.get(COL_TICKER_RAW) or "").strip()
+        ticker, _reason = edinet_fetch.derive_ticker(sec_code_raw)
+        resolved.append({
+            "news_name": item["news_name"],
+            "official_name": official_name,
+            "entity_relation": item["entity_relation"],
+            "edinet_code": r.get(COL_EDINET_CODE),
+            "ticker": ticker,
+        })
+    return resolved, unresolved, ambiguous
+
+
+def cmd_build_aliases(args):
+    with open(args.input, encoding="utf-8", newline="") as f:
+        input_rows = list(csv.DictReader(f))
+
+    rows, _retrieved_date = load_codelist()
+    if rows is None:
+        print("先に fetch を実行してください", file=sys.stderr)
+        return 1
+
+    resolved, unresolved, ambiguous = build_aliases(input_rows, rows)
+
+    out_path = Path(args.out)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(out_path, "w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=ALIASES_FIELDNAMES)
+        writer.writeheader()
+        writer.writerows(resolved)
+
+    print(f"書き出した対応表: {out_path} ({len(resolved)}件)")
+
+    if unresolved:
+        print("", file=sys.stderr)
+        print(f"引けなかった official_name({len(unresolved)}件):", file=sys.stderr)
+        for name in unresolved:
+            print(f"  ・{name}", file=sys.stderr)
+
+    if ambiguous:
+        print("", file=sys.stderr)
+        print(f"複数の会社に当たった official_name({len(ambiguous)}件):", file=sys.stderr)
+        for name, matches in ambiguous:
+            detail = ", ".join(f"{m.get(COL_EDINET_CODE)}({m.get(COL_FILER_NAME)})" for m in matches)
+            print(f"  ・{name} → {detail}", file=sys.stderr)
+
+    return 0
+
+
 def cmd_industry(args):
     result = get_companies_by_industry(args.industry, limit=args.limit)
     if result is None:
         print("先に fetch を実行してください", file=sys.stderr)
+        return 1
+    if "error" in result:
+        print(result["error"], file=sys.stderr)
+        print("実在する業種名:", file=sys.stderr)
+        for name in result["known_industries"]:
+            print(f"  ・{name}", file=sys.stderr)
         return 1
     print(json.dumps(result, ensure_ascii=False, indent=1))
     return 0
@@ -297,6 +451,10 @@ def main():
     p_industry.add_argument("industry")
     p_industry.add_argument("--limit", type=int, default=5)
 
+    p_build_aliases = sub.add_parser("build-aliases", help="ニュースの呼び名と上場会社の対応表を作り直す")
+    p_build_aliases.add_argument("--input", required=True)
+    p_build_aliases.add_argument("--out", required=True)
+
     args = parser.parse_args()
 
     if args.command == "fetch":
@@ -305,6 +463,8 @@ def main():
         return cmd_industries(args)
     if args.command == "industry":
         return cmd_industry(args)
+    if args.command == "build-aliases":
+        return cmd_build_aliases(args)
     return 2
 
 
