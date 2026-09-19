@@ -374,12 +374,64 @@
     margin-top:4px;
   }
 
-  /* ============ 企業欄 ============ */
-  .companies-section{ margin:0 0 24px; }
+  /* ============ 企業欄（記事ごと） ============ */
+  .article-companies{ margin:20px 0 0; }
+  .companies-tier{ margin:0 0 18px; }
+  .companies-tier:last-child{ margin-bottom:0; }
+  .companies-heading{
+    font-family:'Noto Serif JP', serif;
+    font-weight:700;
+    font-size:13px;
+    letter-spacing:0.04em;
+    color:var(--muted);
+    margin:0 0 6px;
+  }
   .companies-note{
     font-size:12px;
+    line-height:1.7;
     color:var(--muted);
+    margin:0 0 12px;
+  }
+  .holding-note{
+    font-size:12px;
+    line-height:1.6;
+    color:var(--muted);
+    margin:0 0 8px;
+  }
+  .company-impact-kind{
+    font-size:13px;
+    line-height:1.7;
+    color:var(--fg2);
+    margin:0 0 6px;
+  }
+  .company-impact-reason{
+    font-size:13px;
+    line-height:1.7;
+    color:var(--muted);
+    margin:0 0 10px;
+  }
+  .industry-group{ margin:0 0 16px; }
+  .industry-group:last-child{ margin-bottom:0; }
+  .industry-name{
+    font-family:'Noto Sans JP', sans-serif;
+    font-weight:700;
+    font-size:13px;
+    color:var(--fg2);
+    margin:0 0 10px;
+    padding-left:10px;
+    border-left:2px solid var(--border);
+  }
+  .industry-company{
+    padding-left:10px;
+    border-left:2px solid var(--border);
     margin:0 0 14px;
+  }
+  .industry-company:last-child{ margin-bottom:0; }
+  .industry-company-head{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    margin:0 0 6px;
   }
   .company-card{
     border:1px solid var(--border);
@@ -427,12 +479,6 @@
     color:#FFFFFF;
     font-size:11px;
     font-weight:500;
-    padding:3px 8px;
-  }
-  .tag-doctype{
-    border:1px solid var(--border);
-    color:var(--muted);
-    font-size:11px;
     padding:3px 8px;
   }
   .tag-horizon{
@@ -525,9 +571,9 @@
     </div>
   </details>
 
-  <div id="content"></div>
+  <div class="notice" id="companiesNotice" hidden></div>
 
-  <section class="companies-section" id="companies"></section>
+  <div id="content"></div>
 
   <section class="sources-section" id="sources"></section>
 </main>
@@ -549,9 +595,14 @@
     unverified: "機械で確認できなかった行"
   };
   var GRADE_LABELS = {
-    primary: "一次情報に社名あり",
-    reported: "報道に社名あり",
+    primary: "この会社名が一次情報に載っている",
+    reported: "報道断片に社名あり",
     inferred: "AIによる推論"
+  };
+  var IMPACT_KIND_LABELS = {
+    price_stated: "株式の取引価格が示されている",
+    amount_stated: "金額・割合が示されている",
+    fact_only: "事実の報告のみ"
   };
   var SECTION_ORDER = ["big", "change", "ripple", "deep"];
 
@@ -585,6 +636,8 @@
   function isFactMark(mark){ return !!FACT_MARKS[mark]; }
 
   function gradeLabel(g){ return GRADE_LABELS[g] || g || "不明"; }
+
+  function impactKindLabel(k){ return IMPACT_KIND_LABELS[k] || null; }
 
   function formatDateLabel(s){
     var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || "");
@@ -809,10 +862,18 @@
   }
 
   function showCompaniesError(path){
-    var box = document.getElementById("companies");
+    var box = document.getElementById("companiesNotice");
     clear(box);
-    box.appendChild(companiesHeading());
-    box.appendChild(el("p", { class: "empty", text: "読み込めませんでした: " + path }));
+    var inner = el("div", { class: "notice-box" });
+    inner.appendChild(el("p", { text: "企業情報を読み込めませんでした: " + path }));
+    box.appendChild(inner);
+    box.hidden = false;
+  }
+
+  function hideCompaniesNotice(){
+    var box = document.getElementById("companiesNotice");
+    clear(box);
+    box.hidden = true;
   }
 
   function computeDelayMessages(){
@@ -1074,7 +1135,7 @@
     return frag;
   }
 
-  function renderArticle(art, sourcesById){
+  function renderArticle(art, sourcesById, companyIndex){
     var artEl = el("article", { class: "article" });
     artEl.appendChild(el("h3", { class: "headline", text: art.headline || "" }));
 
@@ -1088,6 +1149,10 @@
     if(art.inferences && art.inferences.length > 0){
       artEl.appendChild(renderInferences(art.inferences));
     }
+
+    var companiesBox = renderArticleCompanies(art.article_id, companyIndex);
+    if(companiesBox) artEl.appendChild(companiesBox);
+
     return artEl;
   }
 
@@ -1098,12 +1163,23 @@
     ]);
   }
 
-  function renderContent(ed){
+  function renderContent(ed, hy){
     var main = document.getElementById("content");
     clear(main);
     var sourcesById = buildSourcesById(ed.sources || []);
     var bySectionId = {};
     (ed.sections || []).forEach(function(s){ bySectionId[s.section_id] = s; });
+
+    var articleIds = {};
+    SECTION_ORDER.forEach(function(sid){
+      var sec = bySectionId[sid];
+      if(!sec) return;
+      (sec.articles || []).forEach(function(art){
+        if(art.article_id) articleIds[art.article_id] = true;
+      });
+    });
+
+    var companyIndex = buildCompanyIndex(hy, articleIds);
 
     SECTION_ORDER.forEach(function(sid){
       var sec = bySectionId[sid];
@@ -1111,7 +1187,7 @@
       var secEl = el("section", { class: "section" });
       secEl.appendChild(sectionHeading(sec.title || sid));
       (sec.articles || []).forEach(function(art){
-        secEl.appendChild(renderArticle(art, sourcesById));
+        secEl.appendChild(renderArticle(art, sourcesById, companyIndex));
       });
       main.appendChild(secEl);
     });
@@ -1121,13 +1197,47 @@
     }
   }
 
-  // ---------- 企業欄 ----------
+  // ---------- 企業欄（記事ごと） ----------
 
-  function companiesHeading(){
-    return sectionHeading("今日のニュースに関係する企業");
+  function buildCompanyIndex(hy, articleIds){
+    var idx = { top: {}, bottom: {}, unmatchedTop: 0, unmatchedBottom: 0, legacyInferredSkipped: 0 };
+
+    var hyps = (hy && Array.isArray(hy.hypotheses)) ? hy.hypotheses : [];
+    hyps.forEach(function(h){
+      if(h.evidence_grade === "inferred"){ idx.legacyInferredSkipped++; return; }
+      if(!h.article_id || !articleIds[h.article_id]){ idx.unmatchedTop++; return; }
+      if(!idx.top[h.article_id]) idx.top[h.article_id] = [];
+      idx.top[h.article_id].push(h);
+    });
+
+    var examples = (hy && Array.isArray(hy.industry_examples)) ? hy.industry_examples : [];
+    examples.forEach(function(ex){
+      if(!ex.article_id || !articleIds[ex.article_id]){ idx.unmatchedBottom++; return; }
+      if(!idx.bottom[ex.article_id]) idx.bottom[ex.article_id] = { order: [], byIndustry: {} };
+      var group = idx.bottom[ex.article_id];
+      var industry = ex.industry || "その他";
+      if(!group.byIndustry[industry]){
+        group.byIndustry[industry] = [];
+        group.order.push(industry);
+      }
+      group.byIndustry[industry].push(ex);
+    });
+
+    if(idx.unmatchedTop > 0 || idx.unmatchedBottom > 0){
+      console.warn("companies: article_id が号内の記事と一致しませんでした（上段 " + idx.unmatchedTop + " 件、下段 " + idx.unmatchedBottom + " 件）");
+    }
+
+    return idx;
   }
 
-  function renderHypothesisCard(h){
+  function renderHoldingNote(item){
+    if(item.entity_relation !== "parent" || !item.news_entity) return null;
+    return el("p", { class: "holding-note", text:
+      "記事中の「" + item.news_entity + "」の上場親会社です。ニュースに出る名前と、株価が付く名前が違います。"
+    });
+  }
+
+  function renderTopCompanyCard(h){
     var card = el("div", { class: "company-card" });
 
     var head = el("div", { class: "company-head" });
@@ -1136,44 +1246,129 @@
     card.appendChild(head);
 
     var body = el("div", { class: "company-body" });
+
+    var holding = renderHoldingNote(h);
+    if(holding) body.appendChild(holding);
+
+    var gradeTags = el("div", { class: "company-tags" });
+    gradeTags.appendChild(el("span", { class: "tag-grade", text: gradeLabel(h.evidence_grade) }));
+    body.appendChild(gradeTags);
+
+    var impactLabel = impactKindLabel(h.impact_kind);
+    if(impactLabel) body.appendChild(el("p", { class: "company-impact-kind", text: impactLabel }));
+
+    if(h.impact_reason) body.appendChild(el("p", { class: "company-impact-reason", text: h.impact_reason }));
+
     if(h.relation_text) body.appendChild(el("p", { class: "company-relation", text: h.relation_text }));
 
-    var tags = el("div", { class: "company-tags" });
-    tags.appendChild(el("span", { class: "tag-grade", text: gradeLabel(h.evidence_grade) }));
-    if(h.evidence_doc_type) tags.appendChild(el("span", { class: "tag-doctype", text: h.evidence_doc_type }));
     if(typeof h.horizon_business_days === "number"){
-      tags.appendChild(el("span", { class: "tag-horizon" }, [buildNumSpans(h.horizon_business_days + "営業日後の観察")]));
+      var horizonTags = el("div", { class: "company-tags" });
+      horizonTags.appendChild(el("span", { class: "tag-horizon" }, [buildNumSpans(h.horizon_business_days + "営業日後の観察")]));
+      body.appendChild(horizonTags);
     }
-    body.appendChild(tags);
 
     if(h.links && h.links.price_history){
       body.appendChild(el("p", { class: "company-link" }, [
         el("a", { href: h.links.price_history, target: "_blank", rel: "noopener", text: "株価を見る（外部サイト）" })
       ]));
     }
+
     card.appendChild(body);
     return card;
   }
 
-  function renderCompanies(hy, marketOpen){
-    var box = document.getElementById("companies");
-    clear(box);
-    box.appendChild(companiesHeading());
+  function renderTopTier(list){
+    var box = el("div", { class: "companies-tier" });
+    box.appendChild(el("p", { class: "companies-heading", text: "この記事に名前が出ている企業" }));
     box.appendChild(el("p", { class: "companies-note", text:
-      "名前が一次情報に載っているかどうかを示します。関係の説明はAIによる推論です。"
+      "AIが自動生成したものであり、企業の評価でも投資の推奨でもありません。印が示すのは会社名がどこに載っていたかだけで、その会社と出来事の関係の説明はAIの推論です。"
     }));
+    list.forEach(function(h){ box.appendChild(renderTopCompanyCard(h)); });
+    return box;
+  }
 
-    var list = (hy && Array.isArray(hy.hypotheses)) ? hy.hypotheses : [];
-    if(list.length === 0){
-      var msg = "今日は該当する企業がありません";
-      box.appendChild(el("p", { class: "empty", text: msg }));
-      if(marketOpen === false){
-        box.appendChild(el("p", { class: "empty", text: "市場が開いていない日です" }));
-      }
-      return;
+  function tickerHistoryUrl(ticker){
+    return "https://finance.yahoo.co.jp/quote/" + ticker + ".T/history";
+  }
+
+  function renderIndustryCompany(ex){
+    var wrap = el("div", { class: "industry-company" });
+
+    var head = el("div", { class: "industry-company-head" });
+    head.appendChild(el("span", { class: "company-name", text: ex.company_name || "" }));
+    if(ex.ticker) head.appendChild(el("span", { class: "company-ticker" }, [buildNumSpans(ex.ticker)]));
+    wrap.appendChild(head);
+
+    var holding = renderHoldingNote(ex);
+    if(holding) wrap.appendChild(holding);
+
+    var tags = el("div", { class: "company-tags" });
+    tags.appendChild(el("span", { class: "tag-grade", text: gradeLabel("inferred") }));
+    wrap.appendChild(tags);
+
+    if(ex.relation_text) wrap.appendChild(el("p", { class: "company-relation", text: ex.relation_text }));
+
+    if(ex.ticker){
+      wrap.appendChild(el("p", { class: "company-link" }, [
+        el("a", { href: tickerHistoryUrl(ex.ticker), target: "_blank", rel: "noopener", text: "株価を見る（外部サイト）" })
+      ]));
     }
 
-    list.forEach(function(h){ box.appendChild(renderHypothesisCard(h)); });
+    return wrap;
+  }
+
+  function renderBottomTier(group){
+    var box = el("div", { class: "companies-tier" });
+    box.appendChild(el("p", { class: "companies-heading", text: "この記事が関係しそうな業種の上場企業の例" }));
+    box.appendChild(el("p", { class: "companies-note", text:
+      "この業種に属する上場企業の例です。この記事とこの会社の関係を確認したものではありません。同じ業種でも反応は分かれます。"
+    }));
+
+    var attributions = [];
+    var seen = {};
+
+    group.order.forEach(function(industry){
+      var industryBox = el("div", { class: "industry-group" });
+      industryBox.appendChild(el("h4", { class: "industry-name", text: industry }));
+      group.byIndustry[industry].forEach(function(ex){
+        industryBox.appendChild(renderIndustryCompany(ex));
+        var att = ex.attribution || "";
+        var note = ex.processing_note || "";
+        var key = att + "\u0001" + note;
+        if((att || note) && !seen[key]){
+          seen[key] = true;
+          attributions.push({ attribution: att, processing_note: note });
+        }
+      });
+      box.appendChild(industryBox);
+    });
+
+    if(attributions.length > 0){
+      var badge = el("details", { class: "source-badge" });
+      badge.appendChild(el("summary", {}, [svgDot(), document.createTextNode("出典")]));
+      var detail = el("div", { class: "source-detail" });
+      attributions.forEach(function(a){
+        if(a.attribution) detail.appendChild(el("p", { class: "attribution", text: a.attribution }));
+        if(a.processing_note) detail.appendChild(el("p", { text: a.processing_note }));
+      });
+      badge.appendChild(detail);
+      box.appendChild(badge);
+    }
+
+    return box;
+  }
+
+  function renderArticleCompanies(articleId, companyIndex){
+    if(!companyIndex) return null;
+    var top = companyIndex.top[articleId] || [];
+    var bottomGroup = companyIndex.bottom[articleId];
+    var hasBottom = !!(bottomGroup && bottomGroup.order.length > 0);
+    if(top.length === 0 && !hasBottom) return null;
+
+    var wrap = el("div", { class: "article-companies" });
+    if(top.length > 0) wrap.appendChild(renderTopTier(top));
+    if(hasBottom) wrap.appendChild(renderBottomTier(bottomGroup));
+    return wrap;
   }
 
   // ---------- 出典一覧 ----------
@@ -1261,7 +1456,7 @@
     var main = document.getElementById("content");
     clear(main);
     main.appendChild(el("p", { class: "empty", text: "読み込み中…" }));
-    clear(document.getElementById("companies"));
+    hideCompaniesNotice();
     clear(document.getElementById("sources"));
     clear(document.getElementById("footer"));
 
@@ -1281,16 +1476,11 @@
     }
 
     if(edResult){
-      renderContent(edResult);
+      renderContent(edResult, hyResult);
       renderSources(edResult.sources || []);
       renderFooter(edResult);
     }else{
       renderFooter(null);
-    }
-
-    if(hyResult){
-      var marketOpen = edResult ? edResult.market_open : entry.market_open;
-      renderCompanies(hyResult, marketOpen);
     }
   }
 

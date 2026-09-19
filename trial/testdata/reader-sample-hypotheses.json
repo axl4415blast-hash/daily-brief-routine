@@ -1,0 +1,112 @@
+{
+  "schema_version": 3,
+  "edition_id": "2026-09-18-noon",
+  "generated_at": "2026-09-18T13:57:35+09:00",
+  "market_open": true,
+  "hypotheses": [
+    {
+      "hypothesis_id": "SAMPLE-1",
+      "event_id": "EVT-SAMPLE-001",
+      "company_name": "サンプル製鉄",
+      "ticker": "5401",
+      "article_id": "ART-2026-09-18-001",
+      "evidence_grade": "primary",
+      "impact_kind": null,
+      "relation_text": "政策金利の引き上げを受け、設備投資計画への言及が一次資料に含まれている。",
+      "falsifier": "設備投資計画が金利水準と無関係に据え置かれた場合、この位置づけは成り立たない。",
+      "baseline_date": "2026-09-18",
+      "baseline_price_type": "close",
+      "horizon_business_days": 20,
+      "deadline_date": "2026-10-16",
+      "links": { "price_history": "https://finance.yahoo.co.jp/quote/5401.T/history" },
+      "direction": "plus"
+    },
+    {
+      "hypothesis_id": "SAMPLE-2",
+      "event_id": "EVT-SAMPLE-002",
+      "company_name": "サンプル銀行",
+      "ticker": "130A",
+      "article_id": "ART-2026-09-18-002",
+      "evidence_grade": "primary",
+      "impact_kind": "price_stated",
+      "impact_reason": "適時開示に当日終値が明記されている。",
+      "relation_text": "政策金利の決定を受け、預貸金利ざやへの影響が一次資料に記載されている。",
+      "news_entity": "サンプルホールディングス",
+      "entity_relation": "parent",
+      "falsifier": "預貸金利の設定が政策金利と連動しない運用であれば、この位置づけは成り立たない。",
+      "baseline_date": "2026-09-18",
+      "baseline_price_type": "close",
+      "horizon_business_days": 20,
+      "deadline_date": "2026-10-16",
+      "links": { "price_history": "https://finance.yahoo.co.jp/quote/130A.T/history" },
+      "direction": "plus"
+    },
+    {
+      "hypothesis_id": "SAMPLE-3",
+      "event_id": "EVT-SAMPLE-002",
+      "company_name": "サンプル商事",
+      "ticker": "8001",
+      "article_id": "ART-2026-09-18-002",
+      "evidence_grade": "reported",
+      "impact_kind": "amount_stated",
+      "impact_reason": "報道記事に想定される影響額の試算が示されている。",
+      "relation_text": "資金調達コストに影響する立場にあると報道されている。",
+      "falsifier": "調達の大半が固定金利であれば、この位置づけは成り立たない。",
+      "baseline_date": "2026-09-18",
+      "baseline_price_type": "close",
+      "horizon_business_days": 20,
+      "deadline_date": "2026-10-16",
+      "links": { "price_history": "https://finance.yahoo.co.jp/quote/8001.T/history" },
+      "direction": "minus"
+    },
+    {
+      "hypothesis_id": "SAMPLE-LEGACY-INFERRED",
+      "event_id": "EVT-SAMPLE-001",
+      "company_name": "旧形式の推論企業（表示されないこと）",
+      "ticker": "9999",
+      "article_id": "ART-2026-09-18-001",
+      "evidence_grade": "inferred",
+      "relation_text": "旧スキーマ互換テスト用。上段にも下段にも出てはいけない。",
+      "direction": "plus",
+      "links": { "price_history": "https://finance.yahoo.co.jp/quote/9999.T/history" }
+    },
+    {
+      "hypothesis_id": "SAMPLE-UNMATCHED",
+      "event_id": "EVT-SAMPLE-999",
+      "company_name": "存在しない記事に紐づく企業（表示されないこと）",
+      "ticker": "0000",
+      "article_id": "ART-DOES-NOT-EXIST",
+      "evidence_grade": "primary",
+      "relation_text": "article_id が号内の記事に無いケースのテスト用。",
+      "direction": "plus"
+    }
+  ],
+  "industry_picks": [
+    { "article_id": "ART-2026-09-18-003", "industry": "輸送用機器" },
+    { "article_id": "ART-2026-09-18-004", "industry": "情報・通信業" }
+  ],
+  "industry_examples": [
+    {
+      "article_id": "ART-2026-09-18-003",
+      "industry": "輸送用機器",
+      "company_name": "サンプル自動車",
+      "ticker": "7203",
+      "news_entity": "サンプル自動車グループ",
+      "entity_relation": "parent",
+      "relation_text": "この業種に属する上場企業の例です。輸出動向の影響を受けやすい業種として選ばれています。",
+      "attribution": "業種分類: 東証33業種（取得日: 2026-09-18）",
+      "processing_note": "業種内の時価総額上位から機械的に選定。個別企業と本記事の関係は確認していません。",
+      "evidence_grade": "inferred"
+    },
+    {
+      "article_id": "ART-2026-09-18-004",
+      "industry": "情報・通信業",
+      "company_name": "サンプル通信",
+      "ticker": "9432",
+      "relation_text": "この業種に属する上場企業の例です。AI関連需要の拡大と関連が想定される業種として選ばれています。",
+      "attribution": "業種分類: 東証33業種（取得日: 2026-09-18）",
+      "processing_note": "業種内の時価総額上位から機械的に選定。個別企業と本記事の関係は確認していません。",
+      "evidence_grade": "inferred"
+    }
+  ]
+}
