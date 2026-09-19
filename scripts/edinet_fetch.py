@@ -381,7 +381,7 @@ def main():
 
     p_doc = sub.add_parser("doc", help="書類の中身を取る")
     p_doc.add_argument("--doc-id", required=True)
-    p_doc.add_argument("--type", required=True, choices=["1", "5"])
+    p_doc.add_argument("--type", required=True, choices=["1", "5"], help="1=提出本文書・XBRL / 5=CSV（UTF-16LE・タブ区切り）")
     p_doc.add_argument("--out", required=True)
 
     p_ticker = sub.add_parser("ticker", help="証券コードを問い合わせる(通信しない)")
