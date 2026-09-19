@@ -1,0 +1,36 @@
+{
+  "generated_at": "2026-09-19T00:00:00+09:00",
+  "note": "task17 3回目（最後）の対象3件。URL・source_id・line_id・excerptはactions_reach_targets2.jsonからそのまま引き継ぎ、書き直していない。T-05・T-06は暗号付きPDFの読み取り、T-04はHTMLタグ除去後の照合を確かめる。",
+  "targets": [
+    {
+      "target_id": "T-05",
+      "url": "https://www.customs.go.jp/toukei/shinbun/trade-st/gaiyo2026_08.pdf",
+      "publisher": "財務省",
+      "from_edition": "2026-09-18-noon",
+      "source_id": "SRC-003",
+      "line_id": "L-001-14",
+      "excerpt": "令和８年８月 :     １６０．６４円／ドル（対前年同月比：８．７％の円安）",
+      "mode": "pdf_excerpt"
+    },
+    {
+      "target_id": "T-06",
+      "url": "https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf",
+      "publisher": "財務省",
+      "from_edition": "2026-09-19-evening",
+      "source_id": "SRC-003",
+      "line_id": "L-003-06",
+      "excerpt": "10,048,375",
+      "mode": "pdf_excerpt"
+    },
+    {
+      "target_id": "T-04",
+      "url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20260916a.htm",
+      "publisher": "Federal Reserve Board",
+      "from_edition": "2026-09-18-noon",
+      "source_id": "SRC-002",
+      "line_id": "L-001-04",
+      "excerpt": "The Committee decided to raise the target range for the federal funds rate by 1/4 percentage point to 3-3/4 to 4 percent",
+      "mode": "html_excerpt"
+    }
+  ]
+}

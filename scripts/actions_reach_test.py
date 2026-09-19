@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
-"""Task17追試: PDFの一節照合と、FRBの403がUser-Agent名乗りで変わるかを測るだけの調査スクリプト。
+"""Task17追試(3回目・最後): 財務省PDF(暗号付き)とFRBのHTML(タグ除去後照合)を
+読み切れるかを測るだけの調査スクリプト。
 
-対象は trial/reports/actions_reach_targets2.json の5件のみ（1回目の到達性・安定性測定は
-trial/reports/actions_reach_targets.json 側で済んでいるため、ここでは繰り返さない）。
+対象は trial/reports/actions_reach_targets3.json の3件のみ（T-05・T-06・T-04）。
 出典の本文・excerptの中身は、結果ファイルにもログにも書き込まない。
 既存の紙面作成スクリプト・紙面JSONは一切変更しない（読むだけ）。
 """
 
+import html as html_module
 import os
 import re
+import shutil
 import socket
 import subprocess
 import sys
@@ -22,20 +24,30 @@ from pathlib import Path
 
 JST = timezone(timedelta(hours=9))
 REPO_ROOT = Path(__file__).resolve().parent.parent
-TARGETS_PATH = REPO_ROOT / "trial" / "reports" / "actions_reach_targets2.json"
+TARGETS_PATH = REPO_ROOT / "trial" / "reports" / "actions_reach_targets3.json"
 REPORTS_DIR = REPO_ROOT / "trial" / "reports"
 
 TIMEOUT_SECONDS = 30
 GAP_BETWEEN_TARGETS_SECONDS = 1
-GAP_BETWEEN_UA_PROBE_REQUESTS_SECONDS = 3
-UA_PROBE_USER_AGENT = (
+REQUEST_USER_AGENT = (
     "daily-brief-source-check/1.0 "
     "(+https://github.com/axl4415blast-hash/daily-brief-routine)"
 )
 
-# --- pypdf の読み込み。無ければ1回だけインストールを試みる。それでも駄目なら諦めて先に進む ---
+# --- pypdf[crypto] を1回だけインストールしてから読み込む。暗号付きPDFを解くための部品 ---
+PYPDF_CRYPTO_INSTALL_ATTEMPTED = True
+PYPDF_CRYPTO_INSTALL_OK = False
+try:
+    _proc = subprocess.run(
+        [sys.executable, "-m", "pip", "install", "--quiet", "pypdf[crypto]"],
+        check=False,
+        timeout=180,
+    )
+    PYPDF_CRYPTO_INSTALL_OK = _proc.returncode == 0
+except BaseException:
+    PYPDF_CRYPTO_INSTALL_OK = False
+
 PYPDF_AVAILABLE = False
-PYPDF_INSTALL_ATTEMPTED = False
 pypdf = None
 try:
     import pypdf as _pypdf
@@ -43,23 +55,11 @@ try:
     pypdf = _pypdf
     PYPDF_AVAILABLE = True
 except BaseException:
-    PYPDF_INSTALL_ATTEMPTED = True
-    try:
-        subprocess.run(
-            [sys.executable, "-m", "pip", "install", "--quiet", "pypdf"],
-            check=True,
-            timeout=180,
-        )
-    except BaseException:
-        pass
-    try:
-        import pypdf as _pypdf
+    pypdf = None
+    PYPDF_AVAILABLE = False
 
-        pypdf = _pypdf
-        PYPDF_AVAILABLE = True
-    except BaseException:
-        pypdf = None
-        PYPDF_AVAILABLE = False
+# --- pypdfで読めなかった場合に限り使う代わりの手段。無ければ何もしない ---
+PDFTOTEXT_PATH = shutil.which("pdftotext")
 
 
 def classify_error(exc):
@@ -161,7 +161,32 @@ def excerpt_match(text, excerpt):
     return found_raw, found_nospace
 
 
-def extract_pdf_text(raw_bytes):
+def prefix_match(text, excerpt):
+    """excerptの先頭10文字（空白除去後）が本文中にあるか。本文そのものは返さない。"""
+    if text is None or excerpt is None:
+        return None
+    text_n = strip_whitespace(normalize_nfkc(text))
+    excerpt_n = strip_whitespace(normalize_nfkc(excerpt))
+    prefix = excerpt_n[:10]
+    if not prefix:
+        return None
+    return prefix in text_n
+
+
+# HTMLタグ除去: <script>/<style>は中身ごと除去してから、残りのタグを空白1つに置き換える
+SCRIPT_STYLE_RE = re.compile(r"<(script|style)\b[^>]*>.*?</\1\s*>", re.IGNORECASE | re.DOTALL)
+TAG_RE = re.compile(r"<[^>]+>")
+
+
+def strip_html_tags(text):
+    text = SCRIPT_STYLE_RE.sub(" ", text)
+    text = TAG_RE.sub(" ", text)
+    text = html_module.unescape(text)
+    text = normalize_nfkc(text)
+    return text
+
+
+def extract_pdf_text_pypdf(raw_bytes):
     """一時ファイルに保存して全ページのテキストを取り出す。戻り値: (pages, full_text)。リポジトリには保存しない。"""
     fd, tmp_path = tempfile.mkstemp(suffix=".pdf")
     os.close(fd)
@@ -185,6 +210,57 @@ def extract_pdf_text(raw_bytes):
             pass
 
 
+def extract_pdf_text_pdftotext(raw_bytes):
+    """pypdfで読めなかった場合に限り使う代替手段。戻り値: (pages, full_text)。リポジトリには保存しない。"""
+    fd, tmp_path = tempfile.mkstemp(suffix=".pdf")
+    os.close(fd)
+    try:
+        with open(tmp_path, "wb") as f:
+            f.write(raw_bytes)
+        proc = subprocess.run(
+            [PDFTOTEXT_PATH, "-q", tmp_path, "-"],
+            check=True,
+            timeout=60,
+            capture_output=True,
+            text=True,
+        )
+        text = proc.stdout or ""
+        pages = (text.count("\x0c") + 1) if text else 0
+        return pages, text
+    finally:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+
+
+def base_row(target, info, mode):
+    return {
+        "target_id": target["target_id"],
+        "url": target["url"],
+        "publisher": target.get("publisher"),
+        "mode": mode,
+        "line_id": target.get("line_id"),
+        "http_status": info["http_status"],
+        "final_url": info["final_url"],
+        "elapsed_ms": info["elapsed_ms"],
+        "content_type": info["content_type"],
+        "bytes": info["bytes"],
+        "pdf_method": None,
+        "pdf_pages": None,
+        "pdf_chars": None,
+        "body_chars": None,
+        "prefix_found": None,
+        "found_raw": None,
+        "found_nospace": None,
+        "error": info["error"],
+    }
+
+
+def append_error(row, message):
+    row["error"] = (row["error"] + ";" if row["error"] else "") + message
+
+
 def process_pdf_target(target):
     target_id = target["target_id"]
     url = target["url"]
@@ -192,109 +268,84 @@ def process_pdf_target(target):
     print(f"[{target_id}] (pdf_excerpt) GET {url}")
 
     info, raw = fetch_once(url)
-    row = {
-        "target_id": target_id,
-        "url": url,
-        "publisher": target.get("publisher"),
-        "mode": "pdf_excerpt",
-        "line_id": target.get("line_id"),
-        "http_status": info["http_status"],
-        "final_url": info["final_url"],
-        "elapsed_ms": info["elapsed_ms"],
-        "content_type": info["content_type"],
-        "bytes": info["bytes"],
-        "pdf_pages": None,
-        "pdf_chars": None,
-        "pdf_lib_missing": False,
-        "pdf_text_empty": False,
-        "found_raw": None,
-        "found_nospace": None,
-        "error": info["error"],
-    }
+    row = base_row(target, info, mode="pdf_excerpt")
 
     if info["http_status"] == 200 and raw and not info["error"]:
-        if not PYPDF_AVAILABLE:
-            row["pdf_lib_missing"] = True
-        else:
+        pdf_method = "failed"
+        pages, text = None, None
+        pypdf_error = None
+
+        if PYPDF_AVAILABLE:
             try:
-                pages, text = extract_pdf_text(raw)
-                row["pdf_pages"] = pages
-                row["pdf_chars"] = len(text)
-                if row["pdf_chars"] == 0:
-                    row["pdf_text_empty"] = True
-                    row["found_raw"] = False
-                    row["found_nospace"] = False
-                else:
-                    row["found_raw"], row["found_nospace"] = excerpt_match(text, excerpt)
+                pages, text = extract_pdf_text_pypdf(raw)
+                pdf_method = "pypdf"
             except Exception as e:
-                row["error"] = (row["error"] + ";" if row["error"] else "") + (
-                    f"pdf_extract_error:{type(e).__name__}"
-                )
+                pypdf_error = f"pypdf_error:{type(e).__name__}"
+
+        if pdf_method == "failed" and PDFTOTEXT_PATH:
+            try:
+                pages, text = extract_pdf_text_pdftotext(raw)
+                pdf_method = "pdftotext"
+            except Exception as e:
+                append_error(row, f"pdftotext_error:{type(e).__name__}")
+
+        row["pdf_method"] = pdf_method
+
+        if pdf_method == "failed":
+            if pypdf_error:
+                append_error(row, pypdf_error)
+            row["found_raw"] = False
+            row["found_nospace"] = False
+        else:
+            row["pdf_pages"] = pages
+            row["pdf_chars"] = len(text) if text else 0
+            row["body_chars"] = row["pdf_chars"]
+            if row["pdf_chars"] == 0:
+                row["found_raw"] = False
+                row["found_nospace"] = False
+                row["prefix_found"] = False
+            else:
+                row["found_raw"], row["found_nospace"] = excerpt_match(text, excerpt)
+                row["prefix_found"] = prefix_match(text, excerpt)
     raw = None  # 生バイト列はここで破棄する（保存しない）
 
     print(
-        f"    status={row['http_status']} bytes={row['bytes']} "
-        f"pdf_pages={row['pdf_pages']} pdf_chars={row['pdf_chars']} "
-        f"found_raw={row['found_raw']} found_nospace={row['found_nospace']} "
-        f"pdf_lib_missing={row['pdf_lib_missing']} pdf_text_empty={row['pdf_text_empty']}"
+        f"    status={row['http_status']} bytes={row['bytes']} pdf_method={row['pdf_method']} "
+        f"pdf_pages={row['pdf_pages']} pdf_chars={row['pdf_chars']} body_chars={row['body_chars']} "
+        f"prefix_found={row['prefix_found']} found_raw={row['found_raw']} found_nospace={row['found_nospace']}"
     )
     return row
 
 
-def process_ua_target(target):
+def process_html_target(target):
     target_id = target["target_id"]
     url = target["url"]
     excerpt = target.get("excerpt")
-    print(f"[{target_id}] (ua_probe) GET {url} (1回目: 名乗りなし)")
+    print(f"[{target_id}] (html_excerpt) GET {url} (名乗りあり・1回だけ)")
 
-    info1, raw1 = fetch_once(url)
-    status_noua = info1["http_status"]
-    bytes_noua = info1["bytes"]
-    print(f"    1回目: status={status_noua} bytes={bytes_noua} error={info1['error']}")
-    raw1 = None
+    info, raw = fetch_once(url, extra_headers={"User-Agent": REQUEST_USER_AGENT})
+    row = base_row(target, info, mode="html_excerpt")
 
-    time.sleep(GAP_BETWEEN_UA_PROBE_REQUESTS_SECONDS)
+    if info["http_status"] == 200 and raw and not info["error"]:
+        _, decoded = decode_body(raw, info["content_type"])
+        if decoded is None:
+            append_error(row, "decode_failed")
+        else:
+            processed = strip_html_tags(decoded)
+            row["body_chars"] = len(processed)
+            if row["body_chars"] == 0:
+                row["found_raw"] = False
+                row["found_nospace"] = False
+                row["prefix_found"] = False
+            else:
+                row["found_raw"], row["found_nospace"] = excerpt_match(processed, excerpt)
+                row["prefix_found"] = prefix_match(processed, excerpt)
+    raw = None  # 生バイト列はここで破棄する（保存しない）
 
-    print(f"[{target_id}] (ua_probe) GET {url} (2回目: 名乗りあり)")
-    info2, raw2 = fetch_once(url, extra_headers={"User-Agent": UA_PROBE_USER_AGENT})
-    status_ua = info2["http_status"]
-    bytes_ua = info2["bytes"]
-    print(f"    2回目: status={status_ua} bytes={bytes_ua} error={info2['error']}")
-
-    found_raw = None
-    found_nospace = None
-    if status_ua == 200 and raw2:
-        _, decoded = decode_body(raw2, info2["content_type"])
-        if decoded is not None:
-            found_raw, found_nospace = excerpt_match(decoded, excerpt)
-    raw2 = None  # 生バイト列はここで破棄する（保存しない）
-
-    error = None
-    if info1["error"] or info2["error"]:
-        parts = []
-        if info1["error"]:
-            parts.append(f"1st:{info1['error']}")
-        if info2["error"]:
-            parts.append(f"2nd:{info2['error']}")
-        error = ";".join(parts)
-
-    row = {
-        "target_id": target_id,
-        "url": url,
-        "publisher": target.get("publisher"),
-        "mode": "ua_probe",
-        "line_id": target.get("line_id"),
-        "status_noua": status_noua,
-        "status_ua": status_ua,
-        "bytes_noua": bytes_noua,
-        "bytes_ua": bytes_ua,
-        "final_url_ua": info2["final_url"],
-        "elapsed_ms_noua": info1["elapsed_ms"],
-        "elapsed_ms_ua": info2["elapsed_ms"],
-        "found_raw": found_raw,
-        "found_nospace": found_nospace,
-        "error": error,
-    }
+    print(
+        f"    status={row['http_status']} bytes={row['bytes']} body_chars={row['body_chars']} "
+        f"prefix_found={row['prefix_found']} found_raw={row['found_raw']} found_nospace={row['found_nospace']}"
+    )
     return row
 
 
@@ -311,8 +362,8 @@ def run():
         mode = target.get("mode")
         if mode == "pdf_excerpt":
             row = process_pdf_target(target)
-        elif mode == "ua_probe":
-            row = process_ua_target(target)
+        elif mode == "html_excerpt":
+            row = process_html_target(target)
         else:
             raise SystemExit(f"unknown mode for {target.get('target_id')}: {mode}")
         rows.append(row)
@@ -330,22 +381,19 @@ def write_reports(rows):
     stamp = now.strftime("%Y%m%d-%H%M%S")
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 
-    json_path = REPORTS_DIR / f"actions_reach2_{stamp}.json"
-    md_path = REPORTS_DIR / f"actions_reach2_{stamp}.md"
+    json_path = REPORTS_DIR / f"actions_reach3_{stamp}.json"
+    md_path = REPORTS_DIR / f"actions_reach3_{stamp}.md"
+
+    pdftotext_used = any(r.get("pdf_method") == "pdftotext" for r in rows)
 
     run_settings = {
-        "targets_file": "trial/reports/actions_reach_targets2.json",
-        "second_fetch_for_stability": False,
-        "wait_before_second_fetch_seconds": 0,
-        "note_on_second_fetch": (
-            "1回目で安定性(stable)は測定済みのため、この追試では通常ターゲットの2回目取得と"
-            "60秒待機を行わない。ua_probeのみ、UA比較のため同一URLに2回アクセスする"
-            "（間は60秒ではなく3秒）。"
-        ),
-        "gap_between_ua_probe_requests_seconds": GAP_BETWEEN_UA_PROBE_REQUESTS_SECONDS,
+        "targets_file": "trial/reports/actions_reach_targets3.json",
+        "pypdf_crypto_install_attempted": PYPDF_CRYPTO_INSTALL_ATTEMPTED,
+        "pypdf_crypto_install_ok": PYPDF_CRYPTO_INSTALL_OK,
         "pypdf_available": PYPDF_AVAILABLE,
-        "pypdf_install_attempted": PYPDF_INSTALL_ATTEMPTED,
-        "user_agent_used_in_probe": UA_PROBE_USER_AGENT,
+        "pdftotext_available": PDFTOTEXT_PATH is not None,
+        "pdftotext_used": pdftotext_used,
+        "user_agent_used": REQUEST_USER_AGENT,
     }
 
     output = {
@@ -358,52 +406,38 @@ def write_reports(rows):
     )
 
     lines = [
-        f"# GitHub Actions 到達性テスト追試(2回目)結果 ({output['generated_at']})",
+        f"# GitHub Actions 到達性テスト追試(3回目・最後)結果 ({output['generated_at']})",
         "",
         "## この結果の測り方（設定）",
         "",
         f"- 対象一覧: `{run_settings['targets_file']}`",
-        f"- 2回目の取得（安定性再測定）: {'あり' if run_settings['second_fetch_for_stability'] else 'なし'}"
-        f"（{run_settings['note_on_second_fetch']}）",
-        f"- pypdf が使えたか: {'はい' if run_settings['pypdf_available'] else 'いいえ'}"
-        f"（インストールを試みた: {'はい' if run_settings['pypdf_install_attempted'] else 'いいえ（最初から import 済み）'}）",
-        f"- ua_probe で名乗った User-Agent: `{run_settings['user_agent_used_in_probe']}`",
-        f"- ua_probe の2回のアクセス間隔: {run_settings['gap_between_ua_probe_requests_seconds']}秒",
+        f"- pypdf[crypto] の導入: 試みた（{'成功' if run_settings['pypdf_crypto_install_ok'] else '失敗'}）、"
+        f"pypdf が使えたか: {'はい' if run_settings['pypdf_available'] else 'いいえ'}",
+        f"- pdftotext コマンド: {'利用可能' if run_settings['pdftotext_available'] else '利用不可'}、"
+        f"今回の結果で実際に使ったか: {'はい' if run_settings['pdftotext_used'] else 'いいえ'}",
+        f"- 使った名乗り（User-Agent）: `{run_settings['user_agent_used']}`（FRBのHTML取得に、最初から1回だけ使用）",
         "",
         "## 結果一覧",
         "",
-        "| target_id | publisher | mode | http_status | bytes | pdf_pages | pdf_chars | "
-        "pdf_lib_missing | pdf_text_empty | found_raw | found_nospace | error |",
-        "|---|---|---|---|---|---|---|---|---|---|---|---|",
+        "| target_id | publisher | mode | http_status | bytes | pdf_method | pdf_pages | pdf_chars | "
+        "body_chars | prefix_found | found_raw | found_nospace | error |",
+        "|---|---|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for r in rows:
-        if r["mode"] == "pdf_excerpt":
-            http_status = str(r["http_status"])
-            bytes_col = str(r["bytes"])
-            pdf_pages = r["pdf_pages"]
-            pdf_chars = r["pdf_chars"]
-            pdf_lib_missing = r["pdf_lib_missing"]
-            pdf_text_empty = r["pdf_text_empty"]
-        else:
-            http_status = f"noua={r['status_noua']} / ua={r['status_ua']}"
-            bytes_col = f"noua={r['bytes_noua']} / ua={r['bytes_ua']}"
-            pdf_pages = ""
-            pdf_chars = ""
-            pdf_lib_missing = ""
-            pdf_text_empty = ""
-
         lines.append(
-            "| {target_id} | {publisher} | {mode} | {http_status} | {bytes} | {pdf_pages} | "
-            "{pdf_chars} | {pdf_lib_missing} | {pdf_text_empty} | {found_raw} | {found_nospace} | {error} |".format(
+            "| {target_id} | {publisher} | {mode} | {http_status} | {bytes} | {pdf_method} | "
+            "{pdf_pages} | {pdf_chars} | {body_chars} | {prefix_found} | {found_raw} | "
+            "{found_nospace} | {error} |".format(
                 target_id=r["target_id"],
                 publisher=r["publisher"] or "",
                 mode=r["mode"],
-                http_status=http_status,
-                bytes=bytes_col,
-                pdf_pages=pdf_pages if pdf_pages is not None else "",
-                pdf_chars=pdf_chars if pdf_chars is not None else "",
-                pdf_lib_missing=pdf_lib_missing,
-                pdf_text_empty=pdf_text_empty,
+                http_status=r["http_status"] if r["http_status"] is not None else "",
+                bytes=r["bytes"] if r["bytes"] is not None else "",
+                pdf_method=r["pdf_method"] or "",
+                pdf_pages=r["pdf_pages"] if r["pdf_pages"] is not None else "",
+                pdf_chars=r["pdf_chars"] if r["pdf_chars"] is not None else "",
+                body_chars=r["body_chars"] if r["body_chars"] is not None else "",
+                prefix_found=r["prefix_found"] if r["prefix_found"] is not None else "",
                 found_raw=r["found_raw"] if r["found_raw"] is not None else "",
                 found_nospace=r["found_nospace"] if r["found_nospace"] is not None else "",
                 error=r["error"] or "",
@@ -411,7 +445,8 @@ def write_reports(rows):
         )
     lines.append("")
     lines.append(
-        "excerptの文章そのものはここには書かない（line_idで該当の号JSONの行を参照できる）。"
+        "excerptや本文の文章そのものはここには書かない（line_idで該当の号JSONの行を参照できる）。"
+        "prefix_found/body_charsは、探し方の問題か出典そのものの問題かを切り分けるための目印。"
         "final_urlなど詳細は同じ時刻の .json ファイルを参照。"
     )
     lines.append("")
@@ -427,18 +462,12 @@ def main():
     write_reports(rows)
     print("\n=== summary ===")
     for r in rows:
-        if r["mode"] == "pdf_excerpt":
-            print(
-                f"{r['target_id']}: status={r['http_status']} "
-                f"pdf_pages={r['pdf_pages']} pdf_chars={r['pdf_chars']} "
-                f"found_raw={r['found_raw']} found_nospace={r['found_nospace']} "
-                f"pdf_lib_missing={r['pdf_lib_missing']} error={r['error']}"
-            )
-        else:
-            print(
-                f"{r['target_id']}: status_noua={r['status_noua']} status_ua={r['status_ua']} "
-                f"found_raw={r['found_raw']} found_nospace={r['found_nospace']} error={r['error']}"
-            )
+        print(
+            f"{r['target_id']}: status={r['http_status']} pdf_method={r['pdf_method']} "
+            f"pdf_pages={r['pdf_pages']} body_chars={r['body_chars']} "
+            f"prefix_found={r['prefix_found']} found_raw={r['found_raw']} "
+            f"found_nospace={r['found_nospace']} error={r['error']}"
+        )
 
 
 if __name__ == "__main__":
