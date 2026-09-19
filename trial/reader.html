@@ -410,6 +410,12 @@
     color:var(--muted);
     margin:0 0 10px;
   }
+  .company-note-line{
+    font-size:12px;
+    line-height:1.6;
+    color:var(--muted);
+    margin:0 0 6px;
+  }
   .industry-group{ margin:0 0 16px; }
   .industry-group:last-child{ margin-bottom:0; }
   .industry-name{
@@ -603,6 +609,11 @@
     price_stated: "株式の取引価格が示されている",
     amount_stated: "金額・割合が示されている",
     fact_only: "事実の報告のみ"
+  };
+  var BASELINE_PRICE_TYPE_LABELS = {
+    open: "その日の始値",
+    observed: "読んだときの株価",
+    next_open: "次の取引日の始値"
   };
   var SECTION_ORDER = ["big", "change", "ripple", "deep"];
 
@@ -1260,6 +1271,17 @@
     if(h.impact_reason) body.appendChild(el("p", { class: "company-impact-reason", text: h.impact_reason }));
 
     if(h.relation_text) body.appendChild(el("p", { class: "company-relation", text: h.relation_text }));
+
+    if(h.falsifier){
+      body.appendChild(el("p", { class: "company-note-line", text: "外れる条件：" + h.falsifier }));
+    }
+
+    if(h.baseline_date){
+      var baselineText = "基準日：" + h.baseline_date;
+      var priceTypeLabel = BASELINE_PRICE_TYPE_LABELS[h.baseline_price_type];
+      if(priceTypeLabel) baselineText += "（" + priceTypeLabel + "）";
+      body.appendChild(el("p", { class: "company-note-line", text: baselineText }));
+    }
 
     if(typeof h.horizon_business_days === "number"){
       var horizonTags = el("div", { class: "company-tags" });

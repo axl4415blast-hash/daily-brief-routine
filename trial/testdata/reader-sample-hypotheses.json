@@ -60,6 +60,38 @@
       "direction": "minus"
     },
     {
+      "hypothesis_id": "SAMPLE-4-NO-FALSIFIER",
+      "event_id": "EVT-SAMPLE-001",
+      "company_name": "サンプル電機（外れる条件なし）",
+      "ticker": "6501",
+      "article_id": "ART-2026-09-18-001",
+      "evidence_grade": "primary",
+      "impact_kind": "fact_only",
+      "relation_text": "falsifier が空のケースのテスト用。「外れる条件」の行が出てはいけない。",
+      "falsifier": "",
+      "baseline_date": "2026-09-18",
+      "baseline_price_type": "next_open",
+      "horizon_business_days": 20,
+      "deadline_date": "2026-10-16",
+      "links": { "price_history": "https://finance.yahoo.co.jp/quote/6501.T/history" },
+      "direction": "plus"
+    },
+    {
+      "hypothesis_id": "SAMPLE-5-NO-PRICE-TYPE",
+      "event_id": "EVT-SAMPLE-002",
+      "company_name": "サンプル物流（基準日の種類なし）",
+      "ticker": "9020",
+      "article_id": "ART-2026-09-18-002",
+      "evidence_grade": "reported",
+      "relation_text": "baseline_price_type が無いケースのテスト用。基準日は出るが、括弧は出てはいけない。",
+      "falsifier": "輸送量の変化が金利水準と無関係であれば、この位置づけは成り立たない。",
+      "baseline_date": "2026-09-18",
+      "horizon_business_days": 20,
+      "deadline_date": "2026-10-16",
+      "links": { "price_history": "https://finance.yahoo.co.jp/quote/9020.T/history" },
+      "direction": "plus"
+    },
+    {
       "hypothesis_id": "SAMPLE-LEGACY-INFERRED",
       "event_id": "EVT-SAMPLE-001",
       "company_name": "旧形式の推論企業（表示されないこと）",
