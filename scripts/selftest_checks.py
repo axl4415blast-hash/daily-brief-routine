@@ -28,6 +28,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import edinet_fetch
 import verify_edition as ve
+import pick_industry_companies as pic
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -817,6 +818,191 @@ def test_stop_words_remove_line_not_whole_edition():
     check("検査7/停止語を含まない行は残る", remaining_ids, ["S-02"])
 
 
+def _pic_candidate(name, edinet_code, ticker, capital, industry="テスト業"):
+    return {
+        "company_name": name, "edinet_code": edinet_code, "ticker": ticker,
+        "industry": industry, "capital_million": capital, "retrieved_date": "2026-09-19",
+    }
+
+
+def test_pick_industry_companies_matching():
+    """pick_industry_companies.pyの本文照合(3.3)の正例・負例。
+    実データ(コードリスト)には依存せず、その場で作った架空の会社名だけを使う。"""
+
+    # --- 負例1: 'NTTデータ'の中の'NTT'を当ててはいけない(登録されていない
+    # 長い固有名詞の一部を、短い照合名の一致とみなさない) ---
+    candidates = [_pic_candidate("ＮＴＴ株式会社", "E-NTT", "9432", 1000)]
+    article = {"text_blob": "NTTデータの決算が発表された。"}
+    selected = pic.select_companies_for_pick(candidates, article, {}, set(), 1)
+    check(
+        "会社選定/負例1: 'NTTデータ'の本文で'NTT'はmentioned_in_textにならない",
+        selected[0]["selection_rule"], "capital_rank",
+    )
+
+    # --- 負例2: '近鉄百貨店'の中の'近鉄'(エイリアス経由)を当ててはいけない ---
+    candidates = [_pic_candidate("近鉄グループホールディングス株式会社", "E-KINTETSU", "9041", 1000)]
+    aliases = {"E-KINTETSU": [{"news_name": "近鉄", "entity_relation": "parent"}]}
+    article = {"text_blob": "近鉄百貨店が新装開店した。"}
+    selected = pic.select_companies_for_pick(candidates, article, aliases, set(), 1)
+    check(
+        "会社選定/負例2: '近鉄百貨店'の本文で'近鉄'(エイリアス)はmentioned_in_textにならない",
+        selected[0]["selection_rule"], "capital_rank",
+    )
+
+    # --- 負例3: 'ソフトバンクグループ'の中の'ソフトバンク'を当ててはいけない
+    # ('ソフトバンクグループ'自体は候補に無い状況でも、境界の確認だけで弾けること) ---
+    candidates = [_pic_candidate("ソフトバンク株式会社", "E-SB", "9434", 1000)]
+    article = {"text_blob": "ソフトバンクグループが発表した。"}
+    selected = pic.select_companies_for_pick(candidates, article, {}, set(), 1)
+    check(
+        "会社選定/負例3: 'ソフトバンクグループ'の本文で'ソフトバンク'はmentioned_in_textにならない",
+        selected[0]["selection_rule"], "capital_rank",
+    )
+
+    # --- 負例4: 別の記事の行に社名があっても、その記事の企業欄には入らない ---
+    edition = {
+        "sections": [{
+            "section_id": "s", "articles": [
+                {
+                    "article_id": "ART-A", "headline": "無関係な見出し",
+                    "lines": [{"line_id": "A-01", "text": "この記事はまったく別の話題を扱っている。"}],
+                },
+                {
+                    "article_id": "ART-B", "headline": "テスト物産の記事",
+                    "lines": [{"line_id": "B-01", "text": "テスト物産は新工場を稼働させた。"}],
+                },
+            ],
+        }],
+    }
+    articles_by_id = pic.index_articles(edition)
+    candidates = [_pic_candidate("テスト物産株式会社", "E-BUSSAN", "9001", 1000)]
+    selected_a = pic.select_companies_for_pick(candidates, articles_by_id["ART-A"], {}, set(), 1)
+    selected_b = pic.select_companies_for_pick(candidates, articles_by_id["ART-B"], {}, set(), 1)
+    check(
+        "会社選定/負例4: 別記事(ART-B)にしか無い社名は、ART-Aの企業欄ではmentioned_in_textにならない",
+        selected_a[0]["selection_rule"], "capital_rank",
+    )
+    check(
+        "会社選定/負例4: 社名がある記事(ART-B)自身ではmentioned_in_textになる",
+        selected_b[0]["selection_rule"], "mentioned_in_text",
+    )
+
+    # --- 負例5: 業種が「サービス業」なら1社も出ない(飛ばす) ---
+    edition_service = {
+        "sections": [{
+            "section_id": "s", "articles": [
+                {"article_id": "ART-S", "headline": "見出し", "lines": [{"line_id": "S-01", "text": "本文。"}]},
+            ],
+        }],
+    }
+    articles_service = pic.index_articles(edition_service)
+    pick_service = {"article_id": "ART-S", "event_id": "EVT-S", "industry": "サービス業", "industry_line_ids": ["S-01"]}
+    ok, reason, industry_name, industry_result = pic.validate_pick(pick_service, articles_service, {})
+    check("会社選定/負例5: 業種が'サービス業'なら不合格になる(ok=False)", ok, False)
+    check("会社選定/負例5: 業種が'サービス業'なら1社も選ばれない(industry_resultはNone)", industry_result, None)
+
+    # --- 負例6: industry_line_idsが空なら1社も出ない ---
+    pick_empty_lines = {"article_id": "ART-S", "event_id": "EVT-S", "industry": "電気機器", "industry_line_ids": []}
+    ok, reason, industry_name, industry_result = pic.validate_pick(pick_empty_lines, articles_service, {})
+    check("会社選定/負例6: industry_line_idsが空なら不合格になる", ok, False)
+    check("会社選定/負例6: 理由は'industry_line_idsが空'", reason, "industry_line_idsが空")
+
+    # --- 負例7: industry_picksに会社名らしき項目が書かれていたら1社も出ない ---
+    pick_with_company = {
+        "article_id": "ART-S", "event_id": "EVT-S", "industry": "電気機器",
+        "industry_line_ids": ["S-01"], "company_name": "何かの会社",
+    }
+    ok, reason, industry_name, industry_result = pic.validate_pick(pick_with_company, articles_service, {})
+    check("会社選定/負例7: company_nameが書かれていたら不合格になる", ok, False)
+    check("会社選定/負例7: 理由は'industry_picksに会社名らしき項目が書かれている'", reason, "industry_picksに会社名らしき項目が書かれている")
+
+    # --- 負例8: '三井物産'の一部になっている'三井'は、離れた位置に単独で
+    # 出ていても(他社名の一部になっている名前は使わないため)当ててはいけない ---
+    candidates = [
+        _pic_candidate("三井物産株式会社", "E-MITSUI-B", "8031", 5000),
+        _pic_candidate("三井株式会社", "E-MITSUI", "9999", 3000),
+    ]
+    article = {"text_blob": "三井物産が新規事業を発表した。三井は単独でも別の事業を進めている。"}
+    selected = pic.select_companies_for_pick(candidates, article, {}, set(), 2)
+    by_name = {s["candidate"]["company_name"]: s["selection_rule"] for s in selected}
+    check(
+        "会社選定/負例8: '三井物産'はmentioned_in_textになる",
+        by_name.get("三井物産株式会社"), "mentioned_in_text",
+    )
+    check(
+        "会社選定/負例8: '三井'は他社名('三井物産')の一部のため、離れた位置の単独出現でもmentioned_in_textにならない",
+        by_name.get("三井株式会社"), "capital_rank",
+    )
+
+    # --- 負例9: '兼松エレクトロニクス'が本文にあるとき、その一部である短い
+    # '兼松'は当てない(最長一致で長い名前が先に当たるため) ---
+    candidates = [
+        _pic_candidate("兼松株式会社", "E-KANEMATSU", "8020", 5000),
+        _pic_candidate("兼松エレクトロニクス株式会社", "E-KANEMATSU-E", "9999", 2000),
+    ]
+    article = {"text_blob": "兼松エレクトロニクスが新製品を発表した。"}
+    selected = pic.select_companies_for_pick(candidates, article, {}, set(), 2)
+    by_name = {s["candidate"]["company_name"]: s["selection_rule"] for s in selected}
+    check(
+        "会社選定/負例9: '兼松エレクトロニクス'はmentioned_in_textになる",
+        by_name.get("兼松エレクトロニクス株式会社"), "mentioned_in_text",
+    )
+    check(
+        "会社選定/負例9: 短い'兼松'は最長一致で長い名前に先を越されてmentioned_in_textにならない",
+        by_name.get("兼松株式会社"), "capital_rank",
+    )
+
+    # --- 正例1: 本文に社名がそのまま出ていればmentioned_in_textで選ばれる ---
+    candidates = [
+        _pic_candidate("テスト物産株式会社", "E-P1A", "9001", 1000),
+        _pic_candidate("テスト電機株式会社", "E-P1B", "9002", 2000),
+    ]
+    article = {"text_blob": "テスト物産は18日、新工場を稼働させた。"}
+    selected = pic.select_companies_for_pick(candidates, article, {}, set(), 2)
+    check(
+        "会社選定/正例1: 本文にある'テスト物産'がmentioned_in_textで先に選ばれる",
+        [s["selection_rule"] for s in selected], ["mentioned_in_text", "capital_rank"],
+    )
+    check("会社選定/正例1: mentioned_in_textの会社は'テスト物産株式会社'", selected[0]["candidate"]["company_name"], "テスト物産株式会社")
+
+    # --- 正例2: 本文に社名が無ければ資本金の多い順(capital_rank)で選ばれる ---
+    article_no_mention = {"text_blob": "この記事には関係する会社名が出てこない。"}
+    selected = pic.select_companies_for_pick(candidates, article_no_mention, {}, set(), 1)
+    check("会社選定/正例2: 本文に社名が無ければcapital_rankになる", selected[0]["selection_rule"], "capital_rank")
+    check("会社選定/正例2: 資本金の多い'テスト電機'が選ばれる", selected[0]["candidate"]["company_name"], "テスト電機株式会社")
+
+    # --- 正例3: aliases.csv相当のエイリアス経由での一致(3.5) ---
+    candidates = [_pic_candidate("テストフィナンシャルグループ株式会社", "E-P3", "9003", 5000)]
+    aliases = {"E-P3": [{"news_name": "テスト銀行", "entity_relation": "parent"}]}
+    article = {"text_blob": "テスト銀行は本日、新支店を開設した。"}
+    selected = pic.select_companies_for_pick(candidates, article, aliases, set(), 1)
+    check("会社選定/正例3: エイリアス'テスト銀行'でmentioned_in_textになる", selected[0]["selection_rule"], "mentioned_in_text")
+    check("会社選定/正例3: news_entityはエイリアスの呼び名'テスト銀行'", selected[0]["news_entity"], "テスト銀行")
+    check("会社選定/正例3: entity_relationはエイリアスの'parent'", selected[0]["entity_relation"], "parent")
+    check(
+        "会社選定/正例3: company_nameはコードリストの正式名'テストフィナンシャルグループ株式会社'",
+        selected[0]["candidate"]["company_name"], "テストフィナンシャルグループ株式会社",
+    )
+
+    # --- 正例4: 正式名がそのまま出ていた場合はnews_entity=null, entity_relation=self ---
+    article_official = {"text_blob": "テストフィナンシャルグループは本日、決算を発表した。"}
+    selected = pic.select_companies_for_pick(candidates, article_official, aliases, set(), 1)
+    check("会社選定/正例4: 正式名の一致ではnews_entityがNone", selected[0]["news_entity"], None)
+    check("会社選定/正例4: 正式名の一致ではentity_relationが'self'", selected[0]["entity_relation"], "self")
+
+    # --- 正例5(決定性): 資本金が同じ会社が並んだときはEDINETコードの昇順になる ---
+    candidates_tie = [
+        _pic_candidate("テストA株式会社", "E-Z999", "9911", 1000),
+        _pic_candidate("テストB株式会社", "E-A001", "9912", 1000),
+    ]
+    article_tie = {"text_blob": "この記事には関係する会社名が出てこない。"}
+    selected = pic.select_companies_for_pick(candidates_tie, article_tie, {}, set(), 2)
+    check(
+        "会社選定/正例5: 資本金が同じならEDINETコードの昇順(E-A001が先)になる",
+        [s["candidate"]["edinet_code"] for s in selected], ["E-A001", "E-Z999"],
+    )
+
+
 def test_testdata_copy_integration():
     """3.3: scripts/testdata を一時フォルダにコピーし、コピーの方に対してCLI全体を
     走らせることで、本体のscripts/testdataには一切書き込まないことを確かめる。
@@ -867,6 +1053,7 @@ def main():
     test_count_invalid_source_usages()
     test_check_baseline_late()
     test_stop_words_remove_line_not_whole_edition()
+    test_pick_industry_companies_matching()
     test_testdata_copy_integration()
 
     total = len(results)
