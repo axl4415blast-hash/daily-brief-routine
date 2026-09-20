@@ -48,6 +48,7 @@ import sys
 import unicodedata
 from pathlib import Path
 
+import edinet_codelist
 import edinet_fetch
 import pick_industry_companies
 
@@ -773,6 +774,130 @@ def run_hypothesis_checks(hypotheses_doc, edition, business_days, ng_words, cach
     return total_violations, reasons
 
 
+# 東証33業種のうち、業種から会社を選ぶ仕組みでは使わない業種名(本システムでは
+# 外国法人・組合を対象にしないため)。EXCLUDED_INDUSTRIES(サービス業・その他製品・
+# その他金融業)はedinet_codelist.py側の定数をそのまま使う。
+FOREIGN_INDUSTRY_NAME = "外国法人・組合"
+
+
+def build_allowed_industries(codelist_rows):
+    """下段(industry_examples)で使ってよい業種名の一覧を、コードリストの実データから作る
+    (5.1: 業種名をこのスクリプトに手で書き写さない)。コードリストが無い場合は空集合を返す。"""
+    if codelist_rows is None:
+        return set()
+    names = {name for name, _cnt in edinet_codelist._industry_counts(codelist_rows)}
+    names.discard(FOREIGN_INDUSTRY_NAME)
+    return names - edinet_codelist.EXCLUDED_INDUSTRIES
+
+
+def check_lower_ticker(example):
+    """検査13: 下段のticker/ticker_sourceの確認。どちらかが空なら不合格。"""
+    if not example.get("ticker") or not example.get("ticker_source"):
+        return "lower_ticker_missing"
+    return None
+
+
+def _lookup_codelist_company(example, codelist_rows):
+    """下段の会社をコードリストの提出者名で引く(別名表は使わない。下段の
+    company_nameは常にコードリストの正式名のため)。コードリストが無ければNone。"""
+    if codelist_rows is None:
+        return None
+    return edinet_codelist.find_company_by_name(example.get("company_name"), codelist_rows, [])
+
+
+def check_lower_listed(example, codelist_rows):
+    """検査21: ticker_sourceがedinet_codelistなのに、コードリスト上その会社が
+    「上場」で証券コードありの行として見つからない場合は不合格。"""
+    if example.get("ticker_source") != "edinet_codelist":
+        return None
+    match = _lookup_codelist_company(example, codelist_rows)
+    if match is None:
+        return "lower_not_listed"
+    return None
+
+
+def check_lower_industry(example, allowed_industries):
+    """検査22: industryが許可リスト(5.1)に無い、またはimpact_kindがnullでなければ不合格。"""
+    if example.get("industry") not in allowed_industries:
+        return "lower_industry_not_allowed"
+    if example.get("impact_kind") is not None:
+        return "lower_industry_not_allowed"
+    return None
+
+
+def check_lower_relation_text(example):
+    """検査27: relation_textが作業Aの2つの定型文のどちらとも完全一致しない、
+    またはrelation_textにcompany_nameが含まれていれば不合格。"""
+    industry = example.get("industry")
+    valid_texts = {
+        pick_industry_companies.RELATION_TEXT_MENTIONED.format(industry=industry),
+        pick_industry_companies.RELATION_TEXT_CAPITAL.format(industry=industry),
+    }
+    relation_text = example.get("relation_text")
+    if relation_text not in valid_texts:
+        return "lower_relation_text_mismatch"
+    company_name = example.get("company_name")
+    if company_name and company_name in relation_text:
+        return "lower_relation_text_mismatch"
+    return None
+
+
+def check_lower_line_mark(example, line_marks):
+    """検査28: line_idsが空、またはその行の確定した印(mark)がsource_number_match/
+    reported_unverifiedのいずれでもなければ(見つからない行IDを含めて)不合格。"""
+    line_ids = example.get("line_ids") or []
+    if not line_ids:
+        return "lower_line_mark_invalid"
+    for lid in line_ids:
+        if line_marks.get(lid) not in ("source_number_match", "reported_unverified"):
+            return "lower_line_mark_invalid"
+    return None
+
+
+def check_lower_ticker_match(example, codelist_rows):
+    """検査31: tickerが、コードリスト上の同じ会社の証券コードと一致しなければ不合格。"""
+    match = _lookup_codelist_company(example, codelist_rows)
+    if match is None or match.get("ticker") != example.get("ticker"):
+        return "lower_ticker_mismatch"
+    return None
+
+
+def check_industry_example(example, line_marks, codelist_rows, allowed_industries):
+    """下段の1社について、検査13→21→22→27→28→31の順に確かめ、最初に不合格になった
+    理由を返す(全て合格ならNone)。"""
+    for check_fn, args in (
+        (check_lower_ticker, (example,)),
+        (check_lower_listed, (example, codelist_rows)),
+        (check_lower_industry, (example, allowed_industries)),
+        (check_lower_relation_text, (example,)),
+        (check_lower_line_mark, (example, line_marks)),
+        (check_lower_ticker_match, (example, codelist_rows)),
+    ):
+        reason = check_fn(*args)
+        if reason:
+            return reason
+    return None
+
+
+def run_industry_example_checks(examples, edition, codelist_rows):
+    """下段の各社に検査13・21・22・27・28・31をかけ、不合格の会社だけを取り除く。
+    戻り値: (残った下段の会社のリスト, 理由ごとの不合格件数, 使った許可リスト(業種名の集合))。"""
+    line_marks = {}
+    for section, article, line in iter_lines(edition):
+        line_marks[line.get("line_id")] = line.get("mark")
+
+    allowed_industries = build_allowed_industries(codelist_rows)
+
+    kept = []
+    reasons = {}
+    for example in examples:
+        reason = check_industry_example(example, line_marks, codelist_rows, allowed_industries)
+        if reason:
+            reasons[reason] = reasons.get(reason, 0) + 1
+        else:
+            kept.append(example)
+    return kept, reasons, allowed_industries
+
 
 def print_report(edition_path, stats, stop_hits, watch_hits, dropped_inferences, stale_hits,
                   unknown_published_at_hits, stale_skipped,
@@ -863,6 +988,20 @@ def print_report(edition_path, stats, stop_hits, watch_hits, dropped_inferences,
             print(f"AIが書いたindustry_examplesを破棄した件数: {industry_report['ai_written_examples_discarded']}件")
         print(f"下段(業種から選んだ企業欄)の会社数: {industry_report['industry_examples_total']}社")
 
+        violations = industry_report["industry_example_violations"]
+        if violations["total"]:
+            print(f"下段の検査で削除した会社数: {violations['total']}件")
+            lower_reason_text = {
+                "lower_ticker_missing": "証券コードまたはticker_sourceが空だった(削除)",
+                "lower_not_listed": "コードリスト上「上場」として見つからなかった(削除)",
+                "lower_industry_not_allowed": "業種が許可リストに無い、またはimpact_kindが空でなかった(削除)",
+                "lower_relation_text_mismatch": "定型文と一致しない、または会社名が文中に含まれていた(削除)",
+                "lower_line_mark_invalid": "根拠の行の確定した印が対象外だった、または行が見つからなかった(削除)",
+                "lower_ticker_mismatch": "証券コードがコードリストの記録と一致しなかった(削除)",
+            }
+            for reason, count in violations["reasons"].items():
+                print(f"  ・{lower_reason_text.get(reason, reason)}: {count}件")
+
         short_match = industry_report["short_name_match_count"]
         print(f"3文字以下の名前で本文一致した件数: {short_match['count']}件")
         if short_match["names"]:
@@ -940,14 +1079,25 @@ def main():
             else:
                 hypotheses_doc["industry_examples"] = pick_result["examples"]
 
+            # 6. 下段の個別の検査(検査13・21・22・27・28・31)。
+            codelist_rows, _codelist_date = edinet_codelist.load_codelist()
+            kept_examples, lower_reasons, allowed_industries = run_industry_example_checks(
+                hypotheses_doc["industry_examples"], edition, codelist_rows
+            )
+            hypotheses_doc["industry_examples"] = kept_examples
+
             industry_report = {
                 "industry_picks_total": pick_result.get("total_pick_count", 0),
                 "industry_examples_total": len(hypotheses_doc["industry_examples"]),
+                "industry_example_violations": {
+                    "total": sum(lower_reasons.values()), "reasons": lower_reasons,
+                },
                 "ai_written_examples_discarded": pick_result.get("ai_written_examples_discarded", 0),
                 "short_name_match_count": {
                     "count": pick_result.get("mentioned_short_count", 0),
                     "names": pick_result.get("short_name_matches", []),
                 },
+                "allowed_industries_count": len(allowed_industries),
             }
 
         run_at = dt.datetime.now(dt.timezone(dt.timedelta(hours=9))).isoformat()

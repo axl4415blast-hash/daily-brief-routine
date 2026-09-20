@@ -1275,6 +1275,204 @@ def test_find_company_by_name():
     )
 
 
+def test_check_lower_relation_text():
+    """作業C(8.1): 検査27(relation_textが作業Aの定型文と完全一致するか)の正例・負例。"""
+    industry = "テスト業種"
+    mentioned_text = ve.pick_industry_companies.RELATION_TEXT_MENTIONED.format(industry=industry)
+    capital_text = ve.pick_industry_companies.RELATION_TEXT_CAPITAL.format(industry=industry)
+
+    def example(relation_text, company_name="テスト物産株式会社", ind=industry):
+        return {"relation_text": relation_text, "industry": ind, "company_name": company_name}
+
+    # --- 通るべき例(3件以上) ---
+    check(
+        "検査27/正例1: mentioned_in_textの定型文と完全一致すれば合格",
+        ve.check_lower_relation_text(example(mentioned_text)), None,
+    )
+    check(
+        "検査27/正例2: capital_rankの定型文と完全一致すれば合格",
+        ve.check_lower_relation_text(example(capital_text)), None,
+    )
+    other_industry_text = ve.pick_industry_companies.RELATION_TEXT_MENTIONED.format(industry="銀行業")
+    check(
+        "検査27/正例3: 業種名が変わっても、その業種名を使った定型文なら合格",
+        ve.check_lower_relation_text(example(other_industry_text, ind="銀行業")), None,
+    )
+
+    # --- 落ちるべき例(5件以上) ---
+    old_text = "東証33業種の「テスト業種」に属する上場企業の例です。同じ業種でも反応は分かれます。"
+    check(
+        "検査27/負例1: 古い文(1種類だった頃の文言)は不合格",
+        ve.check_lower_relation_text(example(old_text)), "lower_relation_text_mismatch",
+    )
+
+    no_period_text = mentioned_text[:-1]
+    check(
+        "検査27/負例2: 文末の句点が無ければ不合格",
+        ve.check_lower_relation_text(example(no_period_text)), "lower_relation_text_mismatch",
+    )
+
+    fullwidth_space_text = mentioned_text.replace("この記事の", "この記事の　")
+    check(
+        "検査27/負例3: 文の途中に全角スペースが入っていれば不合格",
+        ve.check_lower_relation_text(example(fullwidth_space_text)), "lower_relation_text_mismatch",
+    )
+
+    appended_text = mentioned_text + "テスト物産は特に有望です。"
+    check(
+        "検査27/負例4: 定型文に会社ごとの説明が付け足されていれば不合格",
+        ve.check_lower_relation_text(example(appended_text)), "lower_relation_text_mismatch",
+    )
+
+    check(
+        "検査27/負例5: 定型文は正しいが、company_nameの文字列がrelation_textに含まれていれば不合格",
+        ve.check_lower_relation_text(example(mentioned_text, company_name="業種")),
+        "lower_relation_text_mismatch",
+    )
+
+
+def test_check_lower_industry():
+    """作業C(8.2): 検査22(業種の許可リスト・impact_kind)の正例・負例。
+    許可リストはこのテストの中だけの架空集合(データから作る処理は
+    build_allowed_industriesとして別に実装済み)。"""
+    allowed = {"テスト業種", "銀行業"}
+
+    def example(industry, impact_kind=None):
+        return {"industry": industry, "impact_kind": impact_kind}
+
+    # --- 落ちるべき例(5件以上) ---
+    check(
+        "検査22/負例1: 'サービス業'は許可リストに無い",
+        ve.check_lower_industry(example("サービス業"), allowed), "lower_industry_not_allowed",
+    )
+    check(
+        "検査22/負例2: 'その他製品'は許可リストに無い",
+        ve.check_lower_industry(example("その他製品"), allowed), "lower_industry_not_allowed",
+    )
+    check(
+        "検査22/負例3: 'その他金融業'は許可リストに無い",
+        ve.check_lower_industry(example("その他金融業"), allowed), "lower_industry_not_allowed",
+    )
+    check(
+        "検査22/負例4: '外国法人・組合'は許可リストに無い",
+        ve.check_lower_industry(example("外国法人・組合"), allowed), "lower_industry_not_allowed",
+    )
+    check(
+        "検査22/負例5: '銀行'(正式名'銀行業'でない略称)は許可リストに無い",
+        ve.check_lower_industry(example("銀行"), allowed), "lower_industry_not_allowed",
+    )
+    check(
+        "検査22/負例6: impact_kindが'fact_only'になっている下段の会社は不合格",
+        ve.check_lower_industry(example("テスト業種", impact_kind="fact_only"), allowed),
+        "lower_industry_not_allowed",
+    )
+
+    # --- 通るべき例(2件以上) ---
+    check(
+        "検査22/正例1: 許可リストにある業種で、impact_kindがnullなら合格",
+        ve.check_lower_industry(example("テスト業種"), allowed), None,
+    )
+    check(
+        "検査22/正例2: 別の許可業種('銀行業')でも合格",
+        ve.check_lower_industry(example("銀行業"), allowed), None,
+    )
+
+
+def test_check_lower_line_mark():
+    """作業C(8.3): 検査28(根拠の行の確定した印)の正例・負例。"""
+    line_marks = {
+        "L-OK1": "source_number_match",
+        "L-OK2": "reported_unverified",
+        "L-NG1": "explainer",
+        "L-NG2": "unverified",
+    }
+
+    def example(line_ids):
+        return {"line_ids": line_ids}
+
+    check(
+        "検査28/正例1: 確定した印がsource_number_matchなら合格",
+        ve.check_lower_line_mark(example(["L-OK1"]), line_marks), None,
+    )
+    check(
+        "検査28/正例2: 確定した印がreported_unverifiedなら合格",
+        ve.check_lower_line_mark(example(["L-OK2"]), line_marks), None,
+    )
+    check(
+        "検査28/負例1: 確定した印がexplainerなら不合格",
+        ve.check_lower_line_mark(example(["L-NG1"]), line_marks), "lower_line_mark_invalid",
+    )
+    check(
+        "検査28/負例2: 確定した印がunverifiedなら不合格",
+        ve.check_lower_line_mark(example(["L-NG2"]), line_marks), "lower_line_mark_invalid",
+    )
+    check(
+        "検査28/負例3: line_idsが空なら不合格",
+        ve.check_lower_line_mark(example([]), line_marks), "lower_line_mark_invalid",
+    )
+    check(
+        "検査28/負例4: line_idsがNoneなら不合格",
+        ve.check_lower_line_mark({"line_ids": None}, line_marks), "lower_line_mark_invalid",
+    )
+    check(
+        "検査28/負例5: 紙面に存在しない行IDを指していれば不合格",
+        ve.check_lower_line_mark(example(["L-NOT-EXIST"]), line_marks), "lower_line_mark_invalid",
+    )
+
+
+def test_check_lower_ticker():
+    """作業C: 検査13(下段のticker/ticker_source)の正例・負例。"""
+    check(
+        "検査13(下段)/正例: tickerとticker_sourceが両方あれば合格",
+        ve.check_lower_ticker({"ticker": "9001", "ticker_source": "edinet_codelist"}), None,
+    )
+    check(
+        "検査13(下段)/負例1: tickerが空なら不合格",
+        ve.check_lower_ticker({"ticker": None, "ticker_source": "edinet_codelist"}), "lower_ticker_missing",
+    )
+    check(
+        "検査13(下段)/負例2: ticker_sourceが空なら不合格",
+        ve.check_lower_ticker({"ticker": "9001", "ticker_source": ""}), "lower_ticker_missing",
+    )
+
+
+def test_check_lower_listed_and_ticker_match():
+    """作業C: 検査21(コードリスト上「上場」か)・検査31(証券コードの一致)の正例・負例。"""
+    rows = [
+        _ec_row("テスト検証株式会社", "E-VERIFY-1", "90010", capital="1000"),
+        _ec_row("テスト非上場株式会社", "E-VERIFY-2", "80010", listed="非上場", capital="1000"),
+    ]
+
+    def example(company_name, ticker, ticker_source="edinet_codelist"):
+        return {"company_name": company_name, "ticker": ticker, "ticker_source": ticker_source}
+
+    check(
+        "検査21/正例: コードリスト上「上場」で見つかれば合格",
+        ve.check_lower_listed(example("テスト検証株式会社", "9001"), rows), None,
+    )
+    check(
+        "検査21/負例1: コードリスト上「上場」でない会社は不合格",
+        ve.check_lower_listed(example("テスト非上場株式会社", "8001"), rows), "lower_not_listed",
+    )
+    check(
+        "検査21/負例2: コードリストに存在しない会社名は不合格",
+        ve.check_lower_listed(example("テスト架空株式会社", "9999"), rows), "lower_not_listed",
+    )
+    check(
+        "検査21/負例3: ticker_sourceがedinet_codelist以外なら検査21自体は適用しない(合格)",
+        ve.check_lower_listed(example("テスト架空株式会社", "9999", ticker_source="other"), rows), None,
+    )
+
+    check(
+        "検査31/正例: tickerがコードリスト上の証券コードと一致すれば合格",
+        ve.check_lower_ticker_match(example("テスト検証株式会社", "9001"), rows), None,
+    )
+    check(
+        "検査31/負例: tickerがコードリスト上の証券コードと食い違えば不合格",
+        ve.check_lower_ticker_match(example("テスト検証株式会社", "9999"), rows), "lower_ticker_mismatch",
+    )
+
+
 def test_testdata_copy_integration():
     """3.3: scripts/testdata を一時フォルダにコピーし、コピーの方に対してCLI全体を
     走らせることで、本体のscripts/testdataには一切書き込まないことを確かめる。
@@ -1413,6 +1611,11 @@ def main():
     test_pick_industry_companies_relation_and_ticker()
     test_pick_industry_companies_excluded_tickers()
     test_find_company_by_name()
+    test_check_lower_relation_text()
+    test_check_lower_industry()
+    test_check_lower_line_mark()
+    test_check_lower_ticker()
+    test_check_lower_listed_and_ticker_match()
     test_testdata_copy_integration()
     test_verify_edition_industry_integration()
 
