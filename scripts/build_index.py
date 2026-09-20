@@ -1,4 +1,4 @@
-"""trial/editions/ の下を調べ、存在する号の一覧を trial/editions/index.json に書き出すスクリプト。
+"""editions/ の下を調べ、存在する号の一覧を editions/index.json に書き出すスクリプト。
 
 使い方:
   python3 scripts/build_index.py
@@ -11,8 +11,8 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-EDITIONS_DIR = REPO_ROOT / "trial" / "editions"
-HYPOTHESES_DIR = REPO_ROOT / "trial" / "hypotheses"
+EDITIONS_DIR = REPO_ROOT / "editions"
+HYPOTHESES_DIR = REPO_ROOT / "hypotheses"
 INDEX_PATH = EDITIONS_DIR / "index.json"
 
 SLOTS = ["morning", "noon", "evening"]

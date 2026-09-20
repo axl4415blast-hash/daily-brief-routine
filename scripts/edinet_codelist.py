@@ -38,7 +38,7 @@ import edinet_fetch
 
 CODELIST_URL = "https://disclosure2dl.edinet-fsa.go.jp/searchdocument/codelist/Edinetcode.zip"
 CACHE_DIR = Path(".cache/reference")
-LOG_PATH = Path("trial/reference/codelist_log.jsonl")
+LOG_PATH = Path("reference/codelist_log.jsonl")
 RETRY_WAIT_SECONDS = 5
 
 # CSVの1行目はメタ情報(ダウンロード実行日など)で、列名は2行目にある。
