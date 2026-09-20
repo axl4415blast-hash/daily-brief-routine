@@ -878,7 +878,115 @@ def run_check_hypothesis_evidence(hyps, sources_by_id, cache_dir):
     return downgraded, unreadable
 
 
-def check_hypothesis(hyp, edition, line_ids, business_days, ng_words, sources_by_id, cache_dir, edinet_companies):
+def first_business_day_after(business_days, date_str):
+    """business_days(昇順)の中から、date_strより後(date_str自身は含まない)で
+    最初の営業日を返す。無ければNone。first_business_day_on_or_after()と違い、
+    date_strそのものは対象に含めない(>であって>=ではない)。"""
+    for day in business_days:
+        if day > date_str:
+            return day
+    return None
+
+
+def check_hypothesis_listed(hyp, codelist_rows):
+    """検査21(上段): ticker_sourceがedinet_codelistなのに、コードリスト上その会社が
+    「上場」で証券コードありの行として見つからない場合は不合格。コードリストが
+    読めない(codelist_rowsがNone)場合はこの検査を適用しない(呼び出し側で
+    codelist_unavailableをverificationに記録する)。"""
+    if hyp.get("ticker_source") != "edinet_codelist":
+        return None
+    if codelist_rows is None:
+        return None
+    match = edinet_codelist.find_company_by_name(hyp.get("company_name"), codelist_rows, [])
+    if match is None:
+        return "upper_not_listed"
+    return None
+
+
+def check_hypothesis_impact_reason(hyp):
+    """検査23: impact_kindがprice_statedまたはamount_statedなのに、impact_reasonが
+    空(null・空文字・空白のみ)なら不合格。impact_kindがfact_only・nullの仮説は
+    impact_reasonが空でも正常なので対象外。"""
+    if hyp.get("impact_kind") not in ("price_stated", "amount_stated"):
+        return None
+    impact_reason = hyp.get("impact_reason")
+    if not isinstance(impact_reason, str) or not impact_reason.strip():
+        return "impact_reason_missing"
+    return None
+
+
+def check_hypothesis_relation_text_number(hyp):
+    """検査26(上段専用。下段は対象外): relation_textに半角数字が1文字でも含まれて
+    いたら不合格。unicodedata.normalize("NFKC", ...)で全角数字を半角に揃えたうえで
+    判定する。漢数字(一・二・三…)は対象にしない(「一部の製品」「第一種」のような
+    普通の日本語まで落ちてしまうため)。"""
+    relation_text = hyp.get("relation_text") or ""
+    normalized = unicodedata.normalize("NFKC", relation_text)
+    if re.search(r"[0-9]", normalized):
+        return "relation_text_has_number"
+    return None
+
+
+def check_hypothesis_ticker_match(hyp, codelist_rows):
+    """検査31(上段): tickerが、コードリスト上の同じ会社の証券コードと一致しなければ
+    不合格。対象はticker_sourceがedinet_codelistの仮説だけ(edinet_seccode由来の仮説は
+    検査13の条件3が同じ照合をしているため対象外)。コードリストが読めない場合は
+    検査21と同じく適用しない。"""
+    if hyp.get("ticker_source") != "edinet_codelist":
+        return None
+    if codelist_rows is None:
+        return None
+    match = edinet_codelist.find_company_by_name(hyp.get("company_name"), codelist_rows, [])
+    if match is None or match.get("ticker") != hyp.get("ticker"):
+        return "upper_ticker_mismatch"
+    return None
+
+
+def check_hypothesis_baseline(hyp, edition, business_days, extra_counts):
+    """検査32: added_byがmanualでない仮説について、baseline_price_type/baseline_dateが
+    号のslotから機械的に決まる値と一致するか確かめる。
+    (a) baseline_price_type: morning→open, noon→observed, evening→next_open
+    (b) baseline_date: morning/noon→号の日付、evening→号の日付より後の最初の営業日
+    営業日一覧が空、またはeveningで期待日を求められない場合は(b)だけを飛ばし、
+    飛ばした件数をextra_counts["baseline_date_check_skipped"]に数える。"""
+    if hyp.get("added_by") == "manual":
+        return None
+
+    slot = edition.get("slot")
+    expected_type = {"morning": "open", "noon": "observed", "evening": "next_open"}.get(slot)
+    if hyp.get("baseline_price_type") != expected_type:
+        return "baseline_type_mismatch"
+
+    if slot in ("morning", "noon"):
+        expected_date = edition.get("date")
+    elif slot == "evening":
+        expected_date = first_business_day_after(business_days, edition.get("date"))
+    else:
+        expected_date = None
+
+    if expected_date is None:
+        extra_counts["baseline_date_check_skipped"] += 1
+        return None
+
+    if hyp.get("baseline_date") != expected_date:
+        return "baseline_date_mismatch"
+    return None
+
+
+def check_hypothesis_evidence_source_ref(hyp, sources_by_id):
+    """検査34: evidence_source_refが空でないのに、edition["sources"]のsource_idの
+    どれとも一致しなければ不合格。evidence_source_refがnull・空の仮説は対象外
+    (evidence_gradeがprimaryでなければnullで正常な値のため)。"""
+    ref = hyp.get("evidence_source_ref")
+    if not ref:
+        return None
+    if ref not in sources_by_id:
+        return "evidence_source_ref_not_found"
+    return None
+
+
+def check_hypothesis(hyp, edition, line_ids, business_days, ng_words, sources_by_id, cache_dir,
+                      edinet_companies, codelist_rows, extra_counts):
     if not check_minus_direction(hyp, sources_by_id, cache_dir):
         return "minus_condition_failed"
 
@@ -934,10 +1042,36 @@ def check_hypothesis(hyp, edition, line_ids, business_days, ng_words, sources_by
         if banned in relation_text:
             return "relation_text_conclusive_word"
 
+    # 要件定義書v12 5.6の順序(9→11→12→13→17→21→23→26→31→32→34)に合わせて、
+    # 新しい検査21・23・26・31・32・34をこの順で追加する(タスク16-2c-1)。
+    listed_reason = check_hypothesis_listed(hyp, codelist_rows)
+    if listed_reason:
+        return listed_reason
+
+    impact_reason_reason = check_hypothesis_impact_reason(hyp)
+    if impact_reason_reason:
+        return impact_reason_reason
+
+    relation_number_reason = check_hypothesis_relation_text_number(hyp)
+    if relation_number_reason:
+        return relation_number_reason
+
+    ticker_match_reason = check_hypothesis_ticker_match(hyp, codelist_rows)
+    if ticker_match_reason:
+        return ticker_match_reason
+
+    baseline_reason = check_hypothesis_baseline(hyp, edition, business_days, extra_counts)
+    if baseline_reason:
+        return baseline_reason
+
+    evidence_ref_reason = check_hypothesis_evidence_source_ref(hyp, sources_by_id)
+    if evidence_ref_reason:
+        return evidence_ref_reason
+
     return None
 
 
-def run_hypothesis_checks(hypotheses_doc, edition, business_days, ng_words, cache_dir, edinet_companies):
+def run_hypothesis_checks(hypotheses_doc, edition, business_days, ng_words, cache_dir, edinet_companies, codelist_rows):
     line_ids = {}
     for section, article, line in iter_lines(edition):
         line_ids[line.get("line_id")] = line.get("mark")
@@ -945,6 +1079,9 @@ def run_hypothesis_checks(hypotheses_doc, edition, business_days, ng_words, cach
     hyps = hypotheses_doc.get("hypotheses", [])
     reasons = {}
     kept = []
+    # 修正4・5・12(a): コードリストが読めなかった場合、検査21・31は適用しない
+    # (企業欄が丸ごと削除されるのを避けるため)。読めたかどうかはverificationに記録する。
+    extra_counts = {"codelist_unavailable": codelist_rows is None, "baseline_date_check_skipped": 0}
 
     market_open = edition.get("market_open", True)
     baseline_late = bool(edition.get("baseline_late"))
@@ -957,7 +1094,7 @@ def run_hypothesis_checks(hypotheses_doc, edition, business_days, ng_words, cach
             else:
                 reasons["baseline_late"] = reasons.get("baseline_late", 0) + len(hyps)
         hypotheses_doc["hypotheses"] = []
-        return len(hyps), reasons
+        return len(hyps), reasons, extra_counts
 
     sources_by_id = {s.get("source_id"): s for s in edition.get("sources", [])}
     evidence_downgrades, evidence_unreadable = run_check_hypothesis_evidence(hyps, sources_by_id, cache_dir)
@@ -966,8 +1103,27 @@ def run_hypothesis_checks(hypotheses_doc, edition, business_days, ng_words, cach
     if evidence_unreadable:
         reasons["evidence_source_unreadable"] = evidence_unreadable
 
+    # 修正2・3(要件定義書v12 3.4(2)・5.4): evidence_role/auto_check_targetはAIには
+    # 書かせず、スクリプトが確定する。AIが書いた値は一致・不一致にかかわらず必ず
+    # 上書きする(判定に使ってよいのはスクリプトが自分で決めた値だけのため)。
     for hyp in hyps:
-        reason = check_hypothesis(hyp, edition, line_ids, business_days, ng_words, sources_by_id, cache_dir, edinet_companies)
+        company_name = strip_ws(hyp.get("company_name"))
+        filer_name = strip_ws(hyp.get("evidence_filer_name"))
+        if company_name and filer_name and company_name == filer_name:
+            hyp["evidence_role"] = "filer_self"
+        else:
+            hyp["evidence_role"] = "mentioned"
+
+        if hyp.get("impact_kind") in ("price_stated", "amount_stated") and hyp["evidence_role"] == "filer_self":
+            hyp["auto_check_target"] = True
+        else:
+            hyp["auto_check_target"] = False
+
+    for hyp in hyps:
+        reason = check_hypothesis(
+            hyp, edition, line_ids, business_days, ng_words, sources_by_id, cache_dir,
+            edinet_companies, codelist_rows, extra_counts,
+        )
         if reason:
             reasons[reason] = reasons.get(reason, 0) + 1
         else:
@@ -980,7 +1136,7 @@ def run_hypothesis_checks(hypotheses_doc, edition, business_days, ng_words, cach
 
     hypotheses_doc["hypotheses"] = kept
     total_violations = sum(reasons.values())
-    return total_violations, reasons
+    return total_violations, reasons, extra_counts
 
 
 # 東証33業種のうち、業種から会社を選ぶ仕組みでは使わない業種名(本システムでは
@@ -1479,6 +1635,7 @@ def main():
 
         hypothesis_violations = 0
         hypothesis_reasons = {}
+        hypothesis_extra = {"codelist_unavailable": False, "baseline_date_check_skipped": 0}
         hypotheses_doc = None
         industry_report = None
         if args.hypotheses:
@@ -1486,8 +1643,12 @@ def main():
             hypotheses_doc["baseline_late"] = baseline_late
             hypotheses_doc["market_open"] = edition["market_open"]
             business_days = load_business_days(args.calendar)
-            hypothesis_violations, hypothesis_reasons = run_hypothesis_checks(
-                hypotheses_doc, edition, business_days, ng_words, args.cache, edinet_companies
+            # 修正12(a): コードリストは上段(hypotheses)・下段(industry_examples)の両方の
+            # 検査(21・31)で使うため、ここで1回だけ読み込み、両方に同じ結果を渡す
+            # (同じファイルを2回読む作りにしない)。
+            codelist_rows, _codelist_date = edinet_codelist.load_codelist()
+            hypothesis_violations, hypothesis_reasons, hypothesis_extra = run_hypothesis_checks(
+                hypotheses_doc, edition, business_days, ng_words, args.cache, edinet_companies, codelist_rows
             )
 
             # 検査14: 休場日(market_openがfalse)、または遅延号(baseline_lateがtrue)の号は、
@@ -1519,7 +1680,8 @@ def main():
                     hypotheses_doc["industry_examples"] = pick_result["examples"]
 
                 # 6. 下段の個別の検査(検査13・21・22・27・28・31)。
-                codelist_rows, _codelist_date = edinet_codelist.load_codelist()
+                # codelist_rowsは上段の検査を呼ぶ前に読み込み済みのものをそのまま使う
+                # (修正12(a): 同じファイルを2回読む作りにしない)。
                 kept_examples, lower_reasons, allowed_industries = run_industry_example_checks(
                     hypotheses_doc["industry_examples"], edition, codelist_rows
                 )
@@ -1587,6 +1749,8 @@ def main():
             "market_open_source": "calendar",
             "market_open_overwritten": market_open_result["overwritten"],
             "market_open_reported": market_open_result["reported"],
+            "codelist_unavailable": hypothesis_extra["codelist_unavailable"],
+            "baseline_date_check_skipped": hypothesis_extra["baseline_date_check_skipped"],
         }
         if industry_report is not None:
             edition["verification"].update(industry_report)

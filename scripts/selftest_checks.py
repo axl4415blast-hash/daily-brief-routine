@@ -35,6 +35,8 @@ import pick_industry_companies as pic
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
+_MISSING = object()  # 辞書にキー自体が無い場合を表す番人(hyp.get()がNoneを返す場合と区別するため)
+
 results = []
 
 
@@ -1767,7 +1769,7 @@ def test_check_market_open():
     # market_open=Trueが確定した号ではhypothesesがmarket_closedとして削除されない(企業欄が残る)。
     edition1["sections"] = []
     hyp_doc1 = {"hypotheses": [{"company_name": "テスト物産"}]}
-    _, reasons1 = ve.run_hypothesis_checks(hyp_doc1, edition1, [], [], "/nonexistent", None)
+    _, reasons1, _ = ve.run_hypothesis_checks(hyp_doc1, edition1, [], [], "/nonexistent", None, None)
     check("作業B/負例1: market_open=Trueならmarket_closedを理由に仮説が削除されない", "market_closed" in reasons1, False)
 
     # --- 負例2: AIがtrueと書いた休場日(2026-10-12・スポーツの日) → falseに上書き ---
@@ -1778,7 +1780,7 @@ def test_check_market_open():
 
     edition2["sections"] = []
     hyp_doc2 = {"hypotheses": [{"company_name": "テスト物産"}]}
-    violations2, reasons2 = ve.run_hypothesis_checks(hyp_doc2, edition2, [], [], "/nonexistent", None)
+    violations2, reasons2, _ = ve.run_hypothesis_checks(hyp_doc2, edition2, [], [], "/nonexistent", None, None)
     check("作業B/負例2: market_open=Falseになった号は仮説がmarket_closedとして全件削除される", reasons2.get("market_closed"), 1)
     check("作業B/負例2: 仮説(企業欄)が空になる", hyp_doc2["hypotheses"], [])
 
@@ -2394,12 +2396,17 @@ def test_check_hypothesis_baseline_late_input():
             "falsifier": "翌月大幅に悪化した場合", "baseline_price_type": "close",
             "direction": "plus", "evidence_grade": "reported",
             "ticker": "8801", "ticker_source": "edinet_codelist", "line_ids": ["L-1"],
+            # added_by="manual": このテストは検査17(期限日の計算)だけを確かめる対象で、
+            # edition({})にslotが無いため、検査32(baseline_price_type/dateの機械的な確認、
+            # added_byがmanualでない仮説だけが対象)を意図せず発動させないため。
+            "added_by": "manual",
         }
         h.update(kw)
         return h
 
     def result_for(hyp):
-        return ve.check_hypothesis(hyp, {}, line_ids, business_days, ng_words, sources, ".", None)
+        extra_counts = {"codelist_unavailable": True, "baseline_date_check_skipped": 0}
+        return ve.check_hypothesis(hyp, {}, line_ids, business_days, ng_words, sources, ".", None, None, extra_counts)
 
     # --- 正例1: baseline_observed_atが営業日そのもの ---
     expected1 = ve.compute_deadline(business_days, "2026-09-25", 5)
@@ -2470,6 +2477,332 @@ def test_check_hypothesis_baseline_late_input():
     )
 
 
+def test_evidence_role_and_auto_check_target():
+    """修正2・3: evidence_role/auto_check_targetはAIには書かせず、スクリプトが
+    確定する。AIが書いた値は一致・不一致にかかわらず必ず上書きされることを確かめる。"""
+    hyps = [
+        # 0: company_nameとevidence_filer_nameが完全一致、impact_kindがprice_stated
+        #    → filer_self かつ auto_check_target=True
+        {"company_name": "テスト物産", "evidence_filer_name": "テスト物産", "impact_kind": "price_stated"},
+        # 1: 前後に空白があっても一致とみなす(strip_ws)
+        {"company_name": "テスト物産", "evidence_filer_name": "  テスト物産　", "impact_kind": "amount_stated"},
+        # 2: evidence_filer_nameが違う会社 → mentioned、auto_check_target=False
+        {"company_name": "テスト物産", "evidence_filer_name": "他社株式会社", "impact_kind": "price_stated"},
+        # 3: evidence_filer_nameがnull → mentioned
+        {"company_name": "テスト物産", "evidence_filer_name": None, "impact_kind": "amount_stated"},
+        # 4: filer_selfだがimpact_kindがfact_only → auto_check_target=False
+        {"company_name": "テスト物産", "evidence_filer_name": "テスト物産", "impact_kind": "fact_only"},
+        # 5: AIがevidence_role="mentioned"/auto_check_target=Trueと書いても、
+        #    実際は一致するので"filer_self"に、impact_kindが無いのでauto_check_targetはFalseに
+        #    上書きされる(AIの自己申告は判定に使わない)。
+        {
+            "company_name": "テスト物産", "evidence_filer_name": "テスト物産",
+            "evidence_role": "mentioned", "auto_check_target": True,
+        },
+    ]
+    hypotheses_doc = {"hypotheses": hyps}
+    edition = {"sections": [], "market_open": True, "baseline_late": False, "sources": []}
+    ve.run_hypothesis_checks(hypotheses_doc, edition, [], [], "/nonexistent", None, None)
+
+    check("evidence_role/正例0: 完全一致+price_statedはfilei_selfかつauto_check_target=True".replace("filei", "filer"),
+          (hyps[0]["evidence_role"], hyps[0]["auto_check_target"]), ("filer_self", True))
+    check(
+        "evidence_role/正例1: 前後の空白を除いて一致すればfiler_self(auto_check_target=True)",
+        (hyps[1]["evidence_role"], hyps[1]["auto_check_target"]), ("filer_self", True),
+    )
+    check(
+        "evidence_role/負例1: 会社名が違えばmentioned(auto_check_target=False)",
+        (hyps[2]["evidence_role"], hyps[2]["auto_check_target"]), ("mentioned", False),
+    )
+    check(
+        "evidence_role/負例2: evidence_filer_nameがnullならmentioned",
+        (hyps[3]["evidence_role"], hyps[3]["auto_check_target"]), ("mentioned", False),
+    )
+    check(
+        "evidence_role/負例3: filer_selfでもimpact_kindがfact_onlyならauto_check_target=False",
+        (hyps[4]["evidence_role"], hyps[4]["auto_check_target"]), ("filer_self", False),
+    )
+    check(
+        "evidence_role/負例4(修正2・3): AIが書いたevidence_role/auto_check_targetは"
+        "一致・不一致にかかわらず必ず上書きされる",
+        (hyps[5]["evidence_role"], hyps[5]["auto_check_target"]), ("filer_self", False),
+    )
+
+
+def _hyp_base(**kw):
+    h = {"company_name": "テスト検証株式会社", "ticker": "9001", "ticker_source": "edinet_codelist"}
+    h.update(kw)
+    return h
+
+
+def test_check_hypothesis_listed_and_ticker_match():
+    """タスク16-2c-1 修正4・5: 検査21(上段。コードリスト上「上場」か)・
+    検査31(上段。証券コードの一致)の正例・負例。下段向けのcheck_lower_listed/
+    check_lower_ticker_matchと違い、対象はticker_sourceがedinet_codelistの
+    仮説だけで、コードリストが読めない場合はどちらも適用しない。"""
+    rows = [
+        _ec_row("テスト検証株式会社", "E-UVERIFY-1", "90010", capital="1000"),
+        _ec_row("テスト検証二号株式会社", "E-UVERIFY-2", "70010", capital="1000"),
+        _ec_row("テスト非上場株式会社", "E-UVERIFY-3", "80010", listed="非上場", capital="1000"),
+    ]
+
+    # --- 検査21: 正例(反応してほしい: 不合格になる) ---
+    check(
+        "検査21(上段)/正例: コードリスト上「上場」で見つからない会社は不合格",
+        ve.check_hypothesis_listed(_hyp_base(company_name="テスト非上場株式会社", ticker="8001"), rows),
+        "upper_not_listed",
+    )
+
+    # --- 検査21: 負例(反応してほしくない例。5件以上) ---
+    check(
+        "検査21(上段)/負例1: コードリスト上「上場」で見つかれば合格",
+        ve.check_hypothesis_listed(_hyp_base(), rows), None,
+    )
+    check(
+        "検査21(上段)/負例2: ticker_sourceがedinet_codelist以外なら検査21は適用しない",
+        ve.check_hypothesis_listed(_hyp_base(company_name="テスト架空株式会社", ticker_source="edinet_seccode"), rows),
+        None,
+    )
+    check(
+        "検査21(上段)/負例3: ticker_source自体が無くても検査21は適用しない",
+        ve.check_hypothesis_listed({"company_name": "テスト架空株式会社", "ticker": "9999"}, rows),
+        None,
+    )
+    check(
+        "検査21(上段)/負例4: コードリストが読めない(None)場合は検査21を適用しない",
+        ve.check_hypothesis_listed(_hyp_base(company_name="テスト非上場株式会社", ticker="8001"), None),
+        None,
+    )
+    check(
+        "検査21(上段)/負例5: 別の上場会社でも社名が完全一致すれば合格",
+        ve.check_hypothesis_listed(_hyp_base(company_name="テスト検証二号株式会社", ticker="7001"), rows),
+        None,
+    )
+
+    # --- 検査31: 正例(反応してほしい: 不合格になる) ---
+    check(
+        "検査31(上段)/正例: tickerがコードリスト上の証券コードと食い違えば不合格",
+        ve.check_hypothesis_ticker_match(_hyp_base(ticker="9999"), rows),
+        "upper_ticker_mismatch",
+    )
+
+    # --- 検査31: 負例(反応してほしくない例。5件以上) ---
+    check(
+        "検査31(上段)/負例1: tickerがコードリスト上の証券コードと一致すれば合格",
+        ve.check_hypothesis_ticker_match(_hyp_base(), rows), None,
+    )
+    check(
+        "検査31(上段)/負例2: ticker_sourceがedinet_codelist以外なら検査31は適用しない",
+        ve.check_hypothesis_ticker_match(_hyp_base(ticker="9999", ticker_source="edinet_seccode"), rows),
+        None,
+    )
+    check(
+        "検査31(上段)/負例3: ticker_source自体が無くても検査31は適用しない",
+        ve.check_hypothesis_ticker_match({"company_name": "テスト検証株式会社", "ticker": "9999"}, rows),
+        None,
+    )
+    check(
+        "検査31(上段)/負例4: コードリストが読めない(None)場合は検査31を適用しない",
+        ve.check_hypothesis_ticker_match(_hyp_base(ticker="9999"), None),
+        None,
+    )
+    check(
+        "検査31(上段)/負例5: 別の上場会社でも証券コードが一致すれば合格",
+        ve.check_hypothesis_ticker_match(_hyp_base(company_name="テスト検証二号株式会社", ticker="7001"), rows),
+        None,
+    )
+
+
+def test_check_hypothesis_impact_reason():
+    """タスク16-2c-1 修正6: 検査23(impact_kindがprice_stated/amount_statedなのに
+    impact_reasonが空なら不合格)の正例・負例。"""
+    def hyp(impact_kind, impact_reason):
+        return {"impact_kind": impact_kind, "impact_reason": impact_reason}
+
+    # --- 正例(反応してほしい: 不合格になる。3件) ---
+    check(
+        "検査23/正例1: price_statedでimpact_reasonがnullなら不合格",
+        ve.check_hypothesis_impact_reason(hyp("price_stated", None)), "impact_reason_missing",
+    )
+    check(
+        "検査23/正例2: amount_statedでimpact_reasonが空文字なら不合格",
+        ve.check_hypothesis_impact_reason(hyp("amount_stated", "")), "impact_reason_missing",
+    )
+    check(
+        "検査23/正例3: price_statedでimpact_reasonが空白だけなら不合格",
+        ve.check_hypothesis_impact_reason(hyp("price_stated", "   ")), "impact_reason_missing",
+    )
+
+    # --- 負例(反応してほしくない例。5件以上) ---
+    check(
+        "検査23/負例1: price_statedで中身のあるimpact_reasonなら合格",
+        ve.check_hypothesis_impact_reason(hyp("price_stated", "前期比増収見通しのため")), None,
+    )
+    check(
+        "検査23/負例2: amount_statedで中身のあるimpact_reasonなら合格",
+        ve.check_hypothesis_impact_reason(hyp("amount_stated", "投資額が大きいため")), None,
+    )
+    check(
+        "検査23/負例3: impact_kindがfact_onlyならimpact_reasonがnullでも対象外",
+        ve.check_hypothesis_impact_reason(hyp("fact_only", None)), None,
+    )
+    check(
+        "検査23/負例4: impact_kindがnullならimpact_reasonがnullでも対象外",
+        ve.check_hypothesis_impact_reason(hyp(None, None)), None,
+    )
+    check(
+        "検査23/負例5: 前後に空白があっても中身があれば合格",
+        ve.check_hypothesis_impact_reason(hyp("price_stated", "  理由あり  ")), None,
+    )
+
+
+def test_check_hypothesis_relation_text_number():
+    """タスク16-2c-1 修正7: 検査26(上段専用。relation_textに半角数字が含まれていたら
+    不合格)の正例・負例。漢数字は対象にしない。"""
+    def hyp(relation_text):
+        return {"relation_text": relation_text}
+
+    # --- 正例(反応してほしい: 不合格になる) ---
+    check(
+        "検査26/正例1: 半角数字を含むrelation_textは不合格",
+        ve.check_hypothesis_relation_text_number(hyp("前年同期比で10%増収した。")), "relation_text_has_number",
+    )
+    check(
+        "検査26/正例2: 全角数字もNFKC正規化後は半角として検出され不合格になる",
+        ve.check_hypothesis_relation_text_number(hyp("２０２６年３月期の決算に触れている。")),
+        "relation_text_has_number",
+    )
+
+    # --- 負例(反応してほしくない例。指示文で指定された5件) ---
+    check(
+        "検査26/負例1: 「一部の製品に使われている。」(漢数字)は反応しない",
+        ve.check_hypothesis_relation_text_number(hyp("一部の製品に使われている。")), None,
+    )
+    check(
+        "検査26/負例2: 「第一種の許可を受けている。」(漢数字)は反応しない",
+        ve.check_hypothesis_relation_text_number(hyp("第一種の許可を受けている。")), None,
+    )
+    check(
+        "検査26/負例3: 「この規制の対象となる製品を作っている。」(数字なし)は反応しない",
+        ve.check_hypothesis_relation_text_number(hyp("この規制の対象となる製品を作っている。")), None,
+    )
+    check(
+        "検査26/負例4: 「原油の調達先が中東に偏っている。」(数字なし)は反応しない",
+        ve.check_hypothesis_relation_text_number(hyp("原油の調達先が中東に偏っている。")), None,
+    )
+    check(
+        "検査26/負例5: 「半導体の製造装置を作っている。」(数字なし)は反応しない",
+        ve.check_hypothesis_relation_text_number(hyp("半導体の製造装置を作っている。")), None,
+    )
+
+
+def test_check_hypothesis_baseline():
+    """タスク16-2c-1 修正8: 検査32(added_byがmanualでない仮説のbaseline_price_type/
+    baseline_dateが号のslotから機械的に決まる値と一致するか)の正例・負例。"""
+    business_days = ve.load_business_days(str(CALENDAR_DIR))
+
+    def hyp(price_type, date, added_by=None):
+        h = {"baseline_price_type": price_type, "baseline_date": date}
+        if added_by is not None:
+            h["added_by"] = added_by
+        return h
+
+    edition_morning = {"slot": "morning", "date": "2026-09-24"}
+    edition_noon = {"slot": "noon", "date": "2026-09-24"}
+    edition_evening = {"slot": "evening", "date": "2026-09-24"}
+
+    # --- 正例(反応してほしい: 不合格になる。2件) ---
+    counts_p1 = {"codelist_unavailable": False, "baseline_date_check_skipped": 0}
+    check(
+        "検査32/正例1: 朝号でbaseline_price_typeがopenでなければ不合格",
+        ve.check_hypothesis_baseline(hyp("close", "2026-09-24"), edition_morning, business_days, counts_p1),
+        "baseline_type_mismatch",
+    )
+    counts_p2 = {"codelist_unavailable": False, "baseline_date_check_skipped": 0}
+    check(
+        "検査32/正例2: 朝号でbaseline_dateが号の日付と違えば不合格",
+        ve.check_hypothesis_baseline(hyp("open", "2026-09-25"), edition_morning, business_days, counts_p2),
+        "baseline_date_mismatch",
+    )
+
+    # --- 負例(反応してほしくない例。5件以上) ---
+    counts_n1 = {"codelist_unavailable": False, "baseline_date_check_skipped": 0}
+    check(
+        "検査32/負例1: 朝号でopen+号の日付なら合格",
+        ve.check_hypothesis_baseline(hyp("open", "2026-09-24"), edition_morning, business_days, counts_n1),
+        None,
+    )
+    counts_n2 = {"codelist_unavailable": False, "baseline_date_check_skipped": 0}
+    check(
+        "検査32/負例2: 昼号でobserved+号の日付なら合格",
+        ve.check_hypothesis_baseline(hyp("observed", "2026-09-24"), edition_noon, business_days, counts_n2),
+        None,
+    )
+    counts_n3 = {"codelist_unavailable": False, "baseline_date_check_skipped": 0}
+    check(
+        "検査32/負例3: 夕方号でnext_open+号の日付より後の最初の営業日(2026-09-25)なら合格",
+        ve.check_hypothesis_baseline(hyp("next_open", "2026-09-25"), edition_evening, business_days, counts_n3),
+        None,
+    )
+    counts_n4 = {"codelist_unavailable": False, "baseline_date_check_skipped": 0}
+    check(
+        "検査32/負例4: added_byがmanualなら型・日付が食い違っていても検査32自体を適用しない",
+        ve.check_hypothesis_baseline(hyp("close", "2099-01-01", added_by="manual"), edition_morning, business_days, counts_n4),
+        None,
+    )
+    counts_n5 = {"codelist_unavailable": False, "baseline_date_check_skipped": 0}
+    check(
+        "検査32/負例5: 営業日一覧が空の場合、日付の検算(b)だけを飛ばし型の確認(a)は行う",
+        ve.check_hypothesis_baseline(hyp("next_open", "2026-09-25"), edition_evening, [], counts_n5),
+        None,
+    )
+    check(
+        "検査32/負例5: 日付の検算を飛ばした件数がbaseline_date_check_skippedに1件記録される",
+        counts_n5["baseline_date_check_skipped"], 1,
+    )
+
+
+def test_check_hypothesis_evidence_source_ref():
+    """タスク16-2c-1 修正9: 検査34(evidence_source_refが空でないのにedition["sources"]の
+    source_idのどれとも一致しなければ不合格)の正例・負例。"""
+    sources_by_id = {"S1": {"source_id": "S1"}, "S2": {"source_id": "S2"}}
+
+    def hyp(ref):
+        h = {}
+        if ref is not _MISSING:
+            h["evidence_source_ref"] = ref
+        return h
+
+    # --- 正例(反応してほしい: 不合格になる) ---
+    check(
+        "検査34/正例: 存在しないsource_idを指していれば不合格",
+        ve.check_hypothesis_evidence_source_ref(hyp("S-MISSING"), sources_by_id),
+        "evidence_source_ref_not_found",
+    )
+
+    # --- 負例(反応してほしくない例。5件以上) ---
+    check(
+        "検査34/負例1: 存在するsource_id(S1)なら合格",
+        ve.check_hypothesis_evidence_source_ref(hyp("S1"), sources_by_id), None,
+    )
+    check(
+        "検査34/負例2: 存在するsource_id(S2)なら合格",
+        ve.check_hypothesis_evidence_source_ref(hyp("S2"), sources_by_id), None,
+    )
+    check(
+        "検査34/負例3: evidence_source_refがnullなら対象外(合格)",
+        ve.check_hypothesis_evidence_source_ref(hyp(None), sources_by_id), None,
+    )
+    check(
+        "検査34/負例4: evidence_source_refが空文字なら対象外(合格)",
+        ve.check_hypothesis_evidence_source_ref(hyp(""), sources_by_id), None,
+    )
+    check(
+        "検査34/負例5: evidence_source_refキー自体が無くても対象外(合格)",
+        ve.check_hypothesis_evidence_source_ref(hyp(_MISSING), sources_by_id), None,
+    )
+
+
 def main():
     test_read_source_text()
     test_check_evidence_source_ref()
@@ -2494,6 +2827,12 @@ def main():
     test_check_lower_ticker()
     test_check_lower_listed_and_ticker_match()
     test_run_slot_allocation()
+    test_evidence_role_and_auto_check_target()
+    test_check_hypothesis_listed_and_ticker_match()
+    test_check_hypothesis_impact_reason()
+    test_check_hypothesis_relation_text_number()
+    test_check_hypothesis_baseline()
+    test_check_hypothesis_evidence_source_ref()
     test_testdata_copy_integration()
     test_verify_edition_industry_integration()
     test_apply_source_policy()
