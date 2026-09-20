@@ -1323,7 +1323,7 @@ def print_report(edition_path, stats, stop_hits, watch_hits, dropped_inferences,
     elif hypothesis_violations:
         print(f"仮説に関する指摘件数: {hypothesis_violations}")
 
-    if industry_report and "industry_picks_discarded" in industry_report:
+    if industry_report and "industry_picks_total" not in industry_report:
         # 検査14: 休場日・遅延号のため、下段(企業欄)自体を作らなかった場合。
         print(
             "休場日、または号の遅延のため、下段(業種から選ぶ企業欄)は作りませんでした。"
@@ -1368,10 +1368,23 @@ def print_report(edition_path, stats, stop_hits, watch_hits, dropped_inferences,
             print(f"  該当した名前: {'、'.join(short_match['names'])}")
 
 
+def should_abort_rerun(existing_verification, baseline_late):
+    """再照合で企業欄が消える結果になるときにTrueを返す。
+    既に照合済み(verificationがある)の号で、そのときは遅延していなかった
+    (baseline_lateが偽だった)のに、今回の判定が真になった場合が対象。
+    この場合は号を書き戻さずに中止する(既存の号を壊さないため)。"""
+    if not existing_verification:
+        return False
+    if existing_verification.get("baseline_late") is not False:
+        return False
+    return bool(baseline_late)
+
+
 def build_first_run_record(run_at, run_at_dt, baseline_late, market_open_reported,
                             source_policy_overwritten, generated_at_raw):
     """修正2: 初回の照合結果を1回だけ記録する(first_run)。2回目以降の照合では、
-    main()がこの中身を一切書き換えない(呼び出さない)。"""
+    main()がこの中身を一切書き換えない(呼び出さない)。
+    この記録は判定には使わない。AIが書けるファイルの中にあるため。"""
     generated_dt = parse_datetime_assume_jst(generated_at_raw)
     if generated_dt is not None:
         generated_at_parsed = True
@@ -1413,15 +1426,19 @@ def main():
         except (json.JSONDecodeError, OSError) as e:
             raise EditionInvalid(f"紙面JSONを読み込めません: {e}")
 
-        # 修正2: 号のファイルを読み込んだ直後に、初回の照合結果(first_run)が
-        # 既にあるかどうかを確認する(この後の検査24より前に行う)。
-        existing_first_run = edition.get("verification", {}).get("first_run")
+        # 修正D: 号のファイルを読み込んだ直後に、既存のverification/first_runを
+        # 覚えておく。first_runは記録としてだけ引き継ぐ(判定には使わない。
+        # AIが書けるファイルの中にある値のため)。existing_verificationは
+        # should_abort_rerun()の判定にだけ使う(修正C)。
+        existing_verification = edition.get("verification")
+        existing_first_run = (existing_verification or {}).get("first_run")
 
         check_a_structure(edition)
         check_b_edition_id(edition, edition_path)
-        if existing_first_run is None:
-            # 検査24(要件3.5(9)): 2回目以降の照合(first_runが既にある号)では飛ばす。
-            check_edition_date(edition, run_at_dt)
+        # 検査24(要件3.5(9)): first_runの有無にかかわらず常に実行する(修正A)。
+        # first_runは紙面を作るAIが書けるファイルの中にあるため、その有無で
+        # 検査を飛ばすと、AIがfirst_runを自分で書いてこの検査を丸ごと避けられる。
+        check_edition_date(edition, run_at_dt)
 
         # usage/publisher_typeはAIの自己申告を信用せず、表の値で必ず上書きする。
         source_policy_result = apply_source_policy(edition, source_policy_path)
@@ -1443,13 +1460,20 @@ def main():
         stale_hits, unknown_published_at_hits = run_check_e_stale_sources(edition, run_at_dt)
         stale_check_skipped = 0  # run_at_dtは常に読み取れるため、判定を飛ばす理由が無い。
 
-        # 検査20: 号の遅延判定。2回目以降の照合(first_runが既にある号)では、
-        # 今回の実行時刻で判定し直さず、初回の値をそのまま使う(企業欄が消えないように)。
-        if existing_first_run is not None:
-            baseline_late = bool(existing_first_run.get("baseline_late"))
-        else:
-            baseline_late = run_check_baseline_late(edition, run_at_dt)
+        # 検査20: 号の遅延判定。常に今回の実行時刻で判定する(修正B)。first_runの
+        # 中の値は判定に使わない(AIが書けるファイルの中にある値のため)。
+        baseline_late = run_check_baseline_late(edition, run_at_dt)
         edition["baseline_late"] = baseline_late
+
+        # 修正C: 既に照合済みの号を、遅延の判定が変わる形で照合し直すと、
+        # 企業欄が消えてしまう。それを防ぐため、書き戻す前に中止する。
+        if should_abort_rerun(existing_verification, baseline_late):
+            raise EditionInvalid(
+                "この号は既に照合済みです。いま照合し直すと号の遅延判定(baseline_late)が"
+                "偽から真に変わり、企業欄(下段)が削除されてしまうため、"
+                "何も書き換えずに中止しました"
+                f"(実行時刻: {run_at_dt.isoformat()}, slot: {edition.get('slot')})。"
+            )
 
         edinet_companies = load_edinet_companies(args.cache)
         ticker_crosscheck = "applied" if edinet_companies is not None else "skipped"
@@ -1506,6 +1530,9 @@ def main():
                 slot_total, slot_reasons = run_slot_allocation(hypotheses_doc, edition)
 
                 industry_report = {
+                    # 修正E: 休場日・遅延号で下段を作らなかった場合との対称性のため、
+                    # 下段を作った号でも常にこのキーを出す(0件)。
+                    "industry_picks_discarded": 0,
                     "industry_picks_total": pick_result.get("total_pick_count", 0),
                     "industry_examples_total": len(hypotheses_doc["industry_examples"]),
                     "industry_example_violations": {

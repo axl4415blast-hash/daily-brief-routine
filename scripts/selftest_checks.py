@@ -1573,53 +1573,45 @@ def test_testdata_copy_integration():
     """3.3: scripts/testdata を一時フォルダにコピーし、コピーの方に対してCLI全体を
     走らせることで、本体のscripts/testdataには一切書き込まないことを確かめる。
     main()は紙面JSON・仮説JSONへ検査結果を書き戻すため、直接scripts/testdataの
-    パスを渡すとリポジトリのフィクスチャが壊れてしまう(過去に2回発生)。"""
+    パスを渡すとリポジトリのフィクスチャが壊れてしまう(過去に2回発生)。
+    修正Aにより検査24(号の日付)が常に実行時刻を基準にするため、日付固定
+    (2026-09-24)のtestdataはそのままでは使えない。コピーの方を「今日のevening号」
+    に書き直し、専用の一時カレンダー(_write_temp_calendar)を使って実行する(修正F)。"""
     src_testdata = REPO_ROOT / "scripts" / "testdata"
     with tempfile.TemporaryDirectory() as d:
         dst = Path(d) / "testdata"
         shutil.copytree(src_testdata, dst)
 
-        edition_path = dst / "editions" / "2026-09-24" / "morning.json"
-        hyp_path = dst / "hypotheses" / "2026-09-24-morning.json"
+        edition_path, hyp_path, today_str = _rebuild_testdata_as_today_evening(src_testdata, dst)
         cache_dir = dst / "cache"
-        calendar_dir = REPO_ROOT / "calendar"
+        calendar_dir = _write_temp_calendar(d, dt.datetime.strptime(today_str, "%Y-%m-%d").date(), 40)
 
-        result = subprocess.run(
-            [sys.executable, str(REPO_ROOT / "scripts" / "verify_edition.py"),
-             "--edition", str(edition_path), "--hypotheses", str(hyp_path),
-             "--cache", str(cache_dir), "--calendar", str(calendar_dir)],
-            capture_output=True, text=True,
-        )
+        result = _run_verify_cli(d, edition_path, hyp_path, cache_dir, calendar_dir)
         check(
             "testdata統合/コピーしたtestdataに対してCLI(main)が正常終了する(終了コード0)",
             result.returncode, 0,
         )
 
-    status = subprocess.run(
-        ["git", "status", "--porcelain", "--", "scripts/testdata"],
-        cwd=str(REPO_ROOT), capture_output=True, text=True,
-    )
-    check(
-        "testdata統合/scripts/testdata本体はテスト実行後もgit的に変更されていない",
-        status.stdout.strip(), "",
-    )
+    _assert_testdata_untouched("testdata統合")
 
 
 def test_verify_edition_industry_integration():
     """作業B(8.6): verify_edition.pyを1回実行するだけでindustry_examplesができること、
     同じファイルに2回続けて実行しても結果が変わらない(二重に増えない)ことを確かめる。
     実データ(EDINETコードリスト)には依存せず、架空の会社(テスト統合株式会社)だけを
-    含む偽のコードリストCSVを、一時フォルダのcwd相対.cache/reference/に置いて使う。"""
+    含む偽のコードリストCSVを、一時フォルダのcwd相対.cache/reference/に置いて使う。
+    修正Aにより検査24(号の日付)が常に実行時刻を基準にするため、日付固定
+    (2026-09-24)のtestdataはそのままでは使えない。コピーの方を「今日のevening号」
+    に書き直し、専用の一時カレンダーを使って実行する(修正F)。"""
     src_testdata = REPO_ROOT / "scripts" / "testdata"
     with tempfile.TemporaryDirectory() as d:
         work_dir = Path(d)
         dst = work_dir / "testdata"
         shutil.copytree(src_testdata, dst)
 
-        edition_path = dst / "editions" / "2026-09-24" / "morning.json"
-        hyp_path = dst / "hypotheses" / "2026-09-24-morning.json"
+        edition_path, hyp_path, today_str = _rebuild_testdata_as_today_evening(src_testdata, dst)
         cache_dir = dst / "cache"
-        calendar_dir = REPO_ROOT / "calendar"
+        calendar_dir = _write_temp_calendar(work_dir, dt.datetime.strptime(today_str, "%Y-%m-%d").date(), 40)
 
         # L-12(article_id=ART-TEST-001)は claimed_mark が reported_unverified で、
         # 出典の照合を経ずに確定した印がreported_unverifiedになる行(検査28を通る
@@ -1642,12 +1634,7 @@ def test_verify_edition_industry_integration():
         (codelist_dir / "EdinetcodeDlInfo_2026-09-24.csv").write_bytes(csv_text.encode("cp932"))
 
         def run_once():
-            return subprocess.run(
-                [sys.executable, str(REPO_ROOT / "scripts" / "verify_edition.py"),
-                 "--edition", str(edition_path), "--hypotheses", str(hyp_path),
-                 "--cache", str(cache_dir), "--calendar", str(calendar_dir)],
-                capture_output=True, text=True, cwd=str(work_dir),
-            )
+            return _run_verify_cli(work_dir, edition_path, hyp_path, cache_dir, calendar_dir)
 
         result1 = run_once()
         check(
@@ -1679,14 +1666,7 @@ def test_verify_edition_industry_integration():
             len(hyp_after2.get("industry_examples") or []), 1,
         )
 
-    status = subprocess.run(
-        ["git", "status", "--porcelain", "--", "scripts/testdata"],
-        cwd=str(REPO_ROOT), capture_output=True, text=True,
-    )
-    check(
-        "作業B/8.6: scripts/testdata本体はテスト実行後もgit的に変更されていない",
-        status.stdout.strip(), "",
-    )
+    _assert_testdata_untouched("作業B/8.6")
 
 
 SOURCE_POLICY_PATH = REPO_ROOT / "scripts" / "source_policy.csv"
@@ -1902,13 +1882,89 @@ def _copy_testdata_to(tmp_root):
     return dst
 
 
-def _run_verify_cli(work_dir, edition_path, hyp_path, cache_dir):
+def _run_verify_cli(work_dir, edition_path, hyp_path, cache_dir, calendar_dir=None):
     return subprocess.run(
         [sys.executable, str(REPO_ROOT / "scripts" / "verify_edition.py"),
          "--edition", str(edition_path), "--hypotheses", str(hyp_path),
-         "--cache", str(cache_dir), "--calendar", str(CALENDAR_DIR)],
+         "--cache", str(cache_dir), "--calendar", str(calendar_dir or CALENDAR_DIR)],
         capture_output=True, text=True, cwd=str(work_dir),
     )
+
+
+def _write_temp_calendar(work_dir, start_date, days):
+    """work_dir/calendar/{年}.json を作る。business_daysはstart_dateから連続する
+    days日分の日付文字列(土日も営業日として入れる)。年をまたぐ場合は年ごとに
+    ファイルを分ける。本番のカレンダー(実際の休日・祝日を反映したもの)とは
+    違う形になるが、テストの目的(照合の流れが通るか)には影響しない。"""
+    calendar_dir = Path(work_dir) / "calendar"
+    calendar_dir.mkdir(parents=True, exist_ok=True)
+    by_year = {}
+    current = start_date
+    for _ in range(days):
+        by_year.setdefault(current.year, []).append(current.strftime("%Y-%m-%d"))
+        current = current + dt.timedelta(days=1)
+    for year, business_days in by_year.items():
+        payload = {
+            "schema_version": 1, "year": year,
+            "business_days_count": len(business_days), "business_days": business_days,
+        }
+        (calendar_dir / f"{year}.json").write_text(
+            json.dumps(payload, ensure_ascii=False, indent=1), encoding="utf-8",
+        )
+    return calendar_dir
+
+
+def _expected_edition_date(slot, run_at_dt):
+    """check_edition_date()と同じ規則で「期待される日付」を計算する(テスト用)。"""
+    local_dt = run_at_dt.astimezone(ve.JST)
+    if slot == "evening" and local_dt.time() < dt.time(5, 0):
+        return (local_dt - dt.timedelta(days=1)).strftime("%Y-%m-%d")
+    return local_dt.strftime("%Y-%m-%d")
+
+
+def _rebuild_testdata_as_today_evening(src_testdata_root, dst_root):
+    """scripts/testdataのmorning.json(日付固定: 2026-09-24)を、日付固定ではなく
+    「今日のevening号」として書き直したコピーをdst_root配下に作る(修正F)。
+    検査24が実行時刻を基準にするようになったため、日付が実行時刻と一致しないと
+    号を保存できなくなった。slotをeveningにするのは、朝号・昼号のままだと
+    テストの実行時刻によっては遅延(baseline_late)と判定され、企業欄が消えて
+    しまうため(evening号は検査20の対象外)。baseline_price_typeをnext_openに
+    するのは、baseline_dateを翌日にしたことに合わせるため。
+    戻り値: (edition_path, hyp_path, today_str)。"""
+    now = dt.datetime.now(ve.JST)
+    today_str = _expected_edition_date("evening", now)
+    tomorrow_str = (dt.datetime.strptime(today_str, "%Y-%m-%d") + dt.timedelta(days=1)).strftime("%Y-%m-%d")
+
+    edition = json.loads((src_testdata_root / "editions" / "2026-09-24" / "morning.json").read_text(encoding="utf-8"))
+    hyp = json.loads((src_testdata_root / "hypotheses" / "2026-09-24-morning.json").read_text(encoding="utf-8"))
+
+    edition_id = f"{today_str}-evening"
+    edition["edition_id"] = edition_id
+    edition["date"] = today_str
+    edition["slot"] = "evening"
+    edition.pop("verification", None)
+    edition.pop("baseline_late", None)
+
+    hyp["edition_id"] = edition_id
+    for h in hyp.get("hypotheses", []):
+        horizon = h.get("horizon_business_days")
+        h["baseline_date"] = tomorrow_str
+        h["baseline_price_type"] = "next_open"
+        if isinstance(horizon, int):
+            deadline = dt.datetime.strptime(tomorrow_str, "%Y-%m-%d") + dt.timedelta(days=horizon)
+            h["deadline_date"] = deadline.strftime("%Y-%m-%d")
+
+    edition_dir = dst_root / "editions" / today_str
+    edition_dir.mkdir(parents=True, exist_ok=True)
+    edition_path = edition_dir / "evening.json"
+    edition_path.write_text(json.dumps(edition, ensure_ascii=False, indent=1), encoding="utf-8")
+
+    hyp_dir = dst_root / "hypotheses"
+    hyp_dir.mkdir(parents=True, exist_ok=True)
+    hyp_path = hyp_dir / f"{edition_id}.json"
+    hyp_path.write_text(json.dumps(hyp, ensure_ascii=False, indent=1), encoding="utf-8")
+
+    return edition_path, hyp_path, today_str
 
 
 def _write_fake_codelist(work_dir, rows):
@@ -1968,10 +2024,11 @@ def test_first_run_created_on_first_verification():
         hyp_path = dst / "hypotheses" / "2026-09-24-morning.json"
         cache_dir = dst / "cache"
 
-        today = dt.datetime.now(ve.JST).strftime("%Y-%m-%d")
+        today = _expected_edition_date("evening", dt.datetime.now(ve.JST))
         edition = json.loads(edition_path.read_text(encoding="utf-8"))
         edition.pop("verification", None)
         edition["date"] = today
+        edition["slot"] = "evening"  # 門限(検査20)の対象外にして、baseline_lateを気にせず済むようにする
         edition["generated_at"] = "壊れた日時"
         edition_path.write_text(json.dumps(edition, ensure_ascii=False, indent=1), encoding="utf-8")
 
@@ -2002,10 +2059,11 @@ def test_first_run_unchanged_on_second_run():
         hyp_path = dst / "hypotheses" / "2026-09-24-morning.json"
         cache_dir = dst / "cache"
 
-        today = dt.datetime.now(ve.JST).strftime("%Y-%m-%d")
+        today = _expected_edition_date("evening", dt.datetime.now(ve.JST))
         edition = json.loads(edition_path.read_text(encoding="utf-8"))
         edition.pop("verification", None)
         edition["date"] = today
+        edition["slot"] = "evening"  # 門限(検査20)の対象外にして、baseline_lateを気にせず済むようにする
         edition_path.write_text(json.dumps(edition, ensure_ascii=False, indent=1), encoding="utf-8")
 
         r1 = _run_verify_cli(d, edition_path, hyp_path, cache_dir)
@@ -2021,81 +2079,59 @@ def test_first_run_unchanged_on_second_run():
     _assert_testdata_untouched("first_run/2回照合テスト")
 
 
-def test_first_run_freezes_baseline_late_and_keeps_industry_examples():
-    """修正1+2の正例: 一度baseline_late=falseとして記録された号は、その後いつ
-    再照合しても(実行時刻が門限を過ぎていても)baseline_lateは偽のままで、
-    下段(企業欄)が消えないことを確かめる。
-    未検証の点: 実際に08:00→09:30と実行時刻を変えて再現することは、この環境に
-    時刻を差し替える手段が無いためできない。ここでは「初回にbaseline_late=false
-    として記録済み」の状態を直接作り、今の実行時刻(いつでもよい)で再照合しても
-    結果が変わらないことで代替して確かめている。"""
-    with tempfile.TemporaryDirectory() as d:
-        dst = _copy_testdata_to(d)
-        edition_path = dst / "editions" / "2026-09-24" / "morning.json"
-        hyp_path = dst / "hypotheses" / "2026-09-24-morning.json"
-        cache_dir = dst / "cache"
-
-        edition = json.loads(edition_path.read_text(encoding="utf-8"))
-        edition["date"] = "2026-09-24"  # 営業日(確認済み)
-        edition["verification"] = {"first_run": {
-            "run_at": "2026-09-24T08:00:00+09:00",
-            "baseline_late": False,
-            "market_open_reported": True,
-            "source_policy_overwritten": 0,
-            "generated_at_reported": "2026-09-24T07:50:00+09:00",
-            "generated_at_parsed": True,
-            "generated_at_drift_minutes": 10,
-        }}
-        edition_path.write_text(json.dumps(edition, ensure_ascii=False, indent=1), encoding="utf-8")
-
-        hyp = json.loads(hyp_path.read_text(encoding="utf-8"))
-        hyp["industry_picks"] = [{
-            "article_id": "ART-TEST-001", "event_id": "EVT-FREEZE",
-            "industry": "テスト凍結業種", "industry_line_ids": ["L-12"],
-        }]
-        hyp_path.write_text(json.dumps(hyp, ensure_ascii=False, indent=1), encoding="utf-8")
-
-        _write_fake_codelist(d, [("E-FREEZE-1", "テスト凍結株式会社", "テスト凍結業種", "上場", "5000", "90020")])
-
-        result = _run_verify_cli(d, edition_path, hyp_path, cache_dir)
-        check("first_run/凍結: 再照合は正常終了する", result.returncode, 0)
-
-        edition_after = json.loads(edition_path.read_text(encoding="utf-8"))
-        check(
-            "first_run/凍結: baseline_lateは初回のfalseのまま(実行時刻で判定し直さない)",
-            edition_after.get("baseline_late"), False,
-        )
-        check(
-            "first_run/凍結: first_run.run_atは初回の08:00のまま書き換わらない",
-            edition_after["verification"]["first_run"]["run_at"], "2026-09-24T08:00:00+09:00",
-        )
-
-        hyp_after = json.loads(hyp_path.read_text(encoding="utf-8"))
-        check(
-            "first_run/凍結: 企業欄(industry_examples)が消えずに1社作られる",
-            len(hyp_after.get("industry_examples") or []), 1,
-        )
-
-    _assert_testdata_untouched("first_run/凍結テスト")
+def test_should_abort_rerun():
+    """修正C(F.4): should_abort_rerun()の単体テスト。C.1の表の7通りをそのまま
+    テストにする。実行時刻には一切依存しない(この環境には時刻を差し替える手段が
+    無く、あってはならないため。紙面を作るAIが同じコマンドを実行できてしまう)。"""
+    check(
+        "should_abort_rerun/1: verificationが無い(初回)+今回真 → 偽(中止しない)",
+        ve.should_abort_rerun(None, True), False,
+    )
+    check(
+        "should_abort_rerun/2: 既存baseline_late=false+今回真 → 真(中止する)",
+        ve.should_abort_rerun({"baseline_late": False}, True), True,
+    )
+    check(
+        "should_abort_rerun/3: 既存baseline_late=false+今回偽 → 偽",
+        ve.should_abort_rerun({"baseline_late": False}, False), False,
+    )
+    check(
+        "should_abort_rerun/4: 既存baseline_late=true+今回真 → 偽",
+        ve.should_abort_rerun({"baseline_late": True}, True), False,
+    )
+    check(
+        "should_abort_rerun/5: 既存baseline_late=true+今回偽 → 偽",
+        ve.should_abort_rerun({"baseline_late": True}, False), False,
+    )
+    check(
+        "should_abort_rerun/6: 既存にbaseline_lateキーが無い+今回真 → 偽",
+        ve.should_abort_rerun({}, True), False,
+    )
+    check(
+        "should_abort_rerun/7: 既存のbaseline_lateがNone+今回真 → 偽",
+        ve.should_abort_rerun({"baseline_late": None}, True), False,
+    )
 
 
 def test_skip_companies_when_market_closed():
     """修正3の正例: market_openがfalseの号は、下段(industry_examples)も作らず、
-    industry_picks_discardedに件数が記録される。"""
+    industry_picks_discardedに件数が記録される。
+    修正Aにより検査24が常に実行時刻の日付を基準にするため、dateは今日(動的)にする
+    必要がある。市場が休みかどうかは実際の暦とは無関係にしたいので、この年の
+    business_daysが空の専用カレンダーを一時フォルダに作って渡す(市場は必ず休み
+    という設定にする)。"""
     with tempfile.TemporaryDirectory() as d:
         dst = _copy_testdata_to(d)
         edition_path = dst / "editions" / "2026-09-24" / "morning.json"
         hyp_path = dst / "hypotheses" / "2026-09-24-morning.json"
         cache_dir = dst / "cache"
 
+        now = dt.datetime.now(ve.JST)
+        today = _expected_edition_date("evening", now)
         edition = json.loads(edition_path.read_text(encoding="utf-8"))
-        edition["date"] = "2026-09-20"  # 休場日(確認済み: 日曜)
-        edition["verification"] = {"first_run": {
-            "run_at": "2026-09-20T08:00:00+09:00", "baseline_late": False,
-            "market_open_reported": None, "source_policy_overwritten": 0,
-            "generated_at_reported": None, "generated_at_parsed": False,
-            "generated_at_drift_minutes": None,
-        }}
+        edition.pop("verification", None)
+        edition["date"] = today
+        edition["slot"] = "evening"
         edition_path.write_text(json.dumps(edition, ensure_ascii=False, indent=1), encoding="utf-8")
 
         hyp = json.loads(hyp_path.read_text(encoding="utf-8"))
@@ -2105,7 +2141,16 @@ def test_skip_companies_when_market_closed():
         ]
         hyp_path.write_text(json.dumps(hyp, ensure_ascii=False, indent=1), encoding="utf-8")
 
-        result = _run_verify_cli(d, edition_path, hyp_path, cache_dir)
+        # この年は1日も営業日が無い、という専用カレンダー(市場は必ず休みになる)。
+        calendar_dir = Path(d) / "calendar"
+        calendar_dir.mkdir(parents=True, exist_ok=True)
+        year = today[:4]
+        (calendar_dir / f"{year}.json").write_text(
+            json.dumps({"schema_version": 1, "year": int(year), "business_days_count": 0, "business_days": []}),
+            encoding="utf-8",
+        )
+
+        result = _run_verify_cli(d, edition_path, hyp_path, cache_dir, calendar_dir)
         check("検査14/正例: 休場日の号は正常終了する", result.returncode, 0)
 
         edition_after = json.loads(edition_path.read_text(encoding="utf-8"))
@@ -2126,57 +2171,13 @@ def test_skip_companies_when_market_closed():
     _assert_testdata_untouched("検査14/休場日テスト")
 
 
-def test_skip_companies_when_baseline_late():
-    """修正3の正例: baseline_lateがtrueの号は、営業日であっても下段を作らない。"""
-    with tempfile.TemporaryDirectory() as d:
-        dst = _copy_testdata_to(d)
-        edition_path = dst / "editions" / "2026-09-24" / "morning.json"
-        hyp_path = dst / "hypotheses" / "2026-09-24-morning.json"
-        cache_dir = dst / "cache"
-
-        edition = json.loads(edition_path.read_text(encoding="utf-8"))
-        edition["date"] = "2026-09-24"  # 営業日(確認済み)
-        edition["verification"] = {"first_run": {
-            "run_at": "2026-09-24T09:20:00+09:00", "baseline_late": True,
-            "market_open_reported": True, "source_policy_overwritten": 0,
-            "generated_at_reported": "2026-09-24T08:45:00+09:00",
-            "generated_at_parsed": True, "generated_at_drift_minutes": 35,
-        }}
-        edition_path.write_text(json.dumps(edition, ensure_ascii=False, indent=1), encoding="utf-8")
-
-        hyp = json.loads(hyp_path.read_text(encoding="utf-8"))
-        hyp["industry_picks"] = [
-            {"article_id": "ART-TEST-001", "event_id": "EVT-C", "industry": "テスト遅延業種", "industry_line_ids": ["L-12"]},
-        ]
-        hyp_path.write_text(json.dumps(hyp, ensure_ascii=False, indent=1), encoding="utf-8")
-
-        result = _run_verify_cli(d, edition_path, hyp_path, cache_dir)
-        check("検査14/正例: 遅延号(baseline_late)は正常終了する", result.returncode, 0)
-
-        edition_after = json.loads(edition_path.read_text(encoding="utf-8"))
-        check("検査14/正例: 遅延号でもmarket_openはtrueのまま(営業日のため)", edition_after.get("market_open"), True)
-        check(
-            "検査14/正例: 遅延号はindustry_picks_discardedが1になる",
-            edition_after["verification"].get("industry_picks_discarded"), 1,
-        )
-
-        hyp_after = json.loads(hyp_path.read_text(encoding="utf-8"))
-        check("検査14/正例: 遅延号はindustry_examplesが0件になる", len(hyp_after.get("industry_examples") or []), 0)
-
-    _assert_testdata_untouched("検査14/遅延号テスト")
-
-
 def test_industry_examples_not_skipped_when_market_open_and_not_late():
     """修正3の負例(5件以上): 営業日・遅延なしの号では、業種の数や記事の数を変えても
     これまでどおり下段(industry_examples)が作られ、industry_picks_discardedは
-    記録されない(スキップされない)ことを確かめる。"""
-    base_verification = {"first_run": {
-        "run_at": "2026-09-24T08:00:00+09:00", "baseline_late": False,
-        "market_open_reported": True, "source_policy_overwritten": 0,
-        "generated_at_reported": "2026-09-24T07:50:00+09:00",
-        "generated_at_parsed": True, "generated_at_drift_minutes": 10,
-    }}
-
+    0のまま(修正E)であることを確かめる。
+    修正Aにより検査24が常に実行時刻の日付を基準にするため、dateは今日(動的)にし、
+    slotはevening(門限の対象外)にする。今日が営業日として扱われるよう、専用の
+    一時カレンダー(_write_temp_calendar)を使う。"""
     variants = [
         (
             "1業種1社(1記事)",
@@ -2217,9 +2218,11 @@ def test_industry_examples_not_skipped_when_market_open_and_not_late():
             hyp_path = dst / "hypotheses" / "2026-09-24-morning.json"
             cache_dir = dst / "cache"
 
+            today = _expected_edition_date("evening", dt.datetime.now(ve.JST))
             edition = json.loads(edition_path.read_text(encoding="utf-8"))
-            edition["date"] = "2026-09-24"
-            edition["verification"] = json.loads(json.dumps(base_verification))
+            edition.pop("verification", None)
+            edition["date"] = today
+            edition["slot"] = "evening"
             if extra_article:
                 edition["sections"][0]["articles"].append(extra_article)
             edition_path.write_text(json.dumps(edition, ensure_ascii=False, indent=1), encoding="utf-8")
@@ -2229,14 +2232,15 @@ def test_industry_examples_not_skipped_when_market_open_and_not_late():
             hyp_path.write_text(json.dumps(hyp, ensure_ascii=False, indent=1), encoding="utf-8")
 
             _write_fake_codelist(d, codelist_rows)
+            calendar_dir = _write_temp_calendar(d, dt.datetime.strptime(today, "%Y-%m-%d").date(), 5)
 
-            result = _run_verify_cli(d, edition_path, hyp_path, cache_dir)
+            result = _run_verify_cli(d, edition_path, hyp_path, cache_dir, calendar_dir)
             check(f"検査14/負例({label}): 正常終了する", result.returncode, 0)
 
             edition_after = json.loads(edition_path.read_text(encoding="utf-8"))
             check(
-                f"検査14/負例({label}): industry_picks_discardedは記録されない(スキップされていない)",
-                "industry_picks_discarded" in edition_after.get("verification", {}), False,
+                f"検査14/負例({label}): industry_picks_discardedは0のまま(修正E、スキップされていない)",
+                edition_after.get("verification", {}).get("industry_picks_discarded"), 0,
             )
 
             hyp_after = json.loads(hyp_path.read_text(encoding="utf-8"))
@@ -2293,8 +2297,11 @@ def test_check_edition_date():
     )
 
 
-def test_edition_date_check_skipped_when_first_run_exists():
-    """検査24の負例: first_runが既にある号は、日付が実行時刻と食い違っていても落ちない。"""
+def test_edition_date_check_always_runs_even_with_first_run():
+    """検査24(F.3、修正Aにより仕様が反転): first_runが既にある号でも検査24は
+    飛ばされない。日付が実行時刻と食い違っていれば、first_runの有無に関係なく
+    保存できない(終了コード1)。実行時刻に依存せず、常に成り立つ(今日以外の
+    日付を書けば必ず落ちるため)。"""
     with tempfile.TemporaryDirectory() as d:
         dst = _copy_testdata_to(d)
         edition_path = dst / "editions" / "2026-09-24" / "morning.json"
@@ -2313,11 +2320,47 @@ def test_edition_date_check_skipped_when_first_run_exists():
 
         result = _run_verify_cli(d, edition_path, hyp_path, cache_dir)
         check(
-            "検査24/負例: first_runが既にある号は日付が食い違っていても保存できる(終了コード0)",
-            result.returncode, 0,
+            "検査24/F.3: first_runが既にあっても日付が食い違えば保存できない(終了コード1)",
+            result.returncode, 1,
         )
 
-    _assert_testdata_untouched("検査24/first_run有りテスト")
+    _assert_testdata_untouched("検査24/F.3テスト")
+
+
+def test_edition_date_check_cannot_be_bypassed_by_forged_first_run():
+    """検査24の捏造対策テスト(F.5): 紙面を作るAIがverification.first_run.baseline_late
+    にfalseを書き込み、かつdateを実行時刻と食い違わせても、検査24は飛ばされず
+    号は保存されない。号のファイルも一切書き換わらないことを確かめる。"""
+    with tempfile.TemporaryDirectory() as d:
+        dst = _copy_testdata_to(d)
+        edition_path = dst / "editions" / "2026-09-24" / "morning.json"
+        hyp_path = dst / "hypotheses" / "2026-09-24-morning.json"
+        cache_dir = dst / "cache"
+
+        edition = json.loads(edition_path.read_text(encoding="utf-8"))
+        edition["date"] = "2026-01-01"  # 実行時刻とは明らかに食い違う日付(AIによる捏造)
+        edition["verification"] = {"first_run": {
+            "run_at": "2026-01-01T08:00:00+09:00", "baseline_late": False,
+            "market_open_reported": True, "source_policy_overwritten": 0,
+            "generated_at_reported": None, "generated_at_parsed": False,
+            "generated_at_drift_minutes": None,
+        }}
+        before_text = json.dumps(edition, ensure_ascii=False, indent=1)
+        edition_path.write_text(before_text, encoding="utf-8")
+
+        result = _run_verify_cli(d, edition_path, hyp_path, cache_dir)
+        check(
+            "検査24/捏造対策: first_run.baseline_late=falseを書いても保存できない(終了コード1)",
+            result.returncode, 1,
+        )
+
+        after_text = edition_path.read_text(encoding="utf-8")
+        check(
+            "検査24/捏造対策: 号のファイルは一切書き換わっていない",
+            after_text, before_text,
+        )
+
+    _assert_testdata_untouched("検査24/捏造対策テスト")
 
 
 def test_evidence_downgrade_target_is_reported():
@@ -2452,12 +2495,12 @@ def main():
     test_build_first_run_record()
     test_first_run_created_on_first_verification()
     test_first_run_unchanged_on_second_run()
-    test_first_run_freezes_baseline_late_and_keeps_industry_examples()
+    test_should_abort_rerun()
     test_skip_companies_when_market_closed()
-    test_skip_companies_when_baseline_late()
     test_industry_examples_not_skipped_when_market_open_and_not_late()
     test_check_edition_date()
-    test_edition_date_check_skipped_when_first_run_exists()
+    test_edition_date_check_always_runs_even_with_first_run()
+    test_edition_date_check_cannot_be_bypassed_by_forged_first_run()
     test_evidence_downgrade_target_is_reported()
     test_check_hypothesis_baseline_late_input()
 
