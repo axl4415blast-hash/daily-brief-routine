@@ -1,0 +1,628 @@
+{
+ "schema_version": 2,
+ "edition_id": "2026-09-20-evening",
+ "date": "2026-09-20",
+ "slot": "evening",
+ "generated_at": "2026-09-20T20:15:00+09:00",
+ "market_open": false,
+ "baseline": {
+  "date": "2026-09-24",
+  "price_type": "next_open"
+ },
+ "sources": [
+  {
+   "source_id": "SRC-001",
+   "url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20260916a.htm",
+   "publisher": "Board of Governors of the Federal Reserve System",
+   "publisher_type": "central_bank",
+   "title": "Federal Reserve issues FOMC statement",
+   "published_at": null,
+   "fetched_at": "2026-09-20T19:58:00+09:00",
+   "fetch_method": "curl",
+   "content_sha256": "f999e16c1fe1c1fde3025c60cbf01aeb80189f917f66eb0a6fec8d00131e3724",
+   "usage": "quotable",
+   "attribution": "出典：Board of Governors of the Federal Reserve System「Federal Reserve issues FOMC statement」（https://www.federalreserve.gov/newsevents/pressreleases/monetary20260916a.htm）",
+   "processing_note": "本サイトが同資料をもとに作成"
+  },
+  {
+   "source_id": "SRC-002",
+   "url": "https://www.jetro.go.jp/biznews/2026/08/b7f19382c4f8e3ca.html",
+   "publisher": "日本貿易振興機構（ジェトロ）",
+   "publisher_type": "other",
+   "title": "トランプ米大統領、ドローン・同部品の輸入に232条関税の適用を決定、9月発動",
+   "published_at": null,
+   "fetched_at": "2026-09-20T19:59:00+09:00",
+   "fetch_method": "curl",
+   "content_sha256": "fe68db52b8062c0716b79649380f48de4eebefbf719cd1d86e49c9f183cd760e",
+   "usage": "snippet_only",
+   "attribution": "出典：日本貿易振興機構（ジェトロ）「トランプ米大統領、ドローン・同部品の輸入に232条関税の適用を決定、9月発動」（https://www.jetro.go.jp/biznews/2026/08/b7f19382c4f8e3ca.html）",
+   "processing_note": "本サイトが同資料をもとに作成"
+  },
+  {
+   "source_id": "SRC-003",
+   "url": "https://www.jetro.go.jp/biznews/2026/09/4c83433f1cb90d52.html",
+   "publisher": "日本貿易振興機構（ジェトロ）",
+   "publisher_type": "other",
+   "title": "米連邦下院、ロシアとロシア産エネルギー主要輸入国への追加関税・制裁法案を可決",
+   "published_at": null,
+   "fetched_at": "2026-09-20T19:59:00+09:00",
+   "fetch_method": "curl",
+   "content_sha256": "5ff7b4683ce94608b630fde3bd4b04206d50888a3ec9b9dd59b6c3438f78ebb6",
+   "usage": "snippet_only",
+   "attribution": "出典：日本貿易振興機構（ジェトロ）「米連邦下院、ロシアとロシア産エネルギー主要輸入国への追加関税・制裁法案を可決」（https://www.jetro.go.jp/biznews/2026/09/4c83433f1cb90d52.html）",
+   "processing_note": "本サイトが同資料をもとに作成"
+  },
+  {
+   "source_id": "SRC-005",
+   "url": "https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf",
+   "publisher": "財務省",
+   "publisher_type": "government_statistics",
+   "title": "令和8年8月分貿易統計（速報）",
+   "published_at": null,
+   "fetched_at": "2026-09-20T20:00:00+09:00",
+   "fetch_method": "curl",
+   "content_sha256": "de50a5b397524444872570816d9314913452dcfbfee522a5b4b6bb928924f35e",
+   "usage": "quotable",
+   "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+   "processing_note": "本サイトが同資料をもとに作成"
+  },
+  {
+   "source_id": "SRC-006",
+   "url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20260916a1.htm",
+   "publisher": "Board of Governors of the Federal Reserve System",
+   "publisher_type": "central_bank",
+   "title": "Implementation Note issued September 16, 2026",
+   "published_at": null,
+   "fetched_at": "2026-09-20T20:02:00+09:00",
+   "fetch_method": "curl",
+   "content_sha256": "62fec1eb725335362bd57e930d27538d54f2ff97ccee71d3e7767cfa32289d8d",
+   "usage": "quotable",
+   "attribution": "出典：Board of Governors of the Federal Reserve System「Implementation Note issued September 16, 2026」（https://www.federalreserve.gov/newsevents/pressreleases/monetary20260916a1.htm）",
+   "processing_note": "本サイトが同資料をもとに作成"
+  }
+ ],
+ "sections": [
+  {
+   "section_id": "big",
+   "title": "大きな出来事",
+   "articles": [
+    {
+     "article_id": "ART-2026-09-20-001",
+     "event_id": "EVT-2026-09-20-001",
+     "headline": "米FRB、フェデラルファンド金利を3.75〜4.00％に引き上げ 約3年ぶりの利上げ",
+     "lines": [
+      {
+       "line_id": "L-001-01",
+       "text": "米連邦公開市場委員会（FOMC）は9月16日、フェデラルファンド金利の誘導目標を0.25ポイント引き上げ、上限を4％とする声明を発表した。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 4,
+         "unit": "%",
+         "label": "FF金利誘導目標の上限"
+        }
+       ],
+       "source_ref": "SRC-001",
+       "excerpt": "to 4 percent, in support of the Federal Reserve's dual mandate.",
+       "attribution": "出典：Board of Governors of the Federal Reserve System「Federal Reserve issues FOMC statement」（https://www.federalreserve.gov/newsevents/pressreleases/monetary20260916a.htm）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-001-02",
+       "text": "この声明は、FOMCメンバー12人の賛成、反対0人という全会一致で承認された。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 12,
+         "unit": "人",
+         "label": "FOMC声明への賛成票数"
+        }
+       ],
+       "source_ref": "SRC-001",
+       "excerpt": "The Federal Open Market Committee approved the following statement for release by a 12 – 0 vote",
+       "attribution": "出典：Board of Governors of the Federal Reserve System「Federal Reserve issues FOMC statement」（https://www.federalreserve.gov/newsevents/pressreleases/monetary20260916a.htm）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-001-03",
+       "text": "FRB理事会は、準備預金付利金利（IOER）を3.90％に引き上げることを全会一致で決定した。9月17日から適用される。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 3.9,
+         "unit": "%",
+         "label": "準備預金付利金利（IOER）"
+        }
+       ],
+       "source_ref": "SRC-006",
+       "excerpt": "to raise the interest rate paid on reserve balances to 3.90 percent, effective September 17, 2026.",
+       "attribution": "出典：Board of Governors of the Federal Reserve System「Implementation Note issued September 16, 2026」（https://www.federalreserve.gov/newsevents/pressreleases/monetary20260916a1.htm）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-001-04",
+       "text": "プライマリークレジットレート（連銀貸出金利）も0.25ポイント引き上げられ、4.0％となった。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 4.0,
+         "unit": "%",
+         "label": "プライマリークレジットレート"
+        }
+       ],
+       "source_ref": "SRC-006",
+       "excerpt": "approve a 1/4 percentage point increase in the primary credit rate to 4.0 percent, effective September 17, 2026.",
+       "attribution": "出典：Board of Governors of the Federal Reserve System「Implementation Note issued September 16, 2026」（https://www.federalreserve.gov/newsevents/pressreleases/monetary20260916a1.htm）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-001-05",
+       "text": "翌日物リバースレポ（資金吸収オペ）の実施金利は3.75％に設定された。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 3.75,
+         "unit": "%",
+         "label": "翌日物リバースレポ実施金利"
+        }
+       ],
+       "source_ref": "SRC-006",
+       "excerpt": "Conduct standing overnight reverse repurchase agreement operations at an offering rate of 3.75 percent",
+       "attribution": "出典：Board of Governors of the Federal Reserve System「Implementation Note issued September 16, 2026」（https://www.federalreserve.gov/newsevents/pressreleases/monetary20260916a1.htm）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-001-06",
+       "text": "翌日物レポ（資金供給オペ）の実施金利は4.0％に設定された。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 4.0,
+         "unit": "%",
+         "label": "翌日物レポ実施金利"
+        }
+       ],
+       "source_ref": "SRC-006",
+       "excerpt": "Conduct standing overnight repurchase agreement operations at a rate of 4.0 percent.",
+       "attribution": "出典：Board of Governors of the Federal Reserve System「Implementation Note issued September 16, 2026」（https://www.federalreserve.gov/newsevents/pressreleases/monetary20260916a1.htm）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-001-07",
+       "text": "FF金利は、銀行間で資金を貸し借りする際の指標となる金利で、企業や個人の借り入れコストに幅広く影響する。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "source_ref": null,
+       "excerpt": null,
+       "attribution": null,
+       "processing_note": null,
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-001-08",
+       "text": "日本銀行も今月、政策金利の引き上げを決定したばかりで、日米の金融政策がそろって引き締め方向に動いている。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "source_ref": null,
+       "excerpt": null,
+       "attribution": null,
+       "processing_note": null,
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-001-09",
+       "text": "借入コストの上昇は、住宅ローンや設備投資など、資金を借りて事業や消費を行うあらゆる業種に及びうる。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "source_ref": null,
+       "excerpt": null,
+       "attribution": null,
+       "processing_note": null,
+       "mark": "explainer",
+       "mark_reason": null
+      }
+     ],
+     "inferences": [
+      {
+       "inference_id": "INF-2026-09-20-001-1",
+       "text": "金利の高い状態が続けば、借り入れに依存する設備投資や住宅関連など、資金調達コストの影響を受けやすい業種で調達コストが上がる可能性がある。",
+       "falsifier": "FRBが早期に利下げへ転じれば、この見方は成り立たない。",
+       "check_metric": "FRBの次回FOMC声明におけるフェデラルファンド金利誘導目標",
+       "check_by": "2026-10-31"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "section_id": "change",
+   "title": "新しい変化",
+   "articles": []
+  },
+  {
+   "section_id": "ripple",
+   "title": "波及を追う",
+   "articles": [
+    {
+     "article_id": "ART-2026-09-20-002",
+     "event_id": "EVT-2026-09-20-002",
+     "headline": "半導体需要の高まりが、川上の製造装置メーカーにまで及ぶ ― 8月の輸出統計から",
+     "lines": [
+      {
+       "line_id": "L-002-01",
+       "text": "8月の集積回路（IC）の輸出額は世界向けで6,972億900万円となり、前年同月比56.9％増加した。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 697209,
+         "unit": "百万円",
+         "label": "ICの輸出額（世界向け）"
+        },
+        {
+         "value": 56.9,
+         "unit": "%",
+         "label": "ICの輸出額前年同月比（世界向け）"
+        }
+       ],
+       "source_ref": "SRC-005",
+       "excerpt": "（ＩＣ） 単位百万個 数量6,249 伸率4.5 価額697,209 構成比6.9 伸率56.9 増減寄与度3.0",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-02",
+       "text": "電気機器全体の輸出額は世界向けで1兆9,965億9,000万円となり、前年同月比31.5％増加した。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 1996590,
+         "unit": "百万円",
+         "label": "電気機器の輸出額（世界向け）"
+        },
+        {
+         "value": 31.5,
+         "unit": "%",
+         "label": "電気機器の輸出額前年同月比（世界向け）"
+        }
+       ],
+       "source_ref": "SRC-005",
+       "excerpt": "7 電気機器 価額1,996,590 構成比19.9 伸率31.5 増減寄与度5.7",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-03",
+       "text": "半導体等製造装置の輸出額は世界向けで4,897億6,400万円となり、前年同月比40.1％増加した。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 489764,
+         "unit": "百万円",
+         "label": "半導体等製造装置の輸出額（世界向け）"
+        },
+        {
+         "value": 40.1,
+         "unit": "%",
+         "label": "半導体等製造装置の輸出額前年同月比（世界向け）"
+        }
+       ],
+       "source_ref": "SRC-005",
+       "excerpt": "半導体等製造装置 単位トン 数量15,572 伸率43.1 価額489,764 構成比4.9 伸率40.1 増減寄与度1.7",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-04",
+       "text": "半導体等製造装置の輸出額は、米国向けで前年同月比112.5％増加した。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 112.5,
+         "unit": "%",
+         "label": "半導体等製造装置の輸出額前年同月比（米国向け）"
+        }
+       ],
+       "source_ref": "SRC-005",
+       "excerpt": "半導体等製造装置 単位トン 数量1,207 伸率123.6 価額48,494 構成比2.8 伸率112.5 増減寄与度1.9",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-05",
+       "text": "半導体等製造装置の輸出額は、中国向けで前年同月比16.3％増加した。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 16.3,
+         "unit": "%",
+         "label": "半導体等製造装置の輸出額前年同月比（中国向け）"
+        }
+       ],
+       "source_ref": "SRC-005",
+       "excerpt": "半導体等製造装置 単位トン 数量7,755 伸率30.8 価額194,791 構成比10.8 伸率16.3 増減寄与度1.8",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-06",
+       "text": "IC（集積回路）の輸出が伸びる一方、それを作るための半導体等製造装置の輸出も大きく伸びており、需要の広がりが装置メーカーという川上の業種にまで及んでいることがうかがえる。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "source_ref": null,
+       "excerpt": null,
+       "attribution": null,
+       "processing_note": null,
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-07",
+       "text": "米国では8月から、ドローンや同部品の輸入に通商拡大法232条に基づく追加関税が課されている。日本製品には、232条関税と既存の関税率を合わせて15％を超えないようにする軽減措置があるとジェトロが報じている。",
+       "claimed_mark": "reported_unverified",
+       "numbers": [],
+       "source_ref": "SRC-002",
+       "excerpt": null,
+       "attribution": "出典：日本貿易振興機構（ジェトロ）「トランプ米大統領、ドローン・同部品の輸入に232条関税の適用を決定、9月発動」（https://www.jetro.go.jp/biznews/2026/08/b7f19382c4f8e3ca.html）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "reported_unverified",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-08",
+       "text": "米連邦議会下院は、ロシアやロシア産エネルギーの主要輸入国への追加関税・制裁法案を9月16日に可決したとジェトロが報じている。同法案は上院も通過しており、大統領の署名を待つ段階にあるという。",
+       "claimed_mark": "reported_unverified",
+       "numbers": [],
+       "source_ref": "SRC-003",
+       "excerpt": null,
+       "attribution": "出典：日本貿易振興機構（ジェトロ）「米連邦下院、ロシアとロシア産エネルギー主要輸入国への追加関税・制裁法案を可決」（https://www.jetro.go.jp/biznews/2026/09/4c83433f1cb90d52.html）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "reported_unverified",
+       "mark_reason": null
+      }
+     ],
+     "inferences": [
+      {
+       "inference_id": "INF-2026-09-20-002-1",
+       "text": "半導体等製造装置の輸出増加が続けば、その先にある半導体部材や検査装置など、より川上の業種にも設備投資の動きが広がる可能性がある。",
+       "falsifier": "半導体等製造装置の輸出が翌月以降の統計で伸び悩めば、この見方は成り立たない。",
+       "check_metric": "財務省 貿易統計 9月分速報の半導体等製造装置の輸出額",
+       "check_by": "2026-10-16"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "section_id": "deep",
+   "title": "深掘り",
+   "articles": [
+    {
+     "article_id": "ART-2026-09-20-003",
+     "event_id": "EVT-2026-09-20-003",
+     "headline": "深掘り：日本の原油調達先はどう変わったか ― 8月の貿易統計から",
+     "lines": [
+      {
+       "line_id": "L-003-01",
+       "text": "財務省が9月16日に発表した8月の貿易統計速報によると、「原油及び粗油」の輸入額は1兆1,905億円で、前年同月比58.7％増加した。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 1190519,
+         "unit": "百万円",
+         "label": "原油及び粗油の輸入額"
+        },
+        {
+         "value": 58.7,
+         "unit": "%",
+         "label": "原油及び粗油の輸入額前年同月比"
+        }
+       ],
+       "source_ref": "SRC-005",
+       "excerpt": "原油及び粗油 単位千ＫＬ 数量11,594 伸率3.6 価額1,190,519 構成比10.7 伸率58.7",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-02",
+       "text": "米国からの「原油及び粗油」の輸入額は4,004億7,700万円で、前年同月比1026.6％増加した。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 400477,
+         "unit": "百万円",
+         "label": "米国からの原油及び粗油の輸入額"
+        },
+        {
+         "value": 1026.6,
+         "unit": "%",
+         "label": "米国からの原油及び粗油の輸入額前年同月比"
+        }
+       ],
+       "source_ref": "SRC-005",
+       "excerpt": "原油及び粗油 単位千ＫＬ 数量3,659 伸率603.5 価額400,477 構成比24.2 伸率1026.6",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-03",
+       "text": "中東からの「原油及び粗油」の輸入額は7,294億1,100万円で、前年同月比3.7％増加した。中東からの輸入額全体に占める割合は84.0％だった。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 729411,
+         "unit": "百万円",
+         "label": "中東からの原油及び粗油の輸入額"
+        },
+        {
+         "value": 3.7,
+         "unit": "%",
+         "label": "中東からの原油及び粗油の輸入額前年同月比"
+        }
+       ],
+       "source_ref": "SRC-005",
+       "excerpt": "原油及び粗油 単位千ＫＬ 数量7,255 伸率-30.9 価額729,411 構成比84.0 伸率3.7",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-04",
+       "text": "中東の国別では、サウジアラビアからの輸入額が4,449億6,100万円で、前年同月比21.0％増加した。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 444961,
+         "unit": "百万円",
+         "label": "サウジアラビアからの輸入額"
+        },
+        {
+         "value": 21.0,
+         "unit": "%",
+         "label": "サウジアラビアからの輸入額前年同月比"
+        }
+       ],
+       "source_ref": "SRC-005",
+       "excerpt": "輸入 価額444,961 伸率21.0",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-05",
+       "text": "一方、アラブ首長国連邦（UAE）からの輸入額は3,195億4,800万円で、前年同月比3.1％減少した。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 319548,
+         "unit": "百万円",
+         "label": "UAEからの輸入額"
+        },
+        {
+         "value": -3.1,
+         "unit": "%",
+         "label": "UAEからの輸入額前年同月比"
+        }
+       ],
+       "source_ref": "SRC-005",
+       "excerpt": "輸入 価額319,548 伸率-3.1",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-06",
+       "text": "原油の輸入額は、輸入数量だけでなく、原油価格の変動によっても押し上げられる。8月は数量の伸びが小幅にとどまる一方、価額の伸びが大きく、価格上昇の影響が大きいことがうかがえる。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "source_ref": null,
+       "excerpt": null,
+       "attribution": null,
+       "processing_note": null,
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-07",
+       "text": "中東は依然として日本の原油輸入で最大の地域だが、国別の増減にはばらつきがあり、調達先の構成が変化している可能性がある。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "source_ref": null,
+       "excerpt": null,
+       "attribution": null,
+       "processing_note": null,
+       "mark": "explainer",
+       "mark_reason": null
+      }
+     ],
+     "inferences": [
+      {
+       "inference_id": "INF-2026-09-20-003-1",
+       "text": "米国からの原油輸入が急増している背景には、中東情勢の緊張や、ロシア産エネルギーを巡る制裁強化の動きの中で、調達先を分散させる動きがあると考えられる。",
+       "falsifier": "米国からの原油輸入の伸びが翌月以降の統計で止まったり減少に転じたりすれば、この見方は成り立たない。",
+       "check_metric": "財務省 貿易統計 9月分速報のアメリカ合衆国からの原油及び粗油の輸入額",
+       "check_by": "2026-10-16"
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "baseline_late": false,
+ "verification": {
+  "script_version": "2.0.0",
+  "run_at": "2026-09-20T20:12:43.736018+09:00",
+  "lines_total": 24,
+  "passed": 16,
+  "unverified": 0,
+  "reported_unverified": 2,
+  "explainer": 6,
+  "recommendation_stop_hits": 0,
+  "recommendation_stop_removed": 0,
+  "recommendation_warn_hits": 0,
+  "recommendation_warnings": [],
+  "stale_source_hits": 0,
+  "unknown_published_at_hits": 0,
+  "stale_check_skipped": 0,
+  "inference_dropped": 0,
+  "hypothesis_violations": 0,
+  "unverified_reasons": {},
+  "ticker_crosscheck": "applied",
+  "baseline_late": false,
+  "source_usage_invalid_hits": 0,
+  "source_policy_applied": true,
+  "source_policy_overwritten": 0,
+  "source_policy_unlisted_domains": [
+   "www.jetro.go.jp"
+  ],
+  "market_open_source": "calendar",
+  "market_open_overwritten": false,
+  "market_open_reported": false,
+  "industry_picks_total": 0,
+  "industry_examples_total": 0,
+  "industry_example_violations": {
+   "total": 0,
+   "reasons": {}
+  },
+  "ai_written_examples_discarded": 0,
+  "slot_violations": {
+   "total": 0,
+   "reasons": {}
+  },
+  "short_name_match_count": {
+   "count": 0,
+   "names": []
+  },
+  "allowed_industries_count": 0
+ }
+}
