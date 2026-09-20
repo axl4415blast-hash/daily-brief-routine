@@ -1843,6 +1843,36 @@ def test_find_number_numeric_comparison():
     )
 
 
+def test_find_number_leading_zero():
+    """find_numberを数値比較に変えた副作用の修正確認。日付・連番の中の「09」「08」
+    のような先頭に0が付いた数字は、数値としては9・8と等しくなるが、紙面が書いた
+    数字の裏付けにはならないため、照合の対象から外れることを確かめる。"""
+    check(
+        "先頭0/負例1: 「2026-09-25に発表」とvalue 9は一致しない(月の09が9の裏付けにならない)",
+        ve.find_number("2026-09-25に発表", 9), False,
+    )
+    check(
+        "先頭0/負例2: 「第08次」とvalue 8は一致しない",
+        ve.find_number("第08次", 8), False,
+    )
+    check(
+        "先頭0/負例3: 「09時に発表」とvalue 9は一致しない",
+        ve.find_number("09時に発表", 9), False,
+    )
+    check(
+        "先頭0/負例4(これまで通り): 「0.75%」とvalue 0.75は一致する(小数は対象外)",
+        ve.find_number("0.75%", 0.75), True,
+    )
+    check(
+        "先頭0/負例5(これまで通り): 「0%」とvalue 0は一致する(0そのものは対象外)",
+        ve.find_number("0%", 0), True,
+    )
+    check(
+        "先頭0/負例6(これまで通り): 「2026-09-25に発表」とvalue 25は一致する",
+        ve.find_number("2026-09-25に発表", 25), True,
+    )
+
+
 def main():
     test_read_source_text()
     test_check_evidence_source_ref()
@@ -1872,6 +1902,7 @@ def main():
     test_apply_source_policy()
     test_check_market_open()
     test_find_number_numeric_comparison()
+    test_find_number_leading_zero()
 
     total = len(results)
     passed = sum(1 for _, ok, _, _ in results if ok)

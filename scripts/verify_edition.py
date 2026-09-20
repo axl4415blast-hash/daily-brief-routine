@@ -152,6 +152,14 @@ def _is_half_width_digit(ch):
     return "0" <= ch <= "9"
 
 
+def _has_leading_zero(token):
+    """日付や連番の中の「09」「08」のような、先頭に0が付いた数字かどうかを見る。
+    これらは数値として9・8と等しくなるが、紙面が書いた数字の裏付けにはならないため
+    照合の対象から外す。0.75 のような小数と、0 そのものは対象にしない。"""
+    digits = token[1:] if token.startswith("-") else token
+    return len(digits) >= 2 and digits[0] == "0" and digits[1] != "."
+
+
 def find_number(excerpt_norm, value):
     # valueが数値として解釈できるなら、文字列としてではなく数値として比べる。
     # "2.0"という表記のvalueが、format_number()で文字列"2"に直されて本文中の
@@ -160,8 +168,11 @@ def find_number(excerpt_norm, value):
     decimal_value = _to_decimal(value)
     if decimal_value is not None:
         for match in _NUMBER_TOKEN_RE.finditer(excerpt_norm):
+            token = match.group()
+            if _has_leading_zero(token):
+                continue
             try:
-                token_value = decimal.Decimal(match.group())
+                token_value = decimal.Decimal(token)
             except decimal.InvalidOperation:
                 continue
             if token_value == decimal_value:
