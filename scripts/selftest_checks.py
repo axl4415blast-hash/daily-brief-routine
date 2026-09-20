@@ -1672,6 +1672,177 @@ def test_verify_edition_industry_integration():
     )
 
 
+SOURCE_POLICY_PATH = REPO_ROOT / "scripts" / "source_policy.csv"
+CALENDAR_DIR = REPO_ROOT / "calendar"
+
+
+def test_apply_source_policy():
+    """作業A(source_policy.csv)の負例。usage/publisher_typeはAIの自己申告ではなく
+    scripts/source_policy.csvの値が必ず勝つことを確かめる。"""
+
+    # --- 負例1: AIがquotableと書いたニュースのドメイン(www.nippon.com)がsnippet_onlyに上書きされる ---
+    edition1 = {"sources": [
+        {"source_id": "SRC-1", "url": "https://www.nippon.com/ja/some-article/", "usage": "quotable", "publisher_type": "news"},
+    ]}
+    result1 = ve.apply_source_policy(edition1, SOURCE_POLICY_PATH)
+    check(
+        "作業A/負例1: AIがquotableと書いたwww.nippon.comはsnippet_onlyに上書きされる",
+        edition1["sources"][0]["usage"], "snippet_only",
+    )
+    check("作業A/負例1: overwritten件数が1件になる", result1["overwritten"], 1)
+
+    # --- 負例2: 表に無いドメイン(example.co.jp)はsnippet_only/otherになり、unlisted_domainsに載る ---
+    edition2 = {"sources": [{"source_id": "SRC-1", "url": "https://example.co.jp/xyz", "usage": "quotable"}]}
+    result2 = ve.apply_source_policy(edition2, SOURCE_POLICY_PATH)
+    check("作業A/負例2: 表に無いドメインはsnippet_onlyになる", edition2["sources"][0]["usage"], "snippet_only")
+    check("作業A/負例2: 表に無いドメインはotherになる", edition2["sources"][0]["publisher_type"], "other")
+    check("作業A/負例2: 表に無いドメインはunlisted_domainsに載る", result2["unlisted_domains"], ["example.co.jp"])
+
+    # --- 負例3: boj.or.jp(www.無し)は表に無いものとして扱われる(部分一致で引かない) ---
+    edition3 = {"sources": [{"source_id": "SRC-1", "url": "https://boj.or.jp/path", "usage": "quotable"}]}
+    result3 = ve.apply_source_policy(edition3, SOURCE_POLICY_PATH)
+    check(
+        "作業A/負例3: www.の無いboj.or.jpは表に無いものとして扱われる(snippet_only)",
+        edition3["sources"][0]["usage"], "snippet_only",
+    )
+    check("作業A/負例3: boj.or.jpはunlisted_domainsに載る", result3["unlisted_domains"], ["boj.or.jp"])
+
+    # --- 負例4: WWW.BOJ.OR.JP(大文字)はwww.boj.or.jpとして引ける ---
+    edition4 = {"sources": [{"source_id": "SRC-1", "url": "https://WWW.BOJ.OR.JP/path", "usage": None}]}
+    result4 = ve.apply_source_policy(edition4, SOURCE_POLICY_PATH)
+    check(
+        "作業A/負例4: 大文字のWWW.BOJ.OR.JPも小文字化して表を引ける(quotable)",
+        edition4["sources"][0]["usage"], "quotable",
+    )
+    check(
+        "作業A/負例4: 大文字のWWW.BOJ.OR.JPのpublisher_typeはcentral_bank",
+        edition4["sources"][0]["publisher_type"], "central_bank",
+    )
+    check("作業A/負例4: unlisted_domainsには載らない", result4["unlisted_domains"], [])
+
+    # --- 負例5: usage:nullのEDINET出典がquotableになり、その行のexcerptが削除されない ---
+    edition5 = {"sources": [
+        {"source_id": "SRC-EDI", "url": "https://api.edinet-fsa.go.jp/api/v2/documents.json", "usage": None, "publisher_type": None},
+    ]}
+    ve.apply_source_policy(edition5, SOURCE_POLICY_PATH)
+    sources5 = {s["source_id"]: s for s in edition5["sources"]}
+    line5 = {
+        "claimed_mark": "reported_unverified", "numbers": [],
+        "source_ref": "SRC-EDI", "excerpt": "何かの抜き出し",
+    }
+    mark5, reason5, _ = ve.verify_line(line5, sources5, "/nonexistent")
+    check(
+        "作業A/負例5: usage:nullのEDINET出典はquotableに埋まりexcerpt_not_allowedにならない",
+        (mark5, reason5), ("reported_unverified", None),
+    )
+    check("作業A/負例5: excerptは削除されない", line5["excerpt"], "何かの抜き出し")
+
+    # --- 負例6: source_policy.csvが読めない(存在しない)とき、号を保存しない(EditionInvalid) ---
+    with tempfile.TemporaryDirectory() as d:
+        missing_policy_path = Path(d) / "source_policy.csv"
+        raised = False
+        try:
+            ve.apply_source_policy({"sources": []}, missing_policy_path)
+        except ve.EditionInvalid:
+            raised = True
+        check("作業A/負例6: source_policy.csvが無いとEditionInvalidになり号を保存しない", raised, True)
+
+
+def test_check_market_open():
+    """作業B(検査35)の負例。market_openはAIの自己申告ではなく営業日カレンダーが
+    必ず勝つことと、カレンダー自体が壊れている場合は号を保存しないことを確かめる。"""
+
+    # --- 負例1: market_open:nullの営業日の号 → trueが埋まる ---
+    edition1 = {"date": "2026-09-24", "market_open": None}
+    result1 = ve.check_market_open(edition1, CALENDAR_DIR)
+    check("作業B/負例1: market_open:nullの営業日はtrueが埋まる", edition1["market_open"], True)
+    check("作業B/負例1: overwrittenがTrueになる(nullからの充填)", result1["overwritten"], True)
+    check("作業B/負例1: market_open_reportedはnullのまま記録される", result1["reported"], None)
+
+    # market_open=Trueが確定した号ではhypothesesがmarket_closedとして削除されない(企業欄が残る)。
+    edition1["sections"] = []
+    hyp_doc1 = {"hypotheses": [{"company_name": "テスト物産"}]}
+    _, reasons1 = ve.run_hypothesis_checks(hyp_doc1, edition1, [], [], "/nonexistent", None)
+    check("作業B/負例1: market_open=Trueならmarket_closedを理由に仮説が削除されない", "market_closed" in reasons1, False)
+
+    # --- 負例2: AIがtrueと書いた休場日(2026-10-12・スポーツの日) → falseに上書き ---
+    edition2 = {"date": "2026-10-12", "market_open": True}
+    result2 = ve.check_market_open(edition2, CALENDAR_DIR)
+    check("作業B/負例2: 休場日はAIがtrueと書いてもfalseに上書きされる", edition2["market_open"], False)
+    check("作業B/負例2: market_open_overwrittenがtrueになる", result2["overwritten"], True)
+
+    edition2["sections"] = []
+    hyp_doc2 = {"hypotheses": [{"company_name": "テスト物産"}]}
+    violations2, reasons2 = ve.run_hypothesis_checks(hyp_doc2, edition2, [], [], "/nonexistent", None)
+    check("作業B/負例2: market_open=Falseになった号は仮説がmarket_closedとして全件削除される", reasons2.get("market_closed"), 1)
+    check("作業B/負例2: 仮説(企業欄)が空になる", hyp_doc2["hypotheses"], [])
+
+    # --- 負例3: AIがfalseと書いた営業日 → trueに上書き ---
+    edition3 = {"date": "2026-09-24", "market_open": False}
+    result3 = ve.check_market_open(edition3, CALENDAR_DIR)
+    check("作業B/負例3: 営業日はAIがfalseと書いてもtrueに上書きされる", edition3["market_open"], True)
+    check("作業B/負例3: market_open_overwrittenがtrueになる", result3["overwritten"], True)
+
+    # --- 負例4: market_openキー自体が無い → 号を保存しない ---
+    edition4 = {
+        "edition_id": "e", "date": "2026-09-24", "slot": "morning", "generated_at": "2026-09-24T08:00:00+09:00",
+        "sources": [], "sections": [],
+    }
+    raised4 = False
+    try:
+        ve.check_a_structure(edition4)
+    except ve.EditionInvalid:
+        raised4 = True
+    check("作業B/負例4: market_openキーが無いと号を保存しない", raised4, True)
+
+    # --- 負例5: market_open:"true"(文字列) → 号を保存しない ---
+    edition5 = dict(edition4)
+    edition5["market_open"] = "true"
+    raised5 = False
+    try:
+        ve.check_a_structure(edition5)
+    except ve.EditionInvalid:
+        raised5 = True
+    check("作業B/負例5: market_openが文字列だと号を保存しない", raised5, True)
+
+    # --- 負例6: カレンダーの無い年(2029) → 号を保存しない ---
+    edition6 = {"date": "2029-01-04", "market_open": None}
+    raised6 = False
+    try:
+        ve.check_market_open(edition6, CALENDAR_DIR)
+    except ve.EditionInvalid:
+        raised6 = True
+    check("作業B/負例6: カレンダーファイルの無い年は号を保存しない", raised6, True)
+
+
+def test_find_number_numeric_comparison():
+    """作業C(find_numberを数値として比べる)の正例・負例。
+    2.0というvalueがformat_number()で文字列"2"に直されて本文中の"2.0"と
+    一致しなくなっていた不具合が直っていることと、既存の判定
+    (12.0の中の2、2.05に対する2.0は不一致のまま)が変わっていないことを確かめる。"""
+    check("作業C/正例1: 「前年比2.0%増」とvalue 2.0は一致する", ve.find_number("前年比2.0%増", 2.0), True)
+    check("作業C/正例2: 「前年比2.0%増」とvalue 2(int)も一致する", ve.find_number("前年比2.0%増", 2), True)
+    check("作業C/正例3: 「金利1.0%へ」とvalue 1.0は一致する", ve.find_number("金利1.0%へ", 1.0), True)
+
+    check("作業C/負例1: 「12.0%」とvalue 2は一致しない(別の数字の一部)", ve.find_number("12.0%", 2), False)
+    check("作業C/負例2: 「2.05%」とvalue 2.0は一致しない(別の数字)", ve.find_number("2.05%", 2.0), False)
+    check("作業C/負例3(これまで通り): 「2.5%」とvalue 2.5は一致する", ve.find_number("2.5%", 2.5), True)
+
+    zenkaku_norm = ve.normalize_text("１，２３４人")
+    check(
+        "作業C/負例4(これまで通り): 全角「１，２３４人」を正規化後、value 1234と一致する",
+        ve.find_number(zenkaku_norm, 1234), True,
+    )
+    check(
+        "作業C/負例5: マイナスの実測値「-5.2」はvalue -5.2と一致する(既存の号で使われている形)",
+        ve.find_number("-5.2", -5.2), True,
+    )
+    check(
+        "作業C/負例6: 日付風の文字列「2026-09-25」はvalue -25(マイナス)とは一致しない",
+        ve.find_number("2026-09-25", -25), False,
+    )
+
+
 def main():
     test_read_source_text()
     test_check_evidence_source_ref()
@@ -1698,6 +1869,9 @@ def main():
     test_run_slot_allocation()
     test_testdata_copy_integration()
     test_verify_edition_industry_integration()
+    test_apply_source_policy()
+    test_check_market_open()
+    test_find_number_numeric_comparison()
 
     total = len(results)
     passed = sum(1 for _, ok, _, _ in results if ok)
