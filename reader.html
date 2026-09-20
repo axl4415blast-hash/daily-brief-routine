@@ -390,6 +390,14 @@
     color:var(--fg2);
     margin:0 0 6px;
   }
+  .company-evidence-role{
+    font-family:'Noto Sans JP', sans-serif;
+    font-weight:600;
+    font-size:12px;
+    letter-spacing:0.02em;
+    color:var(--muted);
+    margin:0 0 6px;
+  }
   .company-impact-reason{
     font-size:13px;
     line-height:1.7;
@@ -589,12 +597,19 @@
   var GRADE_LABELS = {
     primary: "この会社名が一次情報に載っている",
     reported: "報道断片に社名あり",
-    inferred: "AIによる推論"
+    // 下段(業種の例)の会社を選んだのはスクリプト(資本金順などの機械的な規則)であり、
+    // AIが個別の銘柄を推論したわけではない。「AIによる推論」と表示すると、AIが銘柄を
+    // 選んだかのように読まれ、企業欄を上下2枠に分けた意味が失われる。
+    inferred: "業種から機械的に選定"
   };
   var IMPACT_KIND_LABELS = {
     price_stated: "株式の取引価格が示されている",
     amount_stated: "金額・割合が示されている",
-    fact_only: "事実の報告のみ"
+    fact_only: "人事・総会などの届出"
+  };
+  var EVIDENCE_ROLE_LABELS = {
+    filer_self: "この会社自身が出した書類",
+    mentioned: "資料に名前が出ている"
   };
   var BASELINE_PRICE_TYPE_LABELS = {
     open: "その日の始値",
@@ -635,6 +650,8 @@
   function gradeLabel(g){ return GRADE_LABELS[g] || g || "不明"; }
 
   function impactKindLabel(k){ return IMPACT_KIND_LABELS[k] || null; }
+
+  function evidenceRoleLabel(r){ return EVIDENCE_ROLE_LABELS[r] || null; }
 
   function formatDateLabel(s){
     var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || "");
@@ -1235,6 +1252,9 @@
     gradeTags.appendChild(el("span", { class: "tag-grade", text: gradeLabel(h.evidence_grade) }));
     body.appendChild(gradeTags);
 
+    var evidenceRoleText = evidenceRoleLabel(h.evidence_role);
+    if(evidenceRoleText) body.appendChild(el("p", { class: "company-evidence-role", text: evidenceRoleText }));
+
     var impactLabel = impactKindLabel(h.impact_kind);
     if(impactLabel) body.appendChild(el("p", { class: "company-impact-kind", text: impactLabel }));
 
@@ -1271,7 +1291,7 @@
 
   function renderTopTier(list){
     var box = el("div", { class: "companies-tier" });
-    box.appendChild(el("p", { class: "companies-heading", text: "この記事に名前が出ている企業" }));
+    box.appendChild(el("p", { class: "companies-heading", text: "この記事のもとになった資料に名前が出ている企業" }));
     box.appendChild(el("p", { class: "companies-note", text:
       "AIが自動生成したものであり、企業の評価でも投資の推奨でもありません。印が示すのは会社名がどこに載っていたかだけで、その会社と出来事の関係の説明はAIの推論です。"
     }));
