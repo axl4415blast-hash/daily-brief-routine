@@ -40,6 +40,7 @@ ticker_source / links.price_history は検査13(証券コードの確認)で使�
 今回追加した項目のため、依頼文には例示が無い(本スクリプトが定める形)。
 """
 import argparse
+import csv
 import datetime as dt
 import hashlib
 import json
@@ -47,6 +48,7 @@ import re
 import sys
 import unicodedata
 from pathlib import Path
+from urllib.parse import urlparse
 
 import edinet_codelist
 import edinet_fetch
@@ -70,6 +72,11 @@ REQUIRED_HYPOTHESIS_FIELDS = [
 # /quote/ と .T の間の文字列を取り出す(検査13の条件3で使う)。
 PRICE_HISTORY_CODE_RE = re.compile(r"/quote/([^/]+)\.T(?:/|$)")
 VALID_SOURCE_USAGES = {"quotable", "link_only", "snippet_only"}
+VALID_PUBLISHER_TYPES = {
+    "government_statistics", "central_bank", "company_disclosure",
+    "international_org", "news", "other",
+}
+SOURCE_POLICY_COLUMNS = ("domain", "usage", "publisher_type", "independent_check", "attribution_template")
 MORNING_DEADLINE = dt.time(8, 50)
 NOON_DEADLINE = dt.time(14, 50)
 
@@ -306,6 +313,81 @@ def count_invalid_source_usages(edition):
     usageが無い・null・空文字・想定外の値のものが対象。verification.source_usage_invalid_hits
     として画面に出す(usageの書き忘れなどを、実害の有無に関わらず気づけるようにするため)。"""
     return sum(1 for s in edition.get("sources", []) if s.get("usage") not in VALID_SOURCE_USAGES)
+
+
+def load_source_policy(policy_path):
+    """scripts/source_policy.csv を読み込み、ホスト名(小文字)→{usage, publisher_type}の
+    辞書にして返す。usage/publisher_typeがAIの自己申告のままでは出典の立場・扱いを
+    AI自身に決めさせることになるため、この表の値だけを正としてapply_source_policy()で
+    上書きする。表そのものが読めない・値が不正な場合は、黙って全出典をsnippet_only等に
+    倒すのではなく、号ごと保存を止める(設定ミスに気づけなくなるのを防ぐため)。"""
+    path = Path(policy_path)
+    if not path.is_file():
+        raise EditionInvalid("scripts/source_policy.csv が読めません: ファイルがありません。")
+    try:
+        with open(path, "r", encoding="utf-8", newline="") as f:
+            rows = list(csv.DictReader(f))
+    except OSError as e:
+        raise EditionInvalid(f"scripts/source_policy.csv が読めません: {e}")
+
+    policy = {}
+    for row in rows:
+        domain = (row.get("domain") or "").strip().lower()
+        usage = (row.get("usage") or "").strip()
+        publisher_type = (row.get("publisher_type") or "").strip()
+        if not domain:
+            raise EditionInvalid("scripts/source_policy.csv にdomainが空の行があります。")
+        if domain in policy:
+            raise EditionInvalid(f"scripts/source_policy.csv にdomain '{domain}' が重複しています。")
+        if usage not in VALID_SOURCE_USAGES:
+            raise EditionInvalid(
+                f"scripts/source_policy.csv のusage '{usage}' (domain={domain}) が不正な値です。"
+            )
+        if publisher_type not in VALID_PUBLISHER_TYPES:
+            raise EditionInvalid(
+                f"scripts/source_policy.csv のpublisher_type '{publisher_type}' (domain={domain}) が不正な値です。"
+            )
+        policy[domain] = {"usage": usage, "publisher_type": publisher_type}
+    return policy
+
+
+def source_hostname(url):
+    """出典urlからホスト名を取り出す。小文字化・ポート番号の除去はurlparseが行う。
+    urlが無い・文字列でない・ホスト名が取れない場合はNoneを返す。"""
+    if not isinstance(url, str) or not url.strip():
+        return None
+    try:
+        host = urlparse(url).hostname
+    except ValueError:
+        return None
+    return host.lower() if host else None
+
+
+def apply_source_policy(edition, policy_path):
+    """検査16対策: sources[].usage/publisher_typeを、AIの自己申告ではなく
+    scripts/source_policy.csv の値で上書きする(表にあれば表の値が必ず勝つ)。
+    表に無いドメイン・urlが無い/ホスト名が取れない出典はsnippet_only/otherにする
+    (未知の出典を安全側=抜き出し不可の側へ倒す)。"""
+    policy = load_source_policy(policy_path)
+
+    overwritten = 0
+    unlisted_domains = []
+    for source in edition.get("sources", []):
+        host = source_hostname(source.get("url"))
+        entry = policy.get(host) if host else None
+        if entry is not None:
+            new_usage, new_publisher_type = entry["usage"], entry["publisher_type"]
+        else:
+            new_usage, new_publisher_type = "snippet_only", "other"
+            if host and host not in unlisted_domains:
+                unlisted_domains.append(host)
+
+        if source.get("usage") != new_usage or source.get("publisher_type") != new_publisher_type:
+            overwritten += 1
+        source["usage"] = new_usage
+        source["publisher_type"] = new_publisher_type
+
+    return {"overwritten": overwritten, "unlisted_domains": unlisted_domains}
 
 
 def verify_line(line, sources_by_id, cache_dir):
@@ -1032,7 +1114,7 @@ def print_report(edition_path, stats, stop_hits, watch_hits, dropped_inferences,
                   unknown_published_at_hits, stale_skipped,
                   hypothesis_violations, hypothesis_reasons, number_failure_details, ok,
                   baseline_late=False, ticker_crosscheck="skipped", source_usage_invalid_hits=0,
-                  industry_report=None):
+                  industry_report=None, source_policy_unlisted_domains=None):
     print("=" * 60)
     print(f"照合結果: {edition_path}")
     print("=" * 60)
@@ -1086,6 +1168,8 @@ def print_report(edition_path, stats, stop_hits, watch_hits, dropped_inferences,
     print(f"号の遅延判定(baseline_late): {baseline_late}")
     print(f"証券コードの突き合わせ(ticker_crosscheck): {ticker_crosscheck}")
     print(f"usageが正しく書かれていない出典の件数(source_usage_invalid_hits): {source_usage_invalid_hits}")
+    unlisted = source_policy_unlisted_domains or []
+    print(f"出典ポリシー表(source_policy.csv)に無かったドメイン: {'、'.join(unlisted) if unlisted else 'なし'}")
 
     if hypothesis_reasons:
         print(f"仮説に関する指摘件数: {hypothesis_violations}")
@@ -1161,6 +1245,7 @@ def main():
     script_dir = Path(__file__).resolve().parent
     ng_words_path = script_dir / "ng_words.txt"
     ng_words_exclude_path = script_dir / "ng_words_exclude.txt"
+    source_policy_path = script_dir / "source_policy.csv"
 
     try:
         edition_path = Path(args.edition)
@@ -1171,6 +1256,9 @@ def main():
 
         check_a_structure(edition)
         check_b_edition_id(edition, edition_path)
+
+        # usage/publisher_typeはAIの自己申告を信用せず、表の値で必ず上書きする。
+        source_policy_result = apply_source_policy(edition, source_policy_path)
 
         ng_words = load_ng_words(ng_words_path)
         ng_words_exclude = load_ng_words(ng_words_exclude_path)
@@ -1270,6 +1358,9 @@ def main():
             "ticker_crosscheck": ticker_crosscheck,
             "baseline_late": baseline_late,
             "source_usage_invalid_hits": source_usage_invalid_hits,
+            "source_policy_applied": True,
+            "source_policy_overwritten": source_policy_result["overwritten"],
+            "source_policy_unlisted_domains": source_policy_result["unlisted_domains"],
         }
         if industry_report is not None:
             edition["verification"].update(industry_report)
@@ -1288,6 +1379,7 @@ def main():
             baseline_late=baseline_late, ticker_crosscheck=ticker_crosscheck,
             source_usage_invalid_hits=source_usage_invalid_hits,
             industry_report=industry_report,
+            source_policy_unlisted_domains=source_policy_result["unlisted_domains"],
         )
         return 0
 
