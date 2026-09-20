@@ -308,6 +308,11 @@ def cmd_fetch(args):
         "zip_bytes": len(zip_bytes),
         "csv_bytes": len(csv_bytes),
         "content_sha256": hashlib.sha256(zip_bytes).hexdigest(),
+        # 修正6: ZIPには作成時刻が入るため、中身(CSV)が同じでもcontent_sha256は
+        # 毎日変わる。CSV側のsha256も記録しないと、コードリストが実際に更新
+        # されたかどうかを測れないため追加する。content_sha256は名前も値も
+        # 変えない(過去の記録と比べられなくなるため)。
+        "csv_sha256": hashlib.sha256(csv_bytes).hexdigest(),
         "rows_total": len(text.splitlines()),
         "listed": len(listed),
         "listed_with_ticker": len(listed_with_ticker),
@@ -318,6 +323,7 @@ def cmd_fetch(args):
 
     print(f"ZIPのバイト数: {log_entry['zip_bytes']}")
     print(f"CSVのバイト数: {log_entry['csv_bytes']}")
+    print(f"CSVのsha256: {log_entry['csv_sha256']}")
     print(f"行数: {log_entry['rows_total']}")
     print(f"上場: {log_entry['listed']}件")
     print(f"上場かつ証券コードあり: {log_entry['listed_with_ticker']}件")

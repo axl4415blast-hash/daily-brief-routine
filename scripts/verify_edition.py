@@ -616,7 +616,7 @@ def parse_datetime_assume_jst(s):
 
 
 def run_check_e_stale_sources(edition, run_at_dt):
-    """検査9: change欄(新しい変化)の行について、出典の公表時刻が36時間以上前でないかを確かめる。
+    """検査10: change欄(新しい変化)の行について、出典の公表時刻が36時間以上前でないかを確かめる。
     基準時刻はスクリプトの実行時刻(run_at_dt)。AIの自己申告(generated_at)を基準にすると、
     古い出典を新しく見せられてしまうため使わない。
     36時間以上前と分かった行、公表時刻が読み取れなかった(null)行は、どちらも安全側に倒して
