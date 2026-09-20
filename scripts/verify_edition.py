@@ -201,8 +201,10 @@ def check_a_structure(edition):
             raise EditionInvalid(f"必須項目 '{key}' がありません。")
     if not isinstance(edition["sections"], list):
         raise EditionInvalid("sections が配列ではありません。")
-    if not isinstance(edition["market_open"], bool):
-        raise EditionInvalid("market_open が真偽値ではありません。")
+    # market_openはキーの省略だけは許さない。null はこの後check_market_open()で
+    # 営業日カレンダーから埋めるため、ここでは通す(bool/nullのみ許可)。
+    if edition["market_open"] is not None and not isinstance(edition["market_open"], bool):
+        raise EditionInvalid("market_open が真偽値でもnullでもありません。")
     if not isinstance(edition.get("sources"), list):
         raise EditionInvalid("sources が配列ではありません。")
 
@@ -584,6 +586,39 @@ def run_check_baseline_late(edition):
     if slot == "morning":
         return local_time > MORNING_DEADLINE
     return local_time > NOON_DEADLINE
+
+
+def check_market_open(edition, calendar_dir):
+    """検査35: market_openをAIの自己申告ではなく営業日カレンダー(calendar/{年}.json の
+    business_days)から確定させ、edition["market_open"]を必ず上書きする。
+    「カレンダーに無いから休場日(false)にする」という作りにはしない。カレンダー自体が
+    無い・読めない場合と、実際の休場日を区別できなくなり、falseにすると企業欄が
+    全削除されてしまうため、この場合は号ごと保存を止める。"""
+    date_str = edition.get("date")
+    try:
+        dt.datetime.strptime(date_str, "%Y-%m-%d")
+    except (TypeError, ValueError):
+        raise EditionInvalid(f"date '{date_str}' がYYYY-MM-DD形式の日付ではありません。")
+
+    year = date_str[:4]
+    calendar_path = Path(calendar_dir) / f"{year}.json"
+    if not calendar_path.is_file():
+        raise EditionInvalid(f"営業日カレンダー '{calendar_path}' がありません。")
+
+    try:
+        calendar_obj = load_json(calendar_path)
+    except (json.JSONDecodeError, OSError) as e:
+        raise EditionInvalid(f"営業日カレンダー '{calendar_path}' を読み込めません: {e}")
+
+    business_days = calendar_obj.get("business_days")
+    if not isinstance(business_days, list):
+        raise EditionInvalid(f"営業日カレンダー '{calendar_path}' のbusiness_daysが配列ではありません。")
+
+    reported = edition.get("market_open")
+    computed = date_str in business_days
+    edition["market_open"] = computed
+
+    return {"overwritten": reported != computed, "reported": reported}
 
 
 def load_business_days(calendar_dir):
@@ -1260,6 +1295,9 @@ def main():
         # usage/publisher_typeはAIの自己申告を信用せず、表の値で必ず上書きする。
         source_policy_result = apply_source_policy(edition, source_policy_path)
 
+        # 検査35: market_openはAIの自己申告ではなく営業日カレンダーで確定させる。
+        market_open_result = check_market_open(edition, args.calendar)
+
         ng_words = load_ng_words(ng_words_path)
         ng_words_exclude = load_ng_words(ng_words_exclude_path)
 
@@ -1361,6 +1399,9 @@ def main():
             "source_policy_applied": True,
             "source_policy_overwritten": source_policy_result["overwritten"],
             "source_policy_unlisted_domains": source_policy_result["unlisted_domains"],
+            "market_open_source": "calendar",
+            "market_open_overwritten": market_open_result["overwritten"],
+            "market_open_reported": market_open_result["reported"],
         }
         if industry_report is not None:
             edition["verification"].update(industry_report)
