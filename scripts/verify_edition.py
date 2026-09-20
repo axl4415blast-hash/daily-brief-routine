@@ -296,6 +296,26 @@ def check_b_edition_id(edition, edition_path):
         raise EditionInvalid(f"edition_id '{actual}' がファイルパスから期待される '{expected}' と一致しません。")
 
 
+def check_edition_date(edition, run_at_dt):
+    """検査24(要件3.5(9)): 号のdateが実行時刻の日付と一致するかを確かめる。
+    0:00〜4:59に実行された夕方号(evening)だけは「前日の夕方号」として扱うため、
+    実行時刻の前日を期待する。それ以外(それ以外の時刻の夕方号、朝号、昼号)は
+    実行時刻の日付をそのまま期待する。判定に使うのは実行時刻(run_at_dt)であり、
+    generated_at(AIの自己申告)は使わない。一致しなければ号を保存しない。"""
+    slot = edition.get("slot")
+    local_dt = run_at_dt.astimezone(JST)
+    if slot == "evening" and local_dt.time() < dt.time(5, 0):
+        expected_date = (local_dt - dt.timedelta(days=1)).strftime("%Y-%m-%d")
+    else:
+        expected_date = local_dt.strftime("%Y-%m-%d")
+    actual_date = edition.get("date")
+    if actual_date != expected_date:
+        raise EditionInvalid(
+            f"date '{actual_date}' が期待した日付 '{expected_date}' と一致しません"
+            f"(実行時刻: {run_at_dt.isoformat()}, slot: {slot})。"
+        )
+
+
 def iter_lines(edition):
     for section in edition["sections"]:
         for article in section.get("articles", []):
@@ -588,17 +608,17 @@ def parse_datetime_assume_jst(s):
     return d
 
 
-def run_check_e_stale_sources(edition):
+def run_check_e_stale_sources(edition, run_at_dt):
     """検査9: change欄(新しい変化)の行について、出典の公表時刻が36時間以上前でないかを確かめる。
+    基準時刻はスクリプトの実行時刻(run_at_dt)。AIの自己申告(generated_at)を基準にすると、
+    古い出典を新しく見せられてしまうため使わない。
     36時間以上前と分かった行、公表時刻が読み取れなかった(null)行は、どちらも安全側に倒して
     行そのものを落とす。原因が違うため件数は別々に数える(stale_source_hits / unknown_published_at_hits)。
     change以外の欄(big/ripple/deep)は36時間ルールの対象外なので、対象にしない。"""
     sources_by_id = {s.get("source_id"): s for s in edition.get("sources", [])}
-    generated_dt = parse_datetime_assume_jst(edition.get("generated_at"))
 
     stale = 0
     unknown_published_at = 0
-    skipped = 0
     for section in edition["sections"]:
         for article in section.get("articles", []):
             lines = article.get("lines", [])
@@ -615,30 +635,24 @@ def run_check_e_stale_sources(edition):
                 if published_dt is None:
                     unknown_published_at += 1
                     continue
-                if generated_dt is None:
-                    skipped += 1
-                    kept_lines.append(line)
-                    continue
-                delta_hours = (generated_dt - published_dt).total_seconds() / 3600
+                delta_hours = (run_at_dt - published_dt).total_seconds() / 3600
                 if delta_hours >= 36:
                     stale += 1
                     continue
                 kept_lines.append(line)
             article["lines"] = kept_lines
-    return stale, unknown_published_at, skipped
+    return stale, unknown_published_at
 
 
-def run_check_baseline_late(edition):
-    """検査20: 号の遅延判定。generated_atの時刻(日本時間)が、morning号なら8:50、
+def run_check_baseline_late(edition, run_at_dt):
+    """検査20: 号の遅延判定。スクリプトの実行時刻(run_at_dt、日本時間)が、morning号なら8:50、
     noon号なら14:50を過ぎていたらTrueを返す。evening号は常にFalse(判定しない)。
-    generated_atが読み取れない場合もFalse(この検査では判定できないため)。"""
+    generated_at(AIの自己申告)はこの判定にはいっさい使わない。AIが書き換えられる値を
+    基準にすると、実際は門限を過ぎているのに間に合ったことにできてしまうため。"""
     slot = edition.get("slot")
     if slot not in ("morning", "noon"):
         return False
-    generated_dt = parse_datetime_assume_jst(edition.get("generated_at"))
-    if generated_dt is None:
-        return False
-    local_time = generated_dt.astimezone(JST).time()
+    local_time = run_at_dt.astimezone(JST).time()
     if slot == "morning":
         return local_time > MORNING_DEADLINE
     return local_time > NOON_DEADLINE
@@ -695,6 +709,14 @@ def compute_deadline(business_days, baseline_date, horizon):
         return business_days[idx + horizon]
     except (ValueError, IndexError):
         return None
+
+
+def first_business_day_on_or_after(business_days, date_str):
+    """business_days(昇順)の中から、date_str以降で最初の営業日を返す。無ければNone。"""
+    for day in business_days:
+        if day >= date_str:
+            return day
+    return None
 
 
 LINK_ONLY_USAGE = "link_only"
@@ -835,7 +857,8 @@ def check_ticker_fields(hyp, edinet_companies):
 
 
 def run_check_hypothesis_evidence(hyps, sources_by_id, cache_dir):
-    """evidence_grade が primary の仮説だけを検査11にかけ、不合格なら inferred へ格下げする。
+    """evidence_grade が primary の仮説だけを検査11にかけ、不合格なら reported へ格下げする。
+    inferredは下段(industry_examples)専用の値のため、上段(仮説)の格下げ先には使わない。
     direction が minus の仮説は、この後で走る検査12(check_minus_direction)が
     evidence_gradeがprimaryでなくなったことを検知して該当仮説を削除する。
     不合格の原因が出典ファイルの文字コード問題(evidence_source_unreadable)だった件数は、
@@ -848,7 +871,7 @@ def run_check_hypothesis_evidence(hyps, sources_by_id, cache_dir):
         reason = check_evidence_source_ref(hyp, sources_by_id, cache_dir)
         if not reason:
             continue
-        hyp["evidence_grade"] = "inferred"
+        hyp["evidence_grade"] = "reported"
         if reason == "evidence_source_unreadable":
             unreadable += 1
         else:
@@ -883,11 +906,25 @@ def check_hypothesis(hyp, edition, line_ids, business_days, ng_words, sources_by
 
     horizon = hyp.get("horizon_business_days")
     baseline_date = hyp.get("baseline_date")
-    if isinstance(horizon, int) and baseline_date:
-        expected_deadline = compute_deadline(business_days, baseline_date, horizon)
-        if expected_deadline is None or expected_deadline != hyp.get("deadline_date"):
+    if not isinstance(horizon, int) or not baseline_date:
+        return "deadline_date_mismatch"
+
+    if hyp.get("baseline_late_input"):
+        # 検査17の例外(要件3.5(11)): 昼号の基準価格をその日のうちに入力しなかった場合、
+        # 期限日はbaseline_dateではなく、実際に株価を見た日(baseline_observed_at)から
+        # 数え直す。その日が営業日でなければ、その日より後の最初の営業日を起点にする。
+        observed_dt = parse_datetime_assume_jst(hyp.get("baseline_observed_at"))
+        if observed_dt is None:
+            return "deadline_date_mismatch"
+        observed_date = observed_dt.astimezone(JST).strftime("%Y-%m-%d")
+        deadline_base_date = first_business_day_on_or_after(business_days, observed_date)
+        if deadline_base_date is None:
             return "deadline_date_mismatch"
     else:
+        deadline_base_date = baseline_date
+
+    expected_deadline = compute_deadline(business_days, deadline_base_date, horizon)
+    if expected_deadline is None or expected_deadline != hyp.get("deadline_date"):
         return "deadline_date_mismatch"
 
     relation_text = hyp.get("relation_text", "")
@@ -1286,7 +1323,13 @@ def print_report(edition_path, stats, stop_hits, watch_hits, dropped_inferences,
     elif hypothesis_violations:
         print(f"仮説に関する指摘件数: {hypothesis_violations}")
 
-    if industry_report:
+    if industry_report and "industry_picks_discarded" in industry_report:
+        # 検査14: 休場日・遅延号のため、下段(企業欄)自体を作らなかった場合。
+        print(
+            "休場日、または号の遅延のため、下段(業種から選ぶ企業欄)は作りませんでした。"
+            f"破棄したindustry_picksの件数: {industry_report['industry_picks_discarded']}件"
+        )
+    elif industry_report:
         print(f"業種の指定(industry_picks)の件数: {industry_report['industry_picks_total']}件")
         if industry_report["ai_written_examples_discarded"]:
             print(f"AIが書いたindustry_examplesを破棄した件数: {industry_report['ai_written_examples_discarded']}件")
@@ -1325,7 +1368,32 @@ def print_report(edition_path, stats, stop_hits, watch_hits, dropped_inferences,
             print(f"  該当した名前: {'、'.join(short_match['names'])}")
 
 
+def build_first_run_record(run_at, run_at_dt, baseline_late, market_open_reported,
+                            source_policy_overwritten, generated_at_raw):
+    """修正2: 初回の照合結果を1回だけ記録する(first_run)。2回目以降の照合では、
+    main()がこの中身を一切書き換えない(呼び出さない)。"""
+    generated_dt = parse_datetime_assume_jst(generated_at_raw)
+    if generated_dt is not None:
+        generated_at_parsed = True
+        drift_minutes = int((run_at_dt - generated_dt).total_seconds() / 60)
+    else:
+        generated_at_parsed = False
+        drift_minutes = None
+    return {
+        "run_at": run_at,
+        "baseline_late": baseline_late,
+        "market_open_reported": market_open_reported,
+        "source_policy_overwritten": source_policy_overwritten,
+        "generated_at_reported": generated_at_raw,
+        "generated_at_parsed": generated_at_parsed,
+        "generated_at_drift_minutes": drift_minutes,
+    }
+
+
 def main():
+    run_at_dt = dt.datetime.now(JST)
+    run_at = run_at_dt.isoformat()
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--edition", required=True)
     parser.add_argument("--hypotheses")
@@ -1345,8 +1413,15 @@ def main():
         except (json.JSONDecodeError, OSError) as e:
             raise EditionInvalid(f"紙面JSONを読み込めません: {e}")
 
+        # 修正2: 号のファイルを読み込んだ直後に、初回の照合結果(first_run)が
+        # 既にあるかどうかを確認する(この後の検査24より前に行う)。
+        existing_first_run = edition.get("verification", {}).get("first_run")
+
         check_a_structure(edition)
         check_b_edition_id(edition, edition_path)
+        if existing_first_run is None:
+            # 検査24(要件3.5(9)): 2回目以降の照合(first_runが既にある号)では飛ばす。
+            check_edition_date(edition, run_at_dt)
 
         # usage/publisher_typeはAIの自己申告を信用せず、表の値で必ず上書きする。
         source_policy_result = apply_source_policy(edition, source_policy_path)
@@ -1365,10 +1440,15 @@ def main():
         stats, number_failure_details = run_line_verification(edition, args.cache)
         source_usage_invalid_hits = count_invalid_source_usages(edition)
         dropped_inferences = run_check_d_inferences(edition)
-        stale_hits, unknown_published_at_hits, stale_skipped = run_check_e_stale_sources(edition)
+        stale_hits, unknown_published_at_hits = run_check_e_stale_sources(edition, run_at_dt)
+        stale_check_skipped = 0  # run_at_dtは常に読み取れるため、判定を飛ばす理由が無い。
 
-        # 検査20: 号の遅延判定。市場のtrue/falseとは独立に、生成時刻から判定する。
-        baseline_late = run_check_baseline_late(edition)
+        # 検査20: 号の遅延判定。2回目以降の照合(first_runが既にある号)では、
+        # 今回の実行時刻で判定し直さず、初回の値をそのまま使う(企業欄が消えないように)。
+        if existing_first_run is not None:
+            baseline_late = bool(existing_first_run.get("baseline_late"))
+        else:
+            baseline_late = run_check_baseline_late(edition, run_at_dt)
         edition["baseline_late"] = baseline_late
 
         edinet_companies = load_edinet_companies(args.cache)
@@ -1381,57 +1461,80 @@ def main():
         if args.hypotheses:
             hypotheses_doc = load_json(args.hypotheses)
             hypotheses_doc["baseline_late"] = baseline_late
+            hypotheses_doc["market_open"] = edition["market_open"]
             business_days = load_business_days(args.calendar)
             hypothesis_violations, hypothesis_reasons = run_hypothesis_checks(
                 hypotheses_doc, edition, business_days, ng_words, args.cache, edinet_companies
             )
 
-            # 5. 下段(業種から選ぶ企業欄)の選定。規則6: 上段の検査が終わって残った
-            # 会社のtickerを、下段の候補から除く(社名の文字列では比べない)。
-            excluded_tickers = {
-                h.get("ticker") for h in hypotheses_doc["hypotheses"] if h.get("ticker")
-            }
-            articles_by_id = pick_industry_companies.index_articles(edition)
-            aliases_by_edinet_code = pick_industry_companies.load_aliases()
-            pick_result = pick_industry_companies.run(
-                hypotheses_doc, articles_by_id, aliases_by_edinet_code, excluded_tickers
-            )
-
-            if pick_result.get("fatal_error"):
-                # コードリストが未取得。号全体は保存し、下段だけ空のまま扱う。
+            # 検査14: 休場日(market_openがfalse)、または遅延号(baseline_lateがtrue)の号は、
+            # 上段(hypotheses、run_hypothesis_checks側で既に空にしている)だけでなく、
+            # 下段(industry_examples)も作らない。
+            skip_companies = (edition["market_open"] is False) or baseline_late
+            if skip_companies:
+                industry_picks_discarded = len(hypotheses_doc.get("industry_picks") or [])
                 hypotheses_doc["industry_examples"] = []
+                industry_report = {
+                    "industry_picks_discarded": industry_picks_discarded,
+                }
             else:
-                hypotheses_doc["industry_examples"] = pick_result["examples"]
+                # 5. 下段(業種から選ぶ企業欄)の選定。規則6: 上段の検査が終わって残った
+                # 会社のtickerを、下段の候補から除く(社名の文字列では比べない)。
+                excluded_tickers = {
+                    h.get("ticker") for h in hypotheses_doc["hypotheses"] if h.get("ticker")
+                }
+                articles_by_id = pick_industry_companies.index_articles(edition)
+                aliases_by_edinet_code = pick_industry_companies.load_aliases()
+                pick_result = pick_industry_companies.run(
+                    hypotheses_doc, articles_by_id, aliases_by_edinet_code, excluded_tickers
+                )
 
-            # 6. 下段の個別の検査(検査13・21・22・27・28・31)。
-            codelist_rows, _codelist_date = edinet_codelist.load_codelist()
-            kept_examples, lower_reasons, allowed_industries = run_industry_example_checks(
-                hypotheses_doc["industry_examples"], edition, codelist_rows
+                if pick_result.get("fatal_error"):
+                    # コードリストが未取得。号全体は保存し、下段だけ空のまま扱う。
+                    hypotheses_doc["industry_examples"] = []
+                else:
+                    hypotheses_doc["industry_examples"] = pick_result["examples"]
+
+                # 6. 下段の個別の検査(検査13・21・22・27・28・31)。
+                codelist_rows, _codelist_date = edinet_codelist.load_codelist()
+                kept_examples, lower_reasons, allowed_industries = run_industry_example_checks(
+                    hypotheses_doc["industry_examples"], edition, codelist_rows
+                )
+                hypotheses_doc["industry_examples"] = kept_examples
+
+                # 7. 枠配分の検査29は、上段・下段の個別の検査が終わった後に行う。
+                slot_total, slot_reasons = run_slot_allocation(hypotheses_doc, edition)
+
+                industry_report = {
+                    "industry_picks_total": pick_result.get("total_pick_count", 0),
+                    "industry_examples_total": len(hypotheses_doc["industry_examples"]),
+                    "industry_example_violations": {
+                        "total": sum(lower_reasons.values()), "reasons": lower_reasons,
+                    },
+                    "ai_written_examples_discarded": pick_result.get("ai_written_examples_discarded", 0),
+                    "slot_violations": {"total": slot_total, "reasons": slot_reasons},
+                    "short_name_match_count": {
+                        "count": pick_result.get("mentioned_short_count", 0),
+                        "names": pick_result.get("short_name_matches", []),
+                    },
+                    "allowed_industries_count": len(allowed_industries),
+                }
+
+        # 修正2: first_runが無ければ今回の値で作る。あれば中身を一切書き換えず、
+        # そのまま引き継ぐ(2回目以降の照合でAIの初回申告が消えないように)。
+        if existing_first_run is not None:
+            first_run = existing_first_run
+        else:
+            first_run = build_first_run_record(
+                run_at, run_at_dt, baseline_late,
+                market_open_result["reported"], source_policy_result["overwritten"],
+                edition.get("generated_at"),
             )
-            hypotheses_doc["industry_examples"] = kept_examples
 
-            # 7. 枠配分の検査29は、上段・下段の個別の検査が終わった後に行う。
-            slot_total, slot_reasons = run_slot_allocation(hypotheses_doc, edition)
-
-            industry_report = {
-                "industry_picks_total": pick_result.get("total_pick_count", 0),
-                "industry_examples_total": len(hypotheses_doc["industry_examples"]),
-                "industry_example_violations": {
-                    "total": sum(lower_reasons.values()), "reasons": lower_reasons,
-                },
-                "ai_written_examples_discarded": pick_result.get("ai_written_examples_discarded", 0),
-                "slot_violations": {"total": slot_total, "reasons": slot_reasons},
-                "short_name_match_count": {
-                    "count": pick_result.get("mentioned_short_count", 0),
-                    "names": pick_result.get("short_name_matches", []),
-                },
-                "allowed_industries_count": len(allowed_industries),
-            }
-
-        run_at = dt.datetime.now(dt.timezone(dt.timedelta(hours=9))).isoformat()
         edition["verification"] = {
             "script_version": "2.0.0",
             "run_at": run_at,
+            "first_run": first_run,
             "lines_total": stats["lines_total"],
             "passed": stats["passed"],
             "unverified": stats["unverified"],
@@ -1445,7 +1548,7 @@ def main():
             ],
             "stale_source_hits": stale_hits,
             "unknown_published_at_hits": unknown_published_at_hits,
-            "stale_check_skipped": stale_skipped,
+            "stale_check_skipped": stale_check_skipped,
             "inference_dropped": dropped_inferences,
             "hypothesis_violations": hypothesis_violations,
             "unverified_reasons": stats["unverified_reasons"],
@@ -1471,7 +1574,7 @@ def main():
 
         print_report(
             args.edition, stats, stop_hits, watch_hits, dropped_inferences, stale_hits,
-            unknown_published_at_hits, stale_skipped,
+            unknown_published_at_hits, stale_check_skipped,
             hypothesis_violations, hypothesis_reasons, number_failure_details, ok=True,
             baseline_late=baseline_late, ticker_crosscheck=ticker_crosscheck,
             source_usage_invalid_hits=source_usage_invalid_hits,

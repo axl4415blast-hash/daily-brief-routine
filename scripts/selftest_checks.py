@@ -19,6 +19,7 @@ scripts/testdata の中身が書き換わってしまう(過去に2回、この�
 
 1件でも期待と異なれば、終了コード1で終わる。
 """
+import datetime as dt
 import json
 import shutil
 import subprocess
@@ -181,12 +182,12 @@ def test_verify_line_source_unreadable():
 
 
 def test_stale_sources():
-    """検査9(36時間ルール)。公表時刻が古い行/わからない行を、どちらも件数を分けて落とすことを確かめる。"""
-    generated_at = "2026-09-24T08:14:32+09:00"
+    """検査9(36時間ルール)。基準時刻はrun_at_dt(スクリプトの実行時刻)。
+    公表時刻が古い行/わからない行を、どちらも件数を分けて落とすことを確かめる。"""
+    run_at_dt = dt.datetime.fromisoformat("2026-09-24T08:14:32+09:00")
 
     def make_edition(published_at):
         return {
-            "generated_at": generated_at,
             "sections": [
                 {
                     "section_id": "change",
@@ -203,18 +204,18 @@ def test_stale_sources():
         }
 
     fresh = make_edition("2026-09-23T08:00:00+09:00")
-    stale, unknown, skipped = ve.run_check_e_stale_sources(fresh)
+    stale, unknown = ve.run_check_e_stale_sources(fresh, run_at_dt)
     check("検査9/正例: 36時間以内なら落とさない(stale=0)", stale, 0)
     check("検査9/正例: 36時間以内なら行が残る", len(fresh["sections"][0]["articles"][0]["lines"]), 1)
 
     old = make_edition("2026-09-17T08:50:00+09:00")
-    stale, unknown, skipped = ve.run_check_e_stale_sources(old)
+    stale, unknown = ve.run_check_e_stale_sources(old, run_at_dt)
     check("検査9/負例: 36時間より古い場合はstale_source_hitsが増える", stale, 1)
     check("検査9/負例: 36時間より古い場合はunknown_published_at_hitsは増えない", unknown, 0)
     check("検査9/負例: 36時間より古い行は落とされる", len(old["sections"][0]["articles"][0]["lines"]), 0)
 
     unknown_pub = make_edition(None)
-    stale, unknown, skipped = ve.run_check_e_stale_sources(unknown_pub)
+    stale, unknown = ve.run_check_e_stale_sources(unknown_pub, run_at_dt)
     check("検査9/負例: 公表時刻がnullの場合はstale_source_hitsは増えない", stale, 0)
     check("検査9/負例: 公表時刻がnullの場合はunknown_published_at_hitsが増える", unknown, 1)
     check("検査9/負例: 公表時刻がnullの行も落とされる", len(unknown_pub["sections"][0]["articles"][0]["lines"]), 0)
@@ -747,52 +748,68 @@ def test_count_invalid_source_usages():
 
 
 def test_check_baseline_late():
-    """検査20(号の遅延判定)の正例・負例。"""
-    def edition(slot, generated_at):
+    """検査20(号の遅延判定)の正例・負例。修正1により、判定基準はgenerated_at(AIの自己申告)
+    ではなくrun_at_dt(スクリプトの実行時刻)になった。"""
+    def run_at(iso):
+        return dt.datetime.fromisoformat(iso)
+
+    def edition(slot, generated_at="dummy"):
         return {"slot": slot, "generated_at": generated_at}
 
     # --- 正例(反応してほしい: Trueになる) ---
     check(
-        "検査20/正例: 朝号(morning)で8:51はbaseline_late",
-        ve.run_check_baseline_late(edition("morning", "2026-09-24T08:51:00+09:00")),
+        "検査20/正例: 朝号(morning)で実行時刻08:51はbaseline_late",
+        ve.run_check_baseline_late(edition("morning"), run_at("2026-09-24T08:51:00+09:00")),
         True,
     )
     check(
-        "検査20/正例: 昼号(noon)で14:51はbaseline_late",
-        ve.run_check_baseline_late(edition("noon", "2026-09-24T14:51:00+09:00")),
+        "検査20/正例: 朝号(morning)で実行時刻09:20はbaseline_late",
+        ve.run_check_baseline_late(edition("morning"), run_at("2026-09-24T09:20:00+09:00")),
         True,
     )
     check(
-        "検査20/正例: +09:00以外の表記でも日本時間に換算して8:51相当ならbaseline_late",
-        ve.run_check_baseline_late(edition("morning", "2026-09-23T23:51:00+00:00")),
+        "検査20/正例: 昼号(noon)で実行時刻14:51はbaseline_late",
+        ve.run_check_baseline_late(edition("noon"), run_at("2026-09-24T14:51:00+09:00")),
         True,
     )
 
-    # --- 負例(反応してほしくない: Falseのまま) ---
+    # --- 負例(反応してほしくない例。5件以上) ---
     check(
-        "検査20/負例: 朝号(morning)で8:49はbaseline_lateにならない",
-        ve.run_check_baseline_late(edition("morning", "2026-09-24T08:49:00+09:00")),
+        "検査20/負例1: 朝号で実行時刻08:49はbaseline_lateにならない",
+        ve.run_check_baseline_late(edition("morning"), run_at("2026-09-24T08:49:00+09:00")),
         False,
     )
     check(
-        "検査20/負例: 昼号(noon)で14:49はbaseline_lateにならない",
-        ve.run_check_baseline_late(edition("noon", "2026-09-24T14:49:00+09:00")),
+        "検査20/負例2: 朝号で実行時刻08:50ちょうどはbaseline_lateにならない"
+        "(「過ぎている」なので同時刻は通す)",
+        ve.run_check_baseline_late(edition("morning"), run_at("2026-09-24T08:50:00+09:00")),
         False,
     )
     check(
-        "検査20/負例: 夕方号(evening)は17:30でもbaseline_lateにならない(常に判定しない)",
-        ve.run_check_baseline_late(edition("evening", "2026-09-24T17:30:00+09:00")),
+        "検査20/負例3: 昼号で実行時刻13:05はbaseline_lateにならない",
+        ve.run_check_baseline_late(edition("noon"), run_at("2026-09-24T13:05:00+09:00")),
         False,
     )
     check(
-        "検査20/負例: +09:00以外の表記で日本時間に換算すると8:30相当ならbaseline_lateにならない",
-        ve.run_check_baseline_late(edition("morning", "2026-09-23T23:30:00+00:00")),
+        "検査20/負例4: 夕方号(evening)は実行時刻23:00でもbaseline_lateにならない(常に判定しない)",
+        ve.run_check_baseline_late(edition("evening"), run_at("2026-09-24T23:00:00+09:00")),
         False,
     )
     check(
-        "検査20/負例: generated_atが読み取れない場合はbaseline_lateにならない",
-        ve.run_check_baseline_late(edition("morning", None)),
+        "検査20/負例5: generated_atに'8:45'(門限前を装った値)と書かれていても、"
+        "実行時刻が09:20ならbaseline_lateになる(AIの申告に影響されない)",
+        ve.run_check_baseline_late(edition("morning", generated_at="8:45"), run_at("2026-09-24T09:20:00+09:00")),
+        True,
+    )
+    check(
+        "検査20/負例6: generated_atが空文字でも、実行時刻(08:49)で正しくFalseと判定される",
+        ve.run_check_baseline_late(edition("morning", generated_at=""), run_at("2026-09-24T08:49:00+09:00")),
         False,
+    )
+    check(
+        "検査20/負例7: generated_atが壊れた文字列でも、実行時刻(09:20)で正しくTrueと判定される",
+        ve.run_check_baseline_late(edition("morning", generated_at="not-a-datetime"), run_at("2026-09-24T09:20:00+09:00")),
+        True,
     )
 
 
@@ -1873,6 +1890,535 @@ def test_find_number_leading_zero():
     )
 
 
+# ============ 16-2b: 修正2・3・4の統合テスト用の共通部品 ============
+# first_run/skip_companies/検査24はmain()の中に組み込まれているため、これらを
+# 確かめるにはCLI全体(subprocess)を走らせる必要がある。scripts/testdataは
+# 一時フォルダにコピーしてから使う(本体を書き換えないため)。
+
+
+def _copy_testdata_to(tmp_root):
+    dst = Path(tmp_root) / "testdata"
+    shutil.copytree(REPO_ROOT / "scripts" / "testdata", dst)
+    return dst
+
+
+def _run_verify_cli(work_dir, edition_path, hyp_path, cache_dir):
+    return subprocess.run(
+        [sys.executable, str(REPO_ROOT / "scripts" / "verify_edition.py"),
+         "--edition", str(edition_path), "--hypotheses", str(hyp_path),
+         "--cache", str(cache_dir), "--calendar", str(CALENDAR_DIR)],
+        capture_output=True, text=True, cwd=str(work_dir),
+    )
+
+
+def _write_fake_codelist(work_dir, rows):
+    """rows: (edinet_code, 会社名, 業種, 上場区分, 資本金, 証券コード)のタプルのリスト。"""
+    codelist_dir = Path(work_dir) / ".cache" / "reference"
+    codelist_dir.mkdir(parents=True, exist_ok=True)
+    lines = ["ダウンロード実行日,2026-09-24", "ＥＤＩＮＥＴコード,提出者名,提出者業種,上場区分,資本金,証券コード"]
+    for row in rows:
+        lines.append(",".join(str(v) for v in row))
+    csv_text = "\n".join(lines) + "\n"
+    (codelist_dir / "EdinetcodeDlInfo_2026-09-24.csv").write_bytes(csv_text.encode("cp932"))
+
+
+def _assert_testdata_untouched(label):
+    status = subprocess.run(
+        ["git", "status", "--porcelain", "--", "scripts/testdata"],
+        cwd=str(REPO_ROOT), capture_output=True, text=True,
+    )
+    check(f"{label}: scripts/testdata本体はテスト実行後も変更されていない", status.stdout.strip(), "")
+
+
+def test_build_first_run_record():
+    """修正2: first_runの中身(特にgenerated_at_drift_minutesの符号)を確かめる。
+    run_at_dtとgenerated_atを直接固定できるbuild_first_run_record()の単体テストとして行う
+    (実時刻の経過を伴う「実行のたびに8分ずれる」ような検証は、実行環境の実時刻を
+    差し替える手段が無いため、この単体テストで代替する)。"""
+    run_at_dt = dt.datetime.fromisoformat("2026-09-24T07:52:10+09:00")
+    run_at = run_at_dt.isoformat()
+
+    rec_before = ve.build_first_run_record(run_at, run_at_dt, False, True, 0, "2026-09-24T07:44:10+09:00")
+    check("first_run/差の計算: generated_atが8分10秒前ならdrift_minutesは8", rec_before["generated_at_drift_minutes"], 8)
+    check("first_run/差の計算: generated_atが読めればgenerated_at_parsedはTrue", rec_before["generated_at_parsed"], True)
+
+    rec_after = ve.build_first_run_record(run_at, run_at_dt, False, True, 0, "2026-09-24T07:55:10+09:00")
+    check("first_run/差の計算: generated_atが3分後ならdrift_minutesは-3", rec_after["generated_at_drift_minutes"], -3)
+
+    rec_broken = ve.build_first_run_record(run_at, run_at_dt, False, True, 0, "not-a-datetime")
+    check("first_run/負例: generated_atが読めなければgenerated_at_parsedはFalse", rec_broken["generated_at_parsed"], False)
+    check("first_run/負例: generated_atが読めなければdrift_minutesはNone", rec_broken["generated_at_drift_minutes"], None)
+
+    rec_empty = ve.build_first_run_record(run_at, run_at_dt, False, True, 0, "")
+    check("first_run/負例: generated_atが空文字でもgenerated_at_parsedはFalse", rec_empty["generated_at_parsed"], False)
+
+    check("first_run/run_atがそのまま入る", rec_before["run_at"], run_at)
+    check("first_run/baseline_lateがそのまま入る", rec_before["baseline_late"], False)
+    check("first_run/market_open_reportedがそのまま入る", rec_before["market_open_reported"], True)
+    check("first_run/source_policy_overwrittenがそのまま入る", rec_before["source_policy_overwritten"], 0)
+
+
+def test_first_run_created_on_first_verification():
+    """修正2の正例: first_runが無い号を初めて照合するとfirst_runが作られる。
+    修正1の負例もあわせて確かめる: generated_atが壊れていても号は保存され、
+    first_run内でgenerated_at_parsed=false・generated_at_drift_minutes=nullになる。"""
+    with tempfile.TemporaryDirectory() as d:
+        dst = _copy_testdata_to(d)
+        edition_path = dst / "editions" / "2026-09-24" / "morning.json"
+        hyp_path = dst / "hypotheses" / "2026-09-24-morning.json"
+        cache_dir = dst / "cache"
+
+        today = dt.datetime.now(ve.JST).strftime("%Y-%m-%d")
+        edition = json.loads(edition_path.read_text(encoding="utf-8"))
+        edition.pop("verification", None)
+        edition["date"] = today
+        edition["generated_at"] = "壊れた日時"
+        edition_path.write_text(json.dumps(edition, ensure_ascii=False, indent=1), encoding="utf-8")
+
+        result = _run_verify_cli(d, edition_path, hyp_path, cache_dir)
+        check("first_run/正例: 初回照合は正常終了する(終了コード0)", result.returncode, 0)
+
+        after = json.loads(edition_path.read_text(encoding="utf-8"))
+        first_run = after.get("verification", {}).get("first_run")
+        check("first_run/正例: 初回照合でfirst_runが作られる", first_run is not None, True)
+        if first_run:
+            check(
+                "first_run/負例: generated_atが読めない場合generated_at_parsedはFalse",
+                first_run.get("generated_at_parsed"), False,
+            )
+            check(
+                "first_run/負例: generated_atが読めない場合generated_at_drift_minutesはNone",
+                first_run.get("generated_at_drift_minutes"), None,
+            )
+
+    _assert_testdata_untouched("first_run/初回照合テスト")
+
+
+def test_first_run_unchanged_on_second_run():
+    """修正2の正例: 同じ号をもう一度照合しても、first_runの中身が1文字も変わらない。"""
+    with tempfile.TemporaryDirectory() as d:
+        dst = _copy_testdata_to(d)
+        edition_path = dst / "editions" / "2026-09-24" / "morning.json"
+        hyp_path = dst / "hypotheses" / "2026-09-24-morning.json"
+        cache_dir = dst / "cache"
+
+        today = dt.datetime.now(ve.JST).strftime("%Y-%m-%d")
+        edition = json.loads(edition_path.read_text(encoding="utf-8"))
+        edition.pop("verification", None)
+        edition["date"] = today
+        edition_path.write_text(json.dumps(edition, ensure_ascii=False, indent=1), encoding="utf-8")
+
+        r1 = _run_verify_cli(d, edition_path, hyp_path, cache_dir)
+        check("first_run/正例: 1回目の照合は正常終了する", r1.returncode, 0)
+        first_run_1 = json.loads(edition_path.read_text(encoding="utf-8"))["verification"]["first_run"]
+
+        r2 = _run_verify_cli(d, edition_path, hyp_path, cache_dir)
+        check("first_run/正例: 2回目の照合も正常終了する", r2.returncode, 0)
+        first_run_2 = json.loads(edition_path.read_text(encoding="utf-8"))["verification"]["first_run"]
+
+        check("first_run/正例: 2回続けて照合してもfirst_runの中身が1文字も変わらない", first_run_2, first_run_1)
+
+    _assert_testdata_untouched("first_run/2回照合テスト")
+
+
+def test_first_run_freezes_baseline_late_and_keeps_industry_examples():
+    """修正1+2の正例: 一度baseline_late=falseとして記録された号は、その後いつ
+    再照合しても(実行時刻が門限を過ぎていても)baseline_lateは偽のままで、
+    下段(企業欄)が消えないことを確かめる。
+    未検証の点: 実際に08:00→09:30と実行時刻を変えて再現することは、この環境に
+    時刻を差し替える手段が無いためできない。ここでは「初回にbaseline_late=false
+    として記録済み」の状態を直接作り、今の実行時刻(いつでもよい)で再照合しても
+    結果が変わらないことで代替して確かめている。"""
+    with tempfile.TemporaryDirectory() as d:
+        dst = _copy_testdata_to(d)
+        edition_path = dst / "editions" / "2026-09-24" / "morning.json"
+        hyp_path = dst / "hypotheses" / "2026-09-24-morning.json"
+        cache_dir = dst / "cache"
+
+        edition = json.loads(edition_path.read_text(encoding="utf-8"))
+        edition["date"] = "2026-09-24"  # 営業日(確認済み)
+        edition["verification"] = {"first_run": {
+            "run_at": "2026-09-24T08:00:00+09:00",
+            "baseline_late": False,
+            "market_open_reported": True,
+            "source_policy_overwritten": 0,
+            "generated_at_reported": "2026-09-24T07:50:00+09:00",
+            "generated_at_parsed": True,
+            "generated_at_drift_minutes": 10,
+        }}
+        edition_path.write_text(json.dumps(edition, ensure_ascii=False, indent=1), encoding="utf-8")
+
+        hyp = json.loads(hyp_path.read_text(encoding="utf-8"))
+        hyp["industry_picks"] = [{
+            "article_id": "ART-TEST-001", "event_id": "EVT-FREEZE",
+            "industry": "テスト凍結業種", "industry_line_ids": ["L-12"],
+        }]
+        hyp_path.write_text(json.dumps(hyp, ensure_ascii=False, indent=1), encoding="utf-8")
+
+        _write_fake_codelist(d, [("E-FREEZE-1", "テスト凍結株式会社", "テスト凍結業種", "上場", "5000", "90020")])
+
+        result = _run_verify_cli(d, edition_path, hyp_path, cache_dir)
+        check("first_run/凍結: 再照合は正常終了する", result.returncode, 0)
+
+        edition_after = json.loads(edition_path.read_text(encoding="utf-8"))
+        check(
+            "first_run/凍結: baseline_lateは初回のfalseのまま(実行時刻で判定し直さない)",
+            edition_after.get("baseline_late"), False,
+        )
+        check(
+            "first_run/凍結: first_run.run_atは初回の08:00のまま書き換わらない",
+            edition_after["verification"]["first_run"]["run_at"], "2026-09-24T08:00:00+09:00",
+        )
+
+        hyp_after = json.loads(hyp_path.read_text(encoding="utf-8"))
+        check(
+            "first_run/凍結: 企業欄(industry_examples)が消えずに1社作られる",
+            len(hyp_after.get("industry_examples") or []), 1,
+        )
+
+    _assert_testdata_untouched("first_run/凍結テスト")
+
+
+def test_skip_companies_when_market_closed():
+    """修正3の正例: market_openがfalseの号は、下段(industry_examples)も作らず、
+    industry_picks_discardedに件数が記録される。"""
+    with tempfile.TemporaryDirectory() as d:
+        dst = _copy_testdata_to(d)
+        edition_path = dst / "editions" / "2026-09-24" / "morning.json"
+        hyp_path = dst / "hypotheses" / "2026-09-24-morning.json"
+        cache_dir = dst / "cache"
+
+        edition = json.loads(edition_path.read_text(encoding="utf-8"))
+        edition["date"] = "2026-09-20"  # 休場日(確認済み: 日曜)
+        edition["verification"] = {"first_run": {
+            "run_at": "2026-09-20T08:00:00+09:00", "baseline_late": False,
+            "market_open_reported": None, "source_policy_overwritten": 0,
+            "generated_at_reported": None, "generated_at_parsed": False,
+            "generated_at_drift_minutes": None,
+        }}
+        edition_path.write_text(json.dumps(edition, ensure_ascii=False, indent=1), encoding="utf-8")
+
+        hyp = json.loads(hyp_path.read_text(encoding="utf-8"))
+        hyp["industry_picks"] = [
+            {"article_id": "ART-TEST-001", "event_id": "EVT-A", "industry": "テスト休場業種A", "industry_line_ids": ["L-12"]},
+            {"article_id": "ART-TEST-001", "event_id": "EVT-B", "industry": "テスト休場業種B", "industry_line_ids": ["L-13"]},
+        ]
+        hyp_path.write_text(json.dumps(hyp, ensure_ascii=False, indent=1), encoding="utf-8")
+
+        result = _run_verify_cli(d, edition_path, hyp_path, cache_dir)
+        check("検査14/正例: 休場日の号は正常終了する", result.returncode, 0)
+
+        edition_after = json.loads(edition_path.read_text(encoding="utf-8"))
+        check("検査14/正例: 休場日はmarket_openがfalseになる", edition_after.get("market_open"), False)
+        check(
+            "検査14/正例: 休場日はindustry_picks_discardedが2になる",
+            edition_after["verification"].get("industry_picks_discarded"), 2,
+        )
+
+        hyp_after = json.loads(hyp_path.read_text(encoding="utf-8"))
+        check("検査14/正例: 休場日はindustry_examplesが0件になる", len(hyp_after.get("industry_examples") or []), 0)
+        check("検査14/正例: 休場日はhypotheses(上段)も0件になる", len(hyp_after.get("hypotheses") or []), 0)
+        check(
+            "検査14/正例: industry_picksの中身自体は消さない(記録として残す)",
+            len(hyp_after.get("industry_picks") or []), 2,
+        )
+
+    _assert_testdata_untouched("検査14/休場日テスト")
+
+
+def test_skip_companies_when_baseline_late():
+    """修正3の正例: baseline_lateがtrueの号は、営業日であっても下段を作らない。"""
+    with tempfile.TemporaryDirectory() as d:
+        dst = _copy_testdata_to(d)
+        edition_path = dst / "editions" / "2026-09-24" / "morning.json"
+        hyp_path = dst / "hypotheses" / "2026-09-24-morning.json"
+        cache_dir = dst / "cache"
+
+        edition = json.loads(edition_path.read_text(encoding="utf-8"))
+        edition["date"] = "2026-09-24"  # 営業日(確認済み)
+        edition["verification"] = {"first_run": {
+            "run_at": "2026-09-24T09:20:00+09:00", "baseline_late": True,
+            "market_open_reported": True, "source_policy_overwritten": 0,
+            "generated_at_reported": "2026-09-24T08:45:00+09:00",
+            "generated_at_parsed": True, "generated_at_drift_minutes": 35,
+        }}
+        edition_path.write_text(json.dumps(edition, ensure_ascii=False, indent=1), encoding="utf-8")
+
+        hyp = json.loads(hyp_path.read_text(encoding="utf-8"))
+        hyp["industry_picks"] = [
+            {"article_id": "ART-TEST-001", "event_id": "EVT-C", "industry": "テスト遅延業種", "industry_line_ids": ["L-12"]},
+        ]
+        hyp_path.write_text(json.dumps(hyp, ensure_ascii=False, indent=1), encoding="utf-8")
+
+        result = _run_verify_cli(d, edition_path, hyp_path, cache_dir)
+        check("検査14/正例: 遅延号(baseline_late)は正常終了する", result.returncode, 0)
+
+        edition_after = json.loads(edition_path.read_text(encoding="utf-8"))
+        check("検査14/正例: 遅延号でもmarket_openはtrueのまま(営業日のため)", edition_after.get("market_open"), True)
+        check(
+            "検査14/正例: 遅延号はindustry_picks_discardedが1になる",
+            edition_after["verification"].get("industry_picks_discarded"), 1,
+        )
+
+        hyp_after = json.loads(hyp_path.read_text(encoding="utf-8"))
+        check("検査14/正例: 遅延号はindustry_examplesが0件になる", len(hyp_after.get("industry_examples") or []), 0)
+
+    _assert_testdata_untouched("検査14/遅延号テスト")
+
+
+def test_industry_examples_not_skipped_when_market_open_and_not_late():
+    """修正3の負例(5件以上): 営業日・遅延なしの号では、業種の数や記事の数を変えても
+    これまでどおり下段(industry_examples)が作られ、industry_picks_discardedは
+    記録されない(スキップされない)ことを確かめる。"""
+    base_verification = {"first_run": {
+        "run_at": "2026-09-24T08:00:00+09:00", "baseline_late": False,
+        "market_open_reported": True, "source_policy_overwritten": 0,
+        "generated_at_reported": "2026-09-24T07:50:00+09:00",
+        "generated_at_parsed": True, "generated_at_drift_minutes": 10,
+    }}
+
+    variants = [
+        (
+            "1業種1社(1記事)",
+            [{"article_id": "ART-TEST-001", "event_id": "EVT-N1", "industry": "テスト非休場業種1", "industry_line_ids": ["L-12"]}],
+            [("E-N1-1", "テスト非休場一号株式会社", "テスト非休場業種1", "上場", "1000", "91010")],
+            None,
+        ),
+        (
+            "2業種2社(同じ記事)",
+            [
+                {"article_id": "ART-TEST-001", "event_id": "EVT-N2", "industry": "テスト非休場業種2", "industry_line_ids": ["L-12"]},
+                {"article_id": "ART-TEST-001", "event_id": "EVT-N3", "industry": "テスト非休場業種3", "industry_line_ids": ["L-13"]},
+            ],
+            [
+                ("E-N2-1", "テスト非休場二号株式会社", "テスト非休場業種2", "上場", "1000", "91020"),
+                ("E-N2-2", "テスト非休場三号株式会社", "テスト非休場業種3", "上場", "1000", "91030"),
+            ],
+            None,
+        ),
+        (
+            "1業種1社(2本目の記事を追加)",
+            [{"article_id": "ART-TEST-EXTRA", "event_id": "EVT-N4", "industry": "テスト非休場業種4", "industry_line_ids": ["L-EXTRA-1"]}],
+            [("E-N3-1", "テスト非休場四号株式会社", "テスト非休場業種4", "上場", "1000", "91040")],
+            {
+                "article_id": "ART-TEST-EXTRA",
+                "lines": [{
+                    "line_id": "L-EXTRA-1", "claimed_mark": "reported_unverified", "numbers": [],
+                    "text": "テスト非休場四号株式会社の業績に関する記述。",
+                }],
+            },
+        ),
+    ]
+
+    for label, industry_picks, codelist_rows, extra_article in variants:
+        with tempfile.TemporaryDirectory() as d:
+            dst = _copy_testdata_to(d)
+            edition_path = dst / "editions" / "2026-09-24" / "morning.json"
+            hyp_path = dst / "hypotheses" / "2026-09-24-morning.json"
+            cache_dir = dst / "cache"
+
+            edition = json.loads(edition_path.read_text(encoding="utf-8"))
+            edition["date"] = "2026-09-24"
+            edition["verification"] = json.loads(json.dumps(base_verification))
+            if extra_article:
+                edition["sections"][0]["articles"].append(extra_article)
+            edition_path.write_text(json.dumps(edition, ensure_ascii=False, indent=1), encoding="utf-8")
+
+            hyp = json.loads(hyp_path.read_text(encoding="utf-8"))
+            hyp["industry_picks"] = industry_picks
+            hyp_path.write_text(json.dumps(hyp, ensure_ascii=False, indent=1), encoding="utf-8")
+
+            _write_fake_codelist(d, codelist_rows)
+
+            result = _run_verify_cli(d, edition_path, hyp_path, cache_dir)
+            check(f"検査14/負例({label}): 正常終了する", result.returncode, 0)
+
+            edition_after = json.loads(edition_path.read_text(encoding="utf-8"))
+            check(
+                f"検査14/負例({label}): industry_picks_discardedは記録されない(スキップされていない)",
+                "industry_picks_discarded" in edition_after.get("verification", {}), False,
+            )
+
+            hyp_after = json.loads(hyp_path.read_text(encoding="utf-8"))
+            check(
+                f"検査14/負例({label}): industry_examplesが作られる(0件ではない)",
+                len(hyp_after.get("industry_examples") or []) > 0, True,
+            )
+
+    _assert_testdata_untouched("検査14/負例テスト")
+
+
+def test_check_edition_date():
+    """検査24(号の日付の整合)の正例(落ちるべき)・負例(通るべき)。"""
+    def edition(slot, date_str):
+        return {"slot": slot, "date": date_str}
+
+    def passes(slot, date_str, run_at_iso):
+        try:
+            ve.check_edition_date(edition(slot, date_str), dt.datetime.fromisoformat(run_at_iso))
+            return True
+        except ve.EditionInvalid:
+            return False
+
+    # --- 落ちるべき ---
+    check(
+        "検査24/正例: 0:12実行の夕方号でdateが当日(2026-09-21)だと号を保存しない",
+        passes("evening", "2026-09-21", "2026-09-21T00:12:00+09:00"), False,
+    )
+
+    # --- 通るべき ---
+    check(
+        "検査24/正例: 0:12実行の夕方号はdateが前日(2026-09-20)なら通る",
+        passes("evening", "2026-09-20", "2026-09-21T00:12:00+09:00"), True,
+    )
+    check(
+        "検査24/通るべき1: 夕方号を17:30に実行して当日の日付なら通る",
+        passes("evening", "2026-09-20", "2026-09-20T17:30:00+09:00"), True,
+    )
+    check(
+        "検査24/通るべき2: 朝号を07:35に実行して当日の日付なら通る",
+        passes("morning", "2026-09-20", "2026-09-20T07:35:00+09:00"), True,
+    )
+    check(
+        "検査24/通るべき3: 昼号を13:10に実行して当日の日付なら通る",
+        passes("noon", "2026-09-20", "2026-09-20T13:10:00+09:00"), True,
+    )
+    check(
+        "検査24/通るべき4: 夕方号を04:59に実行して前日の日付なら通る",
+        passes("evening", "2026-09-19", "2026-09-20T04:59:00+09:00"), True,
+    )
+    check(
+        "検査24/通るべき5: 夕方号を05:00に実行して当日の日付なら通る",
+        passes("evening", "2026-09-20", "2026-09-20T05:00:00+09:00"), True,
+    )
+
+
+def test_edition_date_check_skipped_when_first_run_exists():
+    """検査24の負例: first_runが既にある号は、日付が実行時刻と食い違っていても落ちない。"""
+    with tempfile.TemporaryDirectory() as d:
+        dst = _copy_testdata_to(d)
+        edition_path = dst / "editions" / "2026-09-24" / "morning.json"
+        hyp_path = dst / "hypotheses" / "2026-09-24-morning.json"
+        cache_dir = dst / "cache"
+
+        edition = json.loads(edition_path.read_text(encoding="utf-8"))
+        edition["date"] = "2026-01-01"  # 実行時刻とは明らかに食い違う日付
+        edition["verification"] = {"first_run": {
+            "run_at": "2026-09-24T08:00:00+09:00", "baseline_late": False,
+            "market_open_reported": True, "source_policy_overwritten": 0,
+            "generated_at_reported": None, "generated_at_parsed": False,
+            "generated_at_drift_minutes": None,
+        }}
+        edition_path.write_text(json.dumps(edition, ensure_ascii=False, indent=1), encoding="utf-8")
+
+        result = _run_verify_cli(d, edition_path, hyp_path, cache_dir)
+        check(
+            "検査24/負例: first_runが既にある号は日付が食い違っていても保存できる(終了コード0)",
+            result.returncode, 0,
+        )
+
+    _assert_testdata_untouched("検査24/first_run有りテスト")
+
+
+def test_evidence_downgrade_target_is_reported():
+    """修正5: 検査11に不合格の仮説は、evidence_gradeがinferredではなくreportedになる。"""
+    hyps = [{"evidence_grade": "primary", "evidence_source_ref": None, "company_name": "テスト物産"}]
+    downgraded, unreadable = ve.run_check_hypothesis_evidence(hyps, {}, ".")
+    check("検査11/修正5: 不合格の仮説はevidence_gradeがreportedになる", hyps[0]["evidence_grade"], "reported")
+    check("検査11/修正5: primary_evidence_unverifiedの件数は1", downgraded, 1)
+    check("検査11/修正5: evidence_source_unreadableの件数は0", unreadable, 0)
+
+
+def test_check_hypothesis_baseline_late_input():
+    """検査17(修正6): baseline_late_inputが真の仮説は、baseline_dateではなく
+    baseline_observed_atの日付(営業日でなければ後の最初の営業日)から期限日を数え直す。"""
+    business_days = ve.load_business_days(str(CALENDAR_DIR))
+    sources = {}
+    line_ids = {"L-1": "verified"}
+    ng_words = []
+
+    def base(**kw):
+        h = {
+            "company_name": "テスト物産", "relation_text": "業績に影響しうる",
+            "falsifier": "翌月大幅に悪化した場合", "baseline_price_type": "close",
+            "direction": "plus", "evidence_grade": "reported",
+            "ticker": "8801", "ticker_source": "edinet_codelist", "line_ids": ["L-1"],
+        }
+        h.update(kw)
+        return h
+
+    def result_for(hyp):
+        return ve.check_hypothesis(hyp, {}, line_ids, business_days, ng_words, sources, ".", None)
+
+    # --- 正例1: baseline_observed_atが営業日そのもの ---
+    expected1 = ve.compute_deadline(business_days, "2026-09-25", 5)
+    hyp1 = base(
+        baseline_late_input=True, baseline_observed_at="2026-09-25T10:00:00+09:00",
+        baseline_date="2026-09-24", horizon_business_days=5, deadline_date=expected1,
+    )
+    check(
+        "検査17/正例1: baseline_late_inputが真ならbaseline_observed_atの日付から数えた期限日が合格する",
+        result_for(hyp1), None,
+    )
+
+    # --- 正例2: baseline_observed_atが非営業日(土曜) → 後の最初の営業日(2026-09-28)から数える ---
+    expected2 = ve.compute_deadline(business_days, "2026-09-28", 3)
+    hyp2 = base(
+        baseline_late_input=True, baseline_observed_at="2026-09-26T09:00:00+09:00",
+        baseline_date="2026-09-24", horizon_business_days=3, deadline_date=expected2,
+    )
+    check(
+        "検査17/正例2: baseline_observed_atが非営業日なら後の最初の営業日から数え直す",
+        result_for(hyp2), None,
+    )
+
+    # --- 負例(反応してほしい): baseline_observed_atがnull → 削除 ---
+    hyp3 = base(
+        baseline_late_input=True, baseline_observed_at=None,
+        baseline_date="2026-09-24", horizon_business_days=5, deadline_date=expected1,
+    )
+    check(
+        "検査17/負例: baseline_observed_atがnullならdeadline_date_mismatchで削除される",
+        result_for(hyp3), "deadline_date_mismatch",
+    )
+
+    # --- 負例(反応してほしくない例。5件以上): baseline_late_inputが偽・無い・nullは従来どおり ---
+    expected_normal = ve.compute_deadline(business_days, "2026-09-24", 5)
+    hyp4 = base(baseline_late_input=False, baseline_date="2026-09-24", horizon_business_days=5, deadline_date=expected_normal)
+    check(
+        "検査17/反応してほしくない例1: baseline_late_inputが偽ならbaseline_dateから従来どおり計算される",
+        result_for(hyp4), None,
+    )
+
+    hyp5 = base(baseline_date="2026-09-24", horizon_business_days=5, deadline_date=expected_normal)
+    check(
+        "検査17/反応してほしくない例2: baseline_late_inputキーが無くても従来どおり計算される",
+        result_for(hyp5), None,
+    )
+
+    hyp6 = base(baseline_late_input=None, baseline_date="2026-09-24", horizon_business_days=5, deadline_date=expected_normal)
+    check(
+        "検査17/反応してほしくない例3: baseline_late_inputがnullでも従来どおり計算される",
+        result_for(hyp6), None,
+    )
+
+    hyp7 = base(baseline_late_input=False, baseline_date="2026-09-24", horizon_business_days=5, deadline_date="2099-01-01")
+    check(
+        "検査17/反応してほしくない例4: baseline_late_inputが偽で期限日が違えばdeadline_date_mismatchになる(従来どおり)",
+        result_for(hyp7), "deadline_date_mismatch",
+    )
+
+    expected_alt_horizon = ve.compute_deadline(business_days, "2026-09-25", 3)
+    hyp8 = base(
+        baseline_late_input=True, baseline_observed_at="2026-09-25T09:00:00+09:00",
+        baseline_date="2026-09-24", horizon_business_days=3, deadline_date=expected_alt_horizon,
+    )
+    check(
+        "検査17/反応してほしくない例5: horizonを変えても営業日起算の仕組み自体は壊れていない",
+        result_for(hyp8), None,
+    )
+
+
 def main():
     test_read_source_text()
     test_check_evidence_source_ref()
@@ -1903,6 +2449,17 @@ def main():
     test_check_market_open()
     test_find_number_numeric_comparison()
     test_find_number_leading_zero()
+    test_build_first_run_record()
+    test_first_run_created_on_first_verification()
+    test_first_run_unchanged_on_second_run()
+    test_first_run_freezes_baseline_late_and_keeps_industry_examples()
+    test_skip_companies_when_market_closed()
+    test_skip_companies_when_baseline_late()
+    test_industry_examples_not_skipped_when_market_open_and_not_late()
+    test_check_edition_date()
+    test_edition_date_check_skipped_when_first_run_exists()
+    test_evidence_downgrade_target_is_reported()
+    test_check_hypothesis_baseline_late_input()
 
     total = len(results)
     passed = sum(1 for _, ok, _, _ in results if ok)
