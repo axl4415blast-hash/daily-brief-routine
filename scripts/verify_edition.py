@@ -899,6 +899,135 @@ def run_industry_example_checks(examples, edition, codelist_rows):
     return kept, reasons, allowed_industries
 
 
+GRADE_PRIORITY = {"primary": 0, "reported": 1, "inferred": 2}
+
+
+def _trim_group_by_priority(members):
+    """membersのうち、残す分(keepのidオブジェクト集合)と削る分(drop)を、
+    優先順位(primary→reported→inferred)で決める。同じ印の中では配列の並び順
+    (idx)が小さい方を残し、大きい方(後ろ)から削る。呼び出し元がlimit件まで
+    切り詰める前提で使う内部ヘルパー。"""
+    by_grade = {}
+    for m in members:
+        by_grade.setdefault(m["grade"], []).append(m)
+    ordered = []
+    for grade in ("primary", "reported", "inferred"):
+        ordered.extend(sorted(by_grade.get(grade, []), key=lambda m: m["idx"]))
+    return ordered
+
+
+def _apply_slot_limit(slots, key_fn, limit):
+    """slotsを key_fn でグループ分けし、各グループがlimit件を超えていたら、
+    優先順位(primary→reported→inferred、同じ印は配列順の後ろから)で超過分を削る。
+    key_fnがNoneを返すslotはそのグループ分けの対象外(削らない)。
+    戻り値: (残ったslots, 削られたslots)。"""
+    groups = {}
+    for s in slots:
+        key = key_fn(s)
+        if key is None:
+            continue
+        groups.setdefault(key, []).append(s)
+
+    dropped_ids = set()
+    for key, members in groups.items():
+        if len(members) <= limit:
+            continue
+        ordered = _trim_group_by_priority(members)
+        for m in ordered[limit:]:
+            dropped_ids.add(id(m))
+
+    remaining = [s for s in slots if id(s) not in dropped_ids]
+    dropped = [s for s in slots if id(s) in dropped_ids]
+    return remaining, dropped
+
+
+def run_slot_allocation(hypotheses_doc, edition):
+    """検査29: 上段・下段の個別の検査が終わった後に、号全体の枠を数える。
+      ・上段と下段に同じ会社(ticker)がいたら下段側を削除
+      ・下段(industry_examples)は最大2社
+      ・1業種あたり最大2社(下段のみ。上段にはindustryが無いため対象外)
+      ・1記事あたり最大2社(上段+下段の合計)
+      ・号全体は最大5社(上段+下段の合計)
+    超過分の削除は、残す優先順位をprimary→reported→inferredとし、同じ印の中では
+    配列の並び順の後ろから削る(何度実行しても同じ結果になるように)。
+    hypotheses_doc["hypotheses"]/["industry_examples"]を、残った分だけに更新する。
+    戻り値: (削除した件数の合計, 理由ごとの内訳)。"""
+    hyps = hypotheses_doc.get("hypotheses") or []
+    examples = hypotheses_doc.get("industry_examples") or []
+
+    line_to_article = {}
+    for section, article, line in iter_lines(edition):
+        line_to_article[line.get("line_id")] = article.get("article_id")
+
+    def hyp_article_id(h):
+        for lid in h.get("line_ids") or []:
+            article_id = line_to_article.get(lid)
+            if article_id:
+                return article_id
+        return None
+
+    slots = []
+    for idx, h in enumerate(hyps):
+        slots.append({
+            "origin": "upper", "obj": h, "idx": idx,
+            "ticker": h.get("ticker"), "article_id": hyp_article_id(h),
+            "industry": None, "grade": h.get("evidence_grade"),
+        })
+    for idx, e in enumerate(examples):
+        slots.append({
+            "origin": "lower", "obj": e, "idx": idx,
+            "ticker": e.get("ticker"), "article_id": e.get("article_id"),
+            "industry": e.get("industry"), "grade": "inferred",
+        })
+
+    reasons = {}
+
+    def record(dropped, reason):
+        if dropped:
+            reasons[reason] = reasons.get(reason, 0) + len(dropped)
+
+    # 規則: 上段と下段に同じ会社(ticker)がいたら下段側を削除する。
+    upper_tickers = {s["ticker"] for s in slots if s["origin"] == "upper" and s["ticker"]}
+    duplicates = [s for s in slots if s["origin"] == "lower" and s["ticker"] in upper_tickers]
+    if duplicates:
+        dup_ids = {id(s) for s in duplicates}
+        slots = [s for s in slots if id(s) not in dup_ids]
+        record(duplicates, "slot_duplicate_with_upper")
+
+    slots, dropped = _apply_slot_limit(
+        slots, lambda s: "lower" if s["origin"] == "lower" else None,
+        pick_industry_companies.LOWER_SECTION_LIMIT,
+    )
+    record(dropped, "slot_lower_section_limit")
+
+    slots, dropped = _apply_slot_limit(
+        slots, lambda s: s["industry"] if s["origin"] == "lower" else None,
+        pick_industry_companies.PER_INDUSTRY_LIMIT,
+    )
+    record(dropped, "slot_per_industry_limit")
+
+    slots, dropped = _apply_slot_limit(
+        slots, lambda s: s["article_id"],
+        pick_industry_companies.PER_ARTICLE_LIMIT,
+    )
+    record(dropped, "slot_per_article_limit")
+
+    slots, dropped = _apply_slot_limit(
+        slots, lambda s: "all",
+        pick_industry_companies.TOTAL_LIMIT,
+    )
+    record(dropped, "slot_total_limit")
+
+    kept_upper = [s["obj"] for s in sorted((s for s in slots if s["origin"] == "upper"), key=lambda s: s["idx"])]
+    kept_lower = [s["obj"] for s in sorted((s for s in slots if s["origin"] == "lower"), key=lambda s: s["idx"])]
+
+    hypotheses_doc["hypotheses"] = kept_upper
+    hypotheses_doc["industry_examples"] = kept_lower
+
+    total_violations = sum(reasons.values())
+    return total_violations, reasons
+
+
 def print_report(edition_path, stats, stop_hits, watch_hits, dropped_inferences, stale_hits,
                   unknown_published_at_hits, stale_skipped,
                   hypothesis_violations, hypothesis_reasons, number_failure_details, ok,
@@ -1002,6 +1131,19 @@ def print_report(edition_path, stats, stop_hits, watch_hits, dropped_inferences,
             for reason, count in violations["reasons"].items():
                 print(f"  ・{lower_reason_text.get(reason, reason)}: {count}件")
 
+        slot = industry_report["slot_violations"]
+        if slot["total"]:
+            print(f"枠配分(検査29)で削除した会社数: {slot['total']}件")
+            slot_reason_text = {
+                "slot_duplicate_with_upper": "上段と下段に同じ会社がいたため下段側を削除",
+                "slot_lower_section_limit": "下段の上限(2社)を超えていた",
+                "slot_per_industry_limit": "1業種あたりの上限(2社)を超えていた",
+                "slot_per_article_limit": "1記事あたりの上限(2社)を超えていた",
+                "slot_total_limit": "号全体の上限(5社)を超えていた",
+            }
+            for reason, count in slot["reasons"].items():
+                print(f"  ・{slot_reason_text.get(reason, reason)}: {count}件")
+
         short_match = industry_report["short_name_match_count"]
         print(f"3文字以下の名前で本文一致した件数: {short_match['count']}件")
         if short_match["names"]:
@@ -1086,6 +1228,9 @@ def main():
             )
             hypotheses_doc["industry_examples"] = kept_examples
 
+            # 7. 枠配分の検査29は、上段・下段の個別の検査が終わった後に行う。
+            slot_total, slot_reasons = run_slot_allocation(hypotheses_doc, edition)
+
             industry_report = {
                 "industry_picks_total": pick_result.get("total_pick_count", 0),
                 "industry_examples_total": len(hypotheses_doc["industry_examples"]),
@@ -1093,6 +1238,7 @@ def main():
                     "total": sum(lower_reasons.values()), "reasons": lower_reasons,
                 },
                 "ai_written_examples_discarded": pick_result.get("ai_written_examples_discarded", 0),
+                "slot_violations": {"total": slot_total, "reasons": slot_reasons},
                 "short_name_match_count": {
                     "count": pick_result.get("mentioned_short_count", 0),
                     "names": pick_result.get("short_name_matches", []),

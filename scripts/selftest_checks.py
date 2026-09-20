@@ -1473,6 +1473,85 @@ def test_check_lower_listed_and_ticker_match():
     )
 
 
+def test_run_slot_allocation():
+    """作業D(8.4): 検査29(枠配分)の正例。
+    上段5社・下段2社→下段0社、上段下段の重複排除、同業種3社→2社、
+    同記事3社→2社、primary3社+reported3社(計6社)→primary3社+reported2社(計5社)。"""
+
+    def hyp(ticker, grade, article_id):
+        return {"ticker": ticker, "evidence_grade": grade, "line_ids": [f"L-{article_id}"]}
+
+    def lower(ticker, industry, article_id):
+        return {"ticker": ticker, "industry": industry, "article_id": article_id}
+
+    def edition_for(article_ids):
+        return {
+            "sections": [{
+                "section_id": "s",
+                "articles": [
+                    {"article_id": aid, "lines": [{"line_id": f"L-{aid}"}]}
+                    for aid in article_ids
+                ],
+            }],
+        }
+
+    # --- 正例1: 上段5社・下段2社 → 合計5社になり、下段が0社になる ---
+    hyps1 = [hyp(f"U{i}", "primary", f"ART-U{i}") for i in range(5)]
+    examples1 = [lower("L1", "業種A", "ART-L1"), lower("L2", "業種B", "ART-L2")]
+    doc1 = {"hypotheses": hyps1, "industry_examples": examples1}
+    edition1 = edition_for([f"ART-U{i}" for i in range(5)] + ["ART-L1", "ART-L2"])
+    ve.run_slot_allocation(doc1, edition1)
+    check(
+        "検査29/正例1: 上段5社・下段2社は合計5社になる",
+        len(doc1["hypotheses"]) + len(doc1["industry_examples"]), 5,
+    )
+    check("検査29/正例1: 下段は0社になる", len(doc1["industry_examples"]), 0)
+    check("検査29/正例1: 上段は5社のまま残る", len(doc1["hypotheses"]), 5)
+
+    # --- 正例2: 上段2社・下段2社で、同じtickerが両方にいる → 下段側が消える ---
+    hyps2 = [hyp("DUP", "primary", "ART-U1"), hyp("U2", "primary", "ART-U2")]
+    examples2 = [lower("DUP", "業種A", "ART-L1"), lower("L2", "業種B", "ART-L2")]
+    doc2 = {"hypotheses": hyps2, "industry_examples": examples2}
+    edition2 = edition_for(["ART-U1", "ART-U2", "ART-L1", "ART-L2"])
+    ve.run_slot_allocation(doc2, edition2)
+    check(
+        "検査29/正例2: 上段と下段に同じticker('DUP')がいたら下段側が消える",
+        [e["ticker"] for e in doc2["industry_examples"]], ["L2"],
+    )
+    check("検査29/正例2: 上段はそのまま2社残る", len(doc2["hypotheses"]), 2)
+
+    # --- 正例3: 同じ業種の会社が3社 → 2社になる ---
+    examples3 = [lower(f"L{i}", "業種A", f"ART-L{i}") for i in range(3)]
+    doc3 = {"hypotheses": [], "industry_examples": examples3}
+    edition3 = edition_for([f"ART-L{i}" for i in range(3)])
+    ve.run_slot_allocation(doc3, edition3)
+    check("検査29/正例3: 同じ業種の会社が3社なら2社になる", len(doc3["industry_examples"]), 2)
+
+    # --- 正例4: 同じ記事に3社(上段+下段の合計) → 2社になる ---
+    hyps4 = [hyp("U1", "primary", "ART-SAME")]
+    examples4 = [lower("L1", "業種A", "ART-SAME"), lower("L2", "業種B", "ART-SAME")]
+    doc4 = {"hypotheses": hyps4, "industry_examples": examples4}
+    edition4 = edition_for(["ART-SAME"])
+    ve.run_slot_allocation(doc4, edition4)
+    check(
+        "検査29/正例4: 同じ記事に3社(上段1+下段2)いたら2社になる",
+        len(doc4["hypotheses"]) + len(doc4["industry_examples"]), 2,
+    )
+
+    # --- 正例5: primary3社・reported3社(計6社) → primary3社+reported2社(計5社) ---
+    hyps5 = (
+        [hyp(f"P{i}", "primary", f"ART-P{i}") for i in range(3)]
+        + [hyp(f"R{i}", "reported", f"ART-R{i}") for i in range(3)]
+    )
+    doc5 = {"hypotheses": hyps5, "industry_examples": []}
+    edition5 = edition_for([f"ART-P{i}" for i in range(3)] + [f"ART-R{i}" for i in range(3)])
+    ve.run_slot_allocation(doc5, edition5)
+    kept_grades = [h["evidence_grade"] for h in doc5["hypotheses"]]
+    check("検査29/正例5: primary3社は全部残る", kept_grades.count("primary"), 3)
+    check("検査29/正例5: reportedは1社削られて2社になる", kept_grades.count("reported"), 2)
+    check("検査29/正例5: 合計5社になる", len(doc5["hypotheses"]), 5)
+
+
 def test_testdata_copy_integration():
     """3.3: scripts/testdata を一時フォルダにコピーし、コピーの方に対してCLI全体を
     走らせることで、本体のscripts/testdataには一切書き込まないことを確かめる。
@@ -1616,6 +1695,7 @@ def main():
     test_check_lower_line_mark()
     test_check_lower_ticker()
     test_check_lower_listed_and_ticker_match()
+    test_run_slot_allocation()
     test_testdata_copy_integration()
     test_verify_edition_industry_integration()
 
