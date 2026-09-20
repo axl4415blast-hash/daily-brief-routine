@@ -42,6 +42,7 @@ ticker_source / links.price_history は検査13(証券コードの確認)で使�
 import argparse
 import csv
 import datetime as dt
+import decimal
 import hashlib
 import json
 import re
@@ -123,7 +124,51 @@ def format_number(value):
     return str(value)
 
 
+_NUMBER_TOKEN_RE = re.compile(r"(?<![0-9.])-?[0-9]+(?:\.[0-9]+)?(?![0-9])")
+
+
+def _to_decimal(value):
+    """valueを10進数として解釈できればDecimalを返す。できなければNoneを返す。
+    float(浮動小数点)ではなくstr(value)経由でDecimalに直すのは、2.0を2.0000000001の
+    ような形の浮動小数点誤差なしにそのまま10進数として比べるため。"""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        try:
+            return decimal.Decimal(str(value))
+        except decimal.InvalidOperation:
+            return None
+    if isinstance(value, str):
+        try:
+            return decimal.Decimal(value)
+        except decimal.InvalidOperation:
+            return None
+    return None
+
+
+def _is_half_width_digit(ch):
+    """半角数字かどうかだけを見る。str.isdigit()は全角数字やローマ数字の上付き文字にも
+    真を返してしまい、それらを「数字の続き」と誤認する(全角の数字境界を見落とす)ため使わない。"""
+    return "0" <= ch <= "9"
+
+
 def find_number(excerpt_norm, value):
+    # valueが数値として解釈できるなら、文字列としてではなく数値として比べる。
+    # "2.0"という表記のvalueが、format_number()で文字列"2"に直されて本文中の
+    # "2.0"と一致しなくなる不具合(2.0/2/1.0のいずれも本文と一致しなくなっていた)を
+    # 避けるため。
+    decimal_value = _to_decimal(value)
+    if decimal_value is not None:
+        for match in _NUMBER_TOKEN_RE.finditer(excerpt_norm):
+            try:
+                token_value = decimal.Decimal(match.group())
+            except decimal.InvalidOperation:
+                continue
+            if token_value == decimal_value:
+                return True
+        return False
+
+    # valueが数値として解釈できない場合(文字列など)は、これまで通りの文字列探索に落とす。
     needle = format_number(value)
     if not needle:
         return False
@@ -136,13 +181,13 @@ def find_number(excerpt_norm, value):
         after_idx = idx + len(needle)
         after = excerpt_norm[after_idx] if after_idx < len(excerpt_norm) else ""
         ok = True
-        if before.isdigit():
+        if _is_half_width_digit(before):
             ok = False
-        if after.isdigit():
+        if _is_half_width_digit(after):
             ok = False
         if after == ".":
             after2 = excerpt_norm[after_idx + 1] if after_idx + 1 < len(excerpt_norm) else ""
-            if after2.isdigit():
+            if _is_half_width_digit(after2):
                 ok = False
         if ok:
             return True
