@@ -711,6 +711,70 @@ def run_check_published_at(edition, cache_dir):
     return unverified_hits, unverified_sources
 
 
+NUMBER_COVERAGE_TOKEN_RE = re.compile(r"\d+(?:[.,]\d+)*")
+
+
+def compute_number_coverage(edition):
+    """修正4: 本文の数字の個数と、行が申告したnumbersの件数の差を記録する
+    (要件定義書v12 13章と同じく、判定には使わない記録専用)。紙面を作るAIが、
+    照合を避けるためにnumbersを書かずに済ませていないかを見る材料。
+
+    対象はiter_lines()が返す本文のすべての行(excerptではなく行のtext)。
+    textをnormalize_text()で正規化してからNUMBER_COVERAGE_TOKEN_RE
+    (\\d+(?:[.,]\\d+)*)に一致する個数を数える。normalize_text()が数字間の
+    カンマを既に取り除くため「1,901」は1個、「2026年9月18日」は3個になる。
+    漢数字は数えない。
+
+    差(gap)は日付・年号も数えるため、正常な行でも大きく出る。この値で行を
+    落としたり印を変えたりしない(号ごとの比較のための記録)。
+
+    呼び出しはline["mark"](run_line_verification()が確定させた値)が
+    付いた後、かつ行の削除(停止語・出典の鮮度)が終わった後に行うこと。
+    by_markはその時点で号に残っている行の内訳になる。"""
+    total_text_tokens = 0
+    total_numbers_declared = 0
+    by_mark = {}
+    for _section, _article, line in iter_lines(edition):
+        text_tokens = len(NUMBER_COVERAGE_TOKEN_RE.findall(normalize_text(line.get("text") or "")))
+        numbers_declared = len(line.get("numbers") or [])
+        total_text_tokens += text_tokens
+        total_numbers_declared += numbers_declared
+        mark = line.get("mark") or "unknown"
+        bucket = by_mark.setdefault(mark, {"text_number_tokens": 0, "numbers_declared": 0})
+        bucket["text_number_tokens"] += text_tokens
+        bucket["numbers_declared"] += numbers_declared
+    return {
+        "text_number_tokens": total_text_tokens,
+        "numbers_declared": total_numbers_declared,
+        "gap": total_text_tokens - total_numbers_declared,
+        "by_mark": by_mark,
+    }
+
+
+def count_sources_published_at_null(edition):
+    """修正5: published_at(公表日時)が書かれていない出典の件数を数える
+    (edition["sources"]の全件が対象。change枠の行が落ちた件数を数える
+    既存のunknown_published_at_hitsとは別集計で、そちらの値は変えない)。
+    値がnull・空文字・キー自体が無い場合を「書かれていない」とみなす。
+    行は落とさない(記録専用)。"""
+    count = 0
+    source_ids = []
+    for source in edition.get("sources") or []:
+        if not source.get("published_at"):
+            count += 1
+            source_ids.append(source.get("source_id"))
+    return {"count": count, "source_ids": source_ids}
+
+
+def compute_rerun_detected(existing_verification):
+    """修正8: この号が既にverification(照合結果)を持っていたか、つまり今回が
+    2回目以降の照合かどうかを返す。実行時刻には一切依存しない、号のデータ
+    (existing_verificationの有無)だけで決まる純粋な判定。
+    判定(検査の合否)には使わない。existing_verificationは紙面を作るAIが
+    書けるファイルの中にある値のため、これを条件に検査を飛ばす作りにしない。"""
+    return existing_verification is not None
+
+
 def run_check_baseline_late(edition, run_at_dt):
     """検査20: 号の遅延判定。スクリプトの実行時刻(run_at_dt、日本時間)が、morning号なら
     8:50を過ぎていたらTrueを返す。noon号・evening号は常にFalse(判定しない)。
@@ -1465,7 +1529,8 @@ def print_report(edition_path, stats, stop_hits, watch_hits, dropped_inferences,
                   unknown_published_at_hits, stale_skipped,
                   hypothesis_violations, hypothesis_reasons, number_failure_details, ok,
                   baseline_late=False, ticker_crosscheck="skipped", source_usage_invalid_hits=0,
-                  industry_report=None, source_policy_unlisted_domains=None):
+                  industry_report=None, source_policy_unlisted_domains=None,
+                  number_coverage=None, sources_published_at_null=None, rerun_detected=False):
     print("=" * 60)
     print(f"照合結果: {edition_path}")
     print("=" * 60)
@@ -1515,8 +1580,22 @@ def print_report(edition_path, stats, stop_hits, watch_hits, dropped_inferences,
     print(f"出典が古い(36時間以上前)行の件数: {stale_hits}")
     print(f"出典の公表時刻が分からず、鮮度を確認できなかったため落とした行の件数: {unknown_published_at_hits}")
     print(f"出典の日時が読み取れず判定できなかった行の件数: {stale_skipped}")
+    # 修正5: change枠に関係なく、出典そのものでpublished_atが無いものを数える
+    # (行は落とさない。既存のunknown_published_at_hitsとは別の集計)。
+    pub_null = sources_published_at_null or {"count": 0, "source_ids": []}
+    print(f"公表日時(published_at)が書かれていない出典: {pub_null['count']}件")
     print(f"必須項目が空で削除した推論の件数: {dropped_inferences}")
     print(f"号の遅延判定(baseline_late): {baseline_late}")
+    # 修正4: 本文の数字の個数とnumbersの件数の差(判定には使わない。記録のみ)。
+    if number_coverage:
+        print(
+            f"本文の数字: {number_coverage['text_number_tokens']}個"
+            f" / numbersに書かれた数値: {number_coverage['numbers_declared']}件"
+            f"(差 {number_coverage['gap']})"
+        )
+    # 修正8: 再照合であることの記録(判定には使わない)。
+    if rerun_detected:
+        print("この号は2回目以降の照合です(下段の顔ぶれが1回目と変わることがあります)。")
     print(f"証券コードの突き合わせ(ticker_crosscheck): {ticker_crosscheck}")
     print(f"usageが正しく書かれていない出典の件数(source_usage_invalid_hits): {source_usage_invalid_hits}")
     unlisted = source_policy_unlisted_domains or []
@@ -1590,6 +1669,16 @@ def print_report(edition_path, stats, stop_hits, watch_hits, dropped_inferences,
         if short_match["names"]:
             print(f"  該当した名前: {'、'.join(short_match['names'])}")
 
+    if industry_report:
+        # 修正3・修正2: どちらも判定には使わない記録専用の件数。休場日・遅延号
+        # (下段を作らなかった号)でも0件として出す(対称性のため)。
+        legacy = industry_report.get("legacy_substring_rule_dropped", {"count": 0, "names": []})
+        generic = industry_report.get("generic_name_dropped", {"count": 0, "names": []})
+        legacy_names = f"（{'、'.join(legacy['names'])}）" if legacy["names"] else ""
+        generic_names = f"（{'、'.join(generic['names'])}）" if generic["names"] else ""
+        print(f"旧規則で本文照合から外した会社: {legacy['count']}件{legacy_names}")
+        print(f"一般語辞書で本文照合から外した会社: {generic['count']}件{generic_names}")
+
 
 def should_abort_rerun(existing_verification, baseline_late):
     """再照合で企業欄が消える結果になるときにTrueを返す。
@@ -1655,6 +1744,9 @@ def main():
         # should_abort_rerun()の判定にだけ使う(修正C)。
         existing_verification = edition.get("verification")
         existing_first_run = (existing_verification or {}).get("first_run")
+        # 修正8: 記録専用。existing_verificationの有無だけで決まり、実行時刻には
+        # 依存しない(compute_rerun_detected()を参照)。
+        rerun_detected = compute_rerun_detected(existing_verification)
 
         check_a_structure(edition)
         check_b_edition_id(edition, edition_path)
@@ -1684,6 +1776,8 @@ def main():
         stale_check_skipped = 0  # run_at_dtは常に読み取れるため、判定を飛ばす理由が無い。
         # 検査36: 記録だけを取り、行は落とさない(要件定義書v12 13章。7日間の様子見)。
         published_at_unverified_hits, published_at_unverified_sources = run_check_published_at(edition, args.cache)
+        # 修正5: 枠(change)に関係なく、出典そのものでpublished_atが無いものを数える。
+        sources_published_at_null = count_sources_published_at_null(edition)
 
         # 検査20: 号の遅延判定。常に今回の実行時刻で判定する(修正B)。first_runの
         # 中の値は判定に使わない(AIが書けるファイルの中にある値のため)。
@@ -1730,6 +1824,10 @@ def main():
                 hypotheses_doc["industry_examples"] = []
                 industry_report = {
                     "industry_picks_discarded": industry_picks_discarded,
+                    # 修正3・修正2: 下段を作らなかった号でも、作った号との対称性の
+                    # ため常にこのキーを出す(0件)。
+                    "legacy_substring_rule_dropped": {"count": 0, "names": []},
+                    "generic_name_dropped": {"count": 0, "names": []},
                 }
             else:
                 # 5. 下段(業種から選ぶ企業欄)の選定。規則6: 上段の検査が終わって残った
@@ -1776,6 +1874,17 @@ def main():
                         "names": pick_result.get("short_name_matches", []),
                     },
                     "allowed_industries_count": len(allowed_industries),
+                    # 修正3: 旧規則4(pick_industry_companies._filter_usable_names)で
+                    # 本文照合から外した会社。コードリスト未取得(fatal_error)の場合は
+                    # pick_industry_companies.run()側でこのキーを作らないため0件で補う。
+                    "legacy_substring_rule_dropped": pick_result.get(
+                        "legacy_substring_rule_dropped", {"count": 0, "names": []}
+                    ),
+                    # 修正2: 一般語辞書(scripts/generic_words.txt、名寄せ規則6)で
+                    # 本文照合から外した会社。
+                    "generic_name_dropped": pick_result.get(
+                        "generic_name_dropped", {"count": 0, "names": []}
+                    ),
                 }
 
         # 修正2: first_runが無ければ今回の値で作る。あれば中身を一切書き換えず、
@@ -1788,6 +1897,9 @@ def main():
                 market_open_result["reported"], source_policy_result["overwritten"],
                 edition.get("generated_at"),
             )
+
+        # 修正4: 号に残っている行(停止語・出典の鮮度の検査が終わった後)で数える。
+        number_coverage = compute_number_coverage(edition)
 
         edition["verification"] = {
             "script_version": "2.0.0",
@@ -1823,6 +1935,12 @@ def main():
             "baseline_date_check_skipped": hypothesis_extra["baseline_date_check_skipped"],
             "published_at_unverified_hits": published_at_unverified_hits,
             "published_at_unverified_sources": published_at_unverified_sources,
+            # 修正5: 記録専用(判定には使わない)。既存のunknown_published_at_hitsは変えない。
+            "sources_published_at_null": sources_published_at_null,
+            # 修正4: 記録専用(判定には使わない)。
+            "number_coverage": number_coverage,
+            # 修正8: 記録専用(判定には使わない)。
+            "rerun_detected": rerun_detected,
         }
         if industry_report is not None:
             edition["verification"].update(industry_report)
@@ -1842,6 +1960,9 @@ def main():
             source_usage_invalid_hits=source_usage_invalid_hits,
             industry_report=industry_report,
             source_policy_unlisted_domains=source_policy_result["unlisted_domains"],
+            number_coverage=number_coverage,
+            sources_published_at_null=sources_published_at_null,
+            rerun_detected=rerun_detected,
         )
         return 0
 
