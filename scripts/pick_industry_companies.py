@@ -27,6 +27,7 @@ from pathlib import Path
 import edinet_codelist
 
 ALIASES_PATH = Path("scripts/aliases.csv")
+GENERIC_WORDS_PATH = Path("scripts/generic_words.txt")
 
 # 業種あたり・記事あたり・号全体(下段)の上限。号全体(上段+下段)の上限は別途
 # hypotheses配列の件数から動的に計算する(上段を先に数える)。
@@ -104,6 +105,28 @@ def load_aliases():
     return aliases_by_edinet_code
 
 
+def load_generic_words():
+    """一般語の除外辞書(名寄せ規則6/要件定義書v12 3.4(5))を読み込む。
+    scripts/generic_words.txt が無ければ標準エラーに1行だけ知らせて、除外0件
+    (空集合)のまま動く(異常終了しない)。#で始まる行と空行は無視する。
+    比較は_normalize_match_name()を通した文字列どうしの完全一致で行うため、
+    ここで正規化してから集合に入れる。"""
+    if not GENERIC_WORDS_PATH.is_file():
+        print(
+            f"[情報] {GENERIC_WORDS_PATH} が見つからないため、一般語の除外は0件で動作します。",
+            file=sys.stderr,
+        )
+        return set()
+    words = set()
+    with open(GENERIC_WORDS_PATH, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            words.add(_normalize_match_name(line))
+    return words
+
+
 def _normalize_match_name(s):
     """会社名・本文を照合用に正規化する(3.3の手順そのまま):
     NFKC正規化 -> 大文字化 -> 法人格の表記・中黒・長音・ハイフン・空白を除去。
@@ -140,10 +163,17 @@ def _is_word_forming(ch):
     return False
 
 
-def _filter_usable_names(entries):
+def _filter_usable_names(entries, dropped=None, company_names=None):
     """他社の照合名の一部になっている照合名は使わない(例: 'タカラ'は'タカラトミー'
     の一部なので使わない)。同じ会社の別表記(エイリアス)同士が重なるのは問題ない。
-    entries: [(match_name, company_key, news_entity, entity_relation), ...]"""
+    entries: [(match_name, company_key, news_entity, entity_relation), ...]
+
+    dropped: Noneでなければ、この規則で除外した会社のcompany_key(edinet_code)を
+    キー、company_nameを値として記録する(呼び出し元が件数・会社名を数えるため)。
+    company_names: company_key->company_nameの対応表(entries自体はcompany_name
+    を持たないため、記録用にここから引く)。優先順位づけのための下見
+    (_has_any_mention経由)からはdroppedをNoneのまま呼ぶことで、記録されない
+    (select_companies_for_pick経由と二重に数えない)。"""
     names_by_company = {}
     for match_name, company_key, *_rest in entries:
         if not match_name:
@@ -159,10 +189,17 @@ def _filter_usable_names(entries):
                     return True
         return False
 
-    return [
-        entry for entry in entries
-        if entry[0] and not is_substring_of_other_company(entry[0], entry[1])
-    ]
+    kept = []
+    for entry in entries:
+        if not entry[0]:
+            continue
+        if is_substring_of_other_company(entry[0], entry[1]):
+            if dropped is not None:
+                name = (company_names or {}).get(entry[1], entry[0])
+                dropped.setdefault(entry[1], name)
+            continue
+        kept.append(entry)
+    return kept
 
 
 def _find_mentions(blob, entries):
@@ -198,18 +235,34 @@ def _find_mentions(blob, entries):
     return found
 
 
-def _build_entries(candidates, aliases_by_edinet_code):
+def _build_entries(candidates, aliases_by_edinet_code, generic_words=None, dropped=None):
     """候補企業(その業種の上場企業一覧)ごとに、正式名+エイリアスの照合名一覧を作る。
     正式名と正規化後に同じ文字列になるエイリアスは、正式名側として扱う(重複させない)。
 
     正式名での一致はentity_relation="same"にする。エイリアスでの一致は別名表の
     entity_relationをそのまま使うが、値が"self"なら"same"に読み替える
     (edinet_codelist.pyのcompanyコマンドと同じ扱い)。読み替えてもsame/parent
-    のいずれでもない値だった場合、そのエイリアスは使わない(本文照合の対象にしない)。"""
+    のいずれでもない値だった場合、そのエイリアスは使わない(本文照合の対象にしない)。
+
+    generic_words: 名寄せ規則6(scripts/generic_words.txt)の除外辞書。Noneなら
+    この関数がload_generic_words()で読み込む。_normalize_match_name()済みの
+    文字列の集合で、完全一致する照合名(正式名・エイリアスのどちらも)は
+    entriesに加えない(部分一致では除外しない)。
+
+    dropped: Noneでなければ、この辞書で除外した会社のcompany_key(edinet_code)を
+    キー、company_nameを値として記録する。優先順位づけのための下見
+    (_has_any_mention経由)からはdroppedをNoneのまま呼ぶことで、記録されない
+    (select_companies_for_pick経由と二重に数えない)。"""
+    if generic_words is None:
+        generic_words = load_generic_words()
     entries = []
     for c in candidates:
         official_match = _normalize_match_name(c["company_name"])
-        entries.append((official_match, c["edinet_code"], None, "same"))
+        if official_match in generic_words:
+            if dropped is not None:
+                dropped.setdefault(c["edinet_code"], c["company_name"])
+        else:
+            entries.append((official_match, c["edinet_code"], None, "same"))
         for alias in aliases_by_edinet_code.get(c["edinet_code"], []):
             alias_match = _normalize_match_name(alias["news_name"])
             if not alias_match or alias_match == official_match:
@@ -224,15 +277,25 @@ def _build_entries(candidates, aliases_by_edinet_code):
                     file=sys.stderr,
                 )
                 continue
+            if alias_match in generic_words:
+                if dropped is not None:
+                    dropped.setdefault(c["edinet_code"], c["company_name"])
+                continue
             entries.append((alias_match, c["edinet_code"], alias["news_name"], entity_relation))
     return entries
 
 
-def select_companies_for_pick(candidates, article, aliases_by_edinet_code, selected_edinet_codes, slot):
+def select_companies_for_pick(candidates, article, aliases_by_edinet_code, selected_edinet_codes, slot,
+                               generic_words=None, generic_dropped=None, legacy_dropped=None):
     """1件のindustry_pickについて、選ぶ会社を最大slot件返す。
     candidates: その業種の上場企業一覧(資本金の多い順、edinet_codelist.get_companies_by_industryの結果)。
     article: index_articles()が作った1記事ぶんの辞書({"text_blob": ...}を含む)。
     selected_edinet_codes: 号全体で既に選ばれた会社のedinet_codeの集合(重複選択を避ける)。
+
+    generic_words/generic_dropped/legacy_dropped: 名寄せ規則6(一般語辞書)と、
+    旧規則4(他社名の一部になっている照合名を使わない)による除外の記録先。
+    どちらもNoneなら記録しない。呼び出し元(run())が号全体で1つの辞書を使い回す
+    ことで、この関数が複数回呼ばれても同じ会社の除外を重複なく数えられる。
 
     戻り値: [{"candidate":..., "selection_rule":..., "news_entity":..., "entity_relation":...,
               "match_name_len": 数値かNone}, ...]"""
@@ -251,8 +314,11 @@ def select_companies_for_pick(candidates, article, aliases_by_edinet_code, selec
         key=lambda c: (c["capital_million"] is None, -(c["capital_million"] or 0), c["edinet_code"]),
     )
 
-    entries = _build_entries(usable_candidates, aliases_by_edinet_code)
-    usable_entries = _filter_usable_names(entries)
+    entries = _build_entries(usable_candidates, aliases_by_edinet_code, generic_words=generic_words, dropped=generic_dropped)
+    usable_entries = _filter_usable_names(
+        entries, dropped=legacy_dropped,
+        company_names={c["edinet_code"]: c["company_name"] for c in usable_candidates},
+    )
     blob = _normalize_match_name(article["text_blob"])
     matched = _find_mentions(blob, usable_entries)
 
@@ -349,14 +415,18 @@ def _truncate_to_two_per_article(industry_picks):
     return kept, skipped
 
 
-def _has_any_mention(candidates, article, aliases_by_edinet_code):
+def _has_any_mention(candidates, article, aliases_by_edinet_code, generic_words=None):
     """その業種の候補企業に、記事の本文で言及されている会社が1つでもあるかを返す。
     下段の枠を複数のindustry_picksで分け合うときの優先順位づけに使う(本文に
     名前が出ている会社を確保できるpickを、資本金順で埋めるだけのpickより
-    先に処理するため)。"""
+    先に処理するため)。
+
+    これは選定のための「下見」であり、実際に会社を選ぶ処理ではない。
+    generic_words以外の除外の記録(dropped)は渡さない。select_companies_for_pick()
+    経由の記録と二重に数えないため。"""
     if not candidates:
         return False
-    entries = _build_entries(candidates, aliases_by_edinet_code)
+    entries = _build_entries(candidates, aliases_by_edinet_code, generic_words=generic_words)
     usable_entries = _filter_usable_names(entries)
     blob = _normalize_match_name(article["text_blob"])
     return bool(_find_mentions(blob, usable_entries))
@@ -383,6 +453,14 @@ def run(hypotheses_doc, articles_by_id, aliases_by_edinet_code, excluded_tickers
     industry_picksの配列順のまま」で決める(常に同じ結果になるようにするため)。
     """
     excluded_tickers = excluded_tickers or set()
+
+    # 号全体で1回だけ読み込み、同じ辞書を使い回す(ファイルを何度も読まない)。
+    generic_words = load_generic_words()
+    # 除外の記録(修正3・修正2の記録用)。company_key(edinet_code)->company_nameの
+    # 対応表で、select_companies_for_pick()からだけ書き込む(_has_any_mentionという
+    # 下見からは書き込まない)ことで、1つの会社を二重に数えない。
+    legacy_dropped = {}
+    generic_dropped = {}
 
     ai_written_examples = hypotheses_doc.get("industry_examples")
     ai_written_examples_discarded = len(ai_written_examples) if isinstance(ai_written_examples, list) else 0
@@ -411,7 +489,9 @@ def run(hypotheses_doc, articles_by_id, aliases_by_edinet_code, excluded_tickers
                 continue
             industry_result = dict(industry_result, companies=usable_companies)
             article = articles_by_id[pick.get("article_id")]
-            has_mention = _has_any_mention(industry_result["companies"], article, aliases_by_edinet_code)
+            has_mention = _has_any_mention(
+                industry_result["companies"], article, aliases_by_edinet_code, generic_words=generic_words,
+            )
             valid_entries.append({
                 "pick": pick, "industry_name": industry_name, "industry_result": industry_result,
                 "article": article, "has_mention": has_mention, "count": 0,
@@ -454,6 +534,7 @@ def run(hypotheses_doc, articles_by_id, aliases_by_edinet_code, excluded_tickers
         chosen = select_companies_for_pick(
             entry["industry_result"]["companies"], entry["article"], aliases_by_edinet_code,
             selected_edinet_codes, slot,
+            generic_words=generic_words, generic_dropped=generic_dropped, legacy_dropped=legacy_dropped,
         )
         if not chosen:
             return False
@@ -536,6 +617,18 @@ def run(hypotheses_doc, articles_by_id, aliases_by_edinet_code, excluded_tickers
         "total_pick_count": total_pick_count,
         "zero_pick_count": zero_pick_count,
         "ai_written_examples_discarded": ai_written_examples_discarded,
+        # 修正3: 旧規則4(_filter_usable_names、他社名の一部になっている照合名は
+        # 使わない)で本文照合から外した会社。まだ規則自体は削らず、件数だけ測る。
+        "legacy_substring_rule_dropped": {
+            "count": len(legacy_dropped),
+            "names": sorted(legacy_dropped.values()),
+        },
+        # 修正2: 一般語辞書(scripts/generic_words.txt、名寄せ規則6)で本文照合から
+        # 外した会社。上のlegacy_substring_rule_droppedとは原因が別なので混ぜない。
+        "generic_name_dropped": {
+            "count": len(generic_dropped),
+            "names": sorted(generic_dropped.values()),
+        },
     }
 
 
