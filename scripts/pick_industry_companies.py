@@ -35,7 +35,17 @@ PER_ARTICLE_LIMIT = 2
 LOWER_SECTION_LIMIT = 2
 TOTAL_LIMIT = 5
 
-RELATION_TEXT_TMPL = "東証33業種の「{industry}」に属する上場企業の例です。同じ業種でも反応は分かれます。"
+RELATION_TEXT_MENTIONED = (
+    "東証33業種の「{industry}」に属する上場企業の例です。"
+    "この記事の本文にこの会社名が出ています（関係の中身は確認していません）。"
+)
+RELATION_TEXT_CAPITAL = (
+    "東証33業種の「{industry}」に属する上場企業の例です。"
+    "この業種で資本金がもっとも大きい会社から順に選んでいます。"
+)
+
+# same/parent以外の値になったentity_relationを検出したときに記録する理由。
+ENTITY_RELATION_INVALID_REASON = "entity_relationがsame/parent以外だったため使用しなかった"
 
 # industry_picksにAIがこれらの項目を書いていたら、会社名を書こうとしたとみなして
 # その業種指定ごと飛ばす(会社を決めるのは機械の役目のため)。
@@ -190,16 +200,31 @@ def _find_mentions(blob, entries):
 
 def _build_entries(candidates, aliases_by_edinet_code):
     """候補企業(その業種の上場企業一覧)ごとに、正式名+エイリアスの照合名一覧を作る。
-    正式名と正規化後に同じ文字列になるエイリアスは、正式名側として扱う(重複させない)。"""
+    正式名と正規化後に同じ文字列になるエイリアスは、正式名側として扱う(重複させない)。
+
+    正式名での一致はentity_relation="same"にする。エイリアスでの一致は別名表の
+    entity_relationをそのまま使うが、値が"self"なら"same"に読み替える
+    (edinet_codelist.pyのcompanyコマンドと同じ扱い)。読み替えてもsame/parent
+    のいずれでもない値だった場合、そのエイリアスは使わない(本文照合の対象にしない)。"""
     entries = []
     for c in candidates:
         official_match = _normalize_match_name(c["company_name"])
-        entries.append((official_match, c["edinet_code"], None, "self"))
+        entries.append((official_match, c["edinet_code"], None, "same"))
         for alias in aliases_by_edinet_code.get(c["edinet_code"], []):
             alias_match = _normalize_match_name(alias["news_name"])
             if not alias_match or alias_match == official_match:
                 continue
-            entries.append((alias_match, c["edinet_code"], alias["news_name"], alias["entity_relation"]))
+            entity_relation = alias["entity_relation"]
+            if entity_relation == "self":
+                entity_relation = "same"
+            if entity_relation not in ("same", "parent"):
+                print(
+                    f"[警告] {ENTITY_RELATION_INVALID_REASON}: edinet_code={c['edinet_code']!r} "
+                    f"news_name={alias['news_name']!r} entity_relation={alias['entity_relation']!r}",
+                    file=sys.stderr,
+                )
+                continue
+            entries.append((alias_match, c["edinet_code"], alias["news_name"], entity_relation))
     return entries
 
 
@@ -251,7 +276,7 @@ def select_companies_for_pick(candidates, article, aliases_by_edinet_code, selec
                 "candidate": c,
                 "selection_rule": "capital_rank",
                 "news_entity": None,
-                "entity_relation": "self",
+                "entity_relation": "same",
                 "match_name_len": None,
             })
     return result
@@ -382,6 +407,7 @@ def run(hypotheses_doc, articles_by_id, aliases_by_edinet_code):
     selected_edinet_codes = set()
     mentioned_count = 0
     mentioned_short_count = 0
+    short_name_matches = []
     capital_rank_count = 0
     edition_id = hypotheses_doc.get("edition_id") or ""
     seq_holder = [1]
@@ -412,6 +438,11 @@ def run(hypotheses_doc, articles_by_id, aliases_by_edinet_code):
         per_industry_count[industry_name] = per_industry_count.get(industry_name, 0) + 1
         per_article_count[article_id] = per_article_count.get(article_id, 0) + 1
 
+        if item["selection_rule"] == "mentioned_in_text":
+            relation_text_tmpl = RELATION_TEXT_MENTIONED
+        else:
+            relation_text_tmpl = RELATION_TEXT_CAPITAL
+
         example = {
             "example_id": f"{edition_id}-x{seq_holder[0]}",
             "article_id": article_id,
@@ -420,11 +451,12 @@ def run(hypotheses_doc, articles_by_id, aliases_by_edinet_code):
             "line_ids": pick.get("industry_line_ids"),
             "company_name": c["company_name"],
             "ticker": c["ticker"],
+            "ticker_source": "edinet_codelist",
             "news_entity": item["news_entity"],
             "entity_relation": item["entity_relation"],
             "evidence_grade": "inferred",
             "selection_rule": item["selection_rule"],
-            "relation_text": RELATION_TEXT_TMPL.format(industry=industry_name),
+            "relation_text": relation_text_tmpl.format(industry=industry_name),
             "industry_source": "edinet_codelist",
             "industry_retrieved_date": c["retrieved_date"],
             "attribution": entry["industry_result"]["attribution"],
@@ -438,6 +470,7 @@ def run(hypotheses_doc, articles_by_id, aliases_by_edinet_code):
             mentioned_count += 1
             if item["match_name_len"] <= 3:
                 mentioned_short_count += 1
+                short_name_matches.append(item["news_entity"] or c["company_name"])
         else:
             capital_rank_count += 1
         return True
@@ -468,6 +501,7 @@ def run(hypotheses_doc, articles_by_id, aliases_by_edinet_code):
         "skip_log": skip_log,
         "mentioned_count": mentioned_count,
         "mentioned_short_count": mentioned_short_count,
+        "short_name_matches": short_name_matches,
         "capital_rank_count": capital_rank_count,
         "hyp_count": hyp_count,
         "overall_budget": overall_budget,
@@ -495,6 +529,8 @@ def print_summary(result):
         f"  ・mentioned_in_text: {result['mentioned_count']}社"
         f"(うち3文字以下の名前で一致: {result['mentioned_short_count']}件)"
     )
+    if result["short_name_matches"]:
+        print(f"    3文字以下で一致した名前: {'、'.join(result['short_name_matches'])}")
     print(f"  ・capital_rank: {result['capital_rank_count']}社")
 
 

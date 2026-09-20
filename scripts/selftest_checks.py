@@ -985,11 +985,27 @@ def test_pick_industry_companies_matching():
         selected[0]["candidate"]["company_name"], "テストフィナンシャルグループ株式会社",
     )
 
-    # --- 正例4: 正式名がそのまま出ていた場合はnews_entity=null, entity_relation=self ---
+    # --- 正例4: 正式名がそのまま出ていた場合はnews_entity=null, entity_relation=same ---
     article_official = {"text_blob": "テストフィナンシャルグループは本日、決算を発表した。"}
     selected = pic.select_companies_for_pick(candidates, article_official, aliases, set(), 1)
     check("会社選定/正例4: 正式名の一致ではnews_entityがNone", selected[0]["news_entity"], None)
-    check("会社選定/正例4: 正式名の一致ではentity_relationが'self'", selected[0]["entity_relation"], "self")
+    check("会社選定/正例4: 正式名の一致ではentity_relationが'same'", selected[0]["entity_relation"], "same")
+
+    # --- 一般語の負例(8.7): 短い社名・一般的な語が普通の文章に誤反応しないこと ---
+    candidates_taisei = [_pic_candidate("大成株式会社", "E-GEN-1", "9021", 1000)]
+    article_taisei = {"text_blob": "今年は大成長を遂げた分野が多い。"}
+    selected = pic.select_companies_for_pick(candidates_taisei, article_taisei, {}, set(), 1)
+    check("一般語の負例/「大成長」は架空社名「大成」に反応しない", selected[0]["selection_rule"], "capital_rank")
+
+    candidates_maeda = [_pic_candidate("前田株式会社", "E-GEN-2", "9022", 1000)]
+    article_maeda = {"text_blob": "前田氏がコメントを発表した。"}
+    selected = pic.select_companies_for_pick(candidates_maeda, article_maeda, {}, set(), 1)
+    check("一般語の負例/「前田氏」は架空社名「前田」に反応しない", selected[0]["selection_rule"], "capital_rank")
+
+    candidates_oji = [_pic_candidate("王子株式会社", "E-GEN-3", "9023", 1000)]
+    article_oji = {"text_blob": "王子駅前が再開発される。"}
+    selected = pic.select_companies_for_pick(candidates_oji, article_oji, {}, set(), 1)
+    check("一般語の負例/「王子駅」は架空社名「王子」に反応しない", selected[0]["selection_rule"], "capital_rank")
 
     # --- 正例5(決定性): 資本金が同じ会社が並んだときはEDINETコードの昇順になる ---
     candidates_tie = [
@@ -1001,6 +1017,114 @@ def test_pick_industry_companies_matching():
     check(
         "会社選定/正例5: 資本金が同じならEDINETコードの昇順(E-A001が先)になる",
         [s["candidate"]["edinet_code"] for s in selected], ["E-A001", "E-Z999"],
+    )
+
+
+def test_pick_industry_companies_relation_and_ticker():
+    """作業A: 定型文2種類化・entity_relationの統一(same/parent)・ticker_sourceの正例・負例。
+    edinet_codelist.get_companies_by_industryを差し替えて、コードリスト実データに
+    依存せず架空の会社(テスト物産・テスト電機など)だけで確かめる。"""
+    original = pic.edinet_codelist.get_companies_by_industry
+
+    def fake_get_companies_by_industry(industry, limit=10**9):
+        return {
+            "attribution": "テスト出典",
+            "processing_note": "テスト注記",
+            "companies": [
+                {
+                    "company_name": "テスト物産株式会社", "edinet_code": "E-REL-1",
+                    "ticker": "9001", "industry": "テスト業種", "capital_million": 1000,
+                    "retrieved_date": "2026-09-19",
+                },
+                {
+                    "company_name": "テスト電機株式会社", "edinet_code": "E-REL-2",
+                    "ticker": "9002", "industry": "テスト業種", "capital_million": 2000,
+                    "retrieved_date": "2026-09-19",
+                },
+            ],
+        }
+
+    pic.edinet_codelist.get_companies_by_industry = fake_get_companies_by_industry
+    try:
+        edition = {
+            "sections": [{
+                "section_id": "s", "articles": [
+                    {
+                        "article_id": "ART-MENTION", "headline": "テスト物産の記事",
+                        "lines": [{"line_id": "L-01", "text": "テスト物産は新工場を稼働させた。"}],
+                    },
+                    {
+                        "article_id": "ART-NOMENTION", "headline": "無関係の記事",
+                        "lines": [{"line_id": "L-02", "text": "この記事には関係する会社名が出てこない。"}],
+                    },
+                ],
+            }],
+        }
+        articles_by_id = pic.index_articles(edition)
+
+        # --- 正例: mentioned_in_textの会社にRELATION_TEXT_MENTIONEDが完全一致で入る ---
+        hyp_mention = {
+            "edition_id": "2026-09-24-test", "hypotheses": [],
+            "industry_picks": [
+                {"article_id": "ART-MENTION", "event_id": "EVT-1", "industry": "テスト業種", "industry_line_ids": ["L-01"]},
+            ],
+        }
+        result = pic.run(hyp_mention, articles_by_id, {})
+        mentioned_examples = [e for e in result["examples"] if e["selection_rule"] == "mentioned_in_text"]
+        check("作業A/正例: mentioned_in_textの会社が1社選ばれる", len(mentioned_examples), 1)
+        check(
+            "作業A/正例: mentioned_in_textの定型文がRELATION_TEXT_MENTIONEDと完全一致する",
+            mentioned_examples[0]["relation_text"],
+            pic.RELATION_TEXT_MENTIONED.format(industry="テスト業種"),
+        )
+        check("作業A/正例: ticker_sourceが'edinet_codelist'", mentioned_examples[0]["ticker_source"], "edinet_codelist")
+        check("作業A/正例: 正式名一致のentity_relationは'same'", mentioned_examples[0]["entity_relation"], "same")
+
+        # --- 正例: capital_rankの会社にRELATION_TEXT_CAPITALが完全一致で入る ---
+        hyp_no_mention = {
+            "edition_id": "2026-09-24-test", "hypotheses": [],
+            "industry_picks": [
+                {"article_id": "ART-NOMENTION", "event_id": "EVT-2", "industry": "テスト業種", "industry_line_ids": ["L-02"]},
+            ],
+        }
+        result2 = pic.run(hyp_no_mention, articles_by_id, {})
+        capital_examples = [e for e in result2["examples"] if e["selection_rule"] == "capital_rank"]
+        # 下段の枠は2社(上段0件なのでmin(2, 5-0)=2)あり、本文一致が無いのでどちらの候補も
+        # capital_rankで選ばれる。資本金の多い順に並ぶため、[0]は資本金2000のテスト電機。
+        check("作業A/正例: capital_rankの会社が2社選ばれる(下段の枠2)", len(capital_examples), 2)
+        check(
+            "作業A/正例: capital_rankの定型文がRELATION_TEXT_CAPITALと完全一致する",
+            capital_examples[0]["relation_text"],
+            pic.RELATION_TEXT_CAPITAL.format(industry="テスト業種"),
+        )
+        check("作業A/正例: capital_rankのentity_relationも'same'", capital_examples[0]["entity_relation"], "same")
+        check("作業A/正例: capital_rankのticker_sourceも'edinet_codelist'", capital_examples[0]["ticker_source"], "edinet_codelist")
+
+        # --- 正例: 業種名が変わっても、定型文の他の文字は1字も変わらない ---
+        text_a = pic.RELATION_TEXT_MENTIONED.format(industry="銀行業")
+        text_b = pic.RELATION_TEXT_MENTIONED.format(industry="電気機器")
+        check(
+            "作業A/正例: 業種名を差し替えても定型文の他の文字は同じ({industry}部分だけ差し替わる)",
+            text_a.replace("銀行業", "電気機器"), text_b,
+        )
+    finally:
+        pic.edinet_codelist.get_companies_by_industry = original
+
+    # --- entity_relationの統一: エイリアスの'self'は'same'に読み替える ---
+    candidates_self = [_pic_candidate("テスト銀行株式会社", "E-SELF-1", "9010", 5000)]
+    aliases_self = {"E-SELF-1": [{"news_name": "テスト銀行だけ", "entity_relation": "self"}]}
+    article_self = {"text_blob": "テスト銀行だけが発表した。"}
+    selected = pic.select_companies_for_pick(candidates_self, article_self, aliases_self, set(), 1)
+    check("作業A/正例: エイリアスのentity_relation'self'は'same'に読み替わる", selected[0]["entity_relation"], "same")
+
+    # --- entity_relationがsame/parent以外なら、そのエイリアス名は本文照合に使わない ---
+    candidates_bad = [_pic_candidate("テスト鉱業株式会社", "E-BAD-1", "9011", 5000)]
+    aliases_bad = {"E-BAD-1": [{"news_name": "TKGアルファ", "entity_relation": "affiliate"}]}
+    article_bad = {"text_blob": "TKGアルファが新製品を発表した。"}
+    selected_bad = pic.select_companies_for_pick(candidates_bad, article_bad, aliases_bad, set(), 1)
+    check(
+        "作業A/負例: entity_relationがsame/parent以外のエイリアスは本文照合に使われない(capital_rankになる)",
+        selected_bad[0]["selection_rule"], "capital_rank",
     )
 
 
@@ -1141,6 +1265,7 @@ def main():
     test_check_baseline_late()
     test_stop_words_remove_line_not_whole_edition()
     test_pick_industry_companies_matching()
+    test_pick_industry_companies_relation_and_ticker()
     test_find_company_by_name()
     test_testdata_copy_integration()
 
