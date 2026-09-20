@@ -183,6 +183,123 @@ def test_verify_line_source_unreadable():
         check("既存関数/理由はsource_unreadable(excerpt_not_foundと区別する)", reason, "source_unreadable")
 
 
+def test_check_source_ref_not_found():
+    """タスク16-2c-1 修正10(検査33): source_refが空でないのにsources一覧に見つからない
+    場合、印はunverified・理由はsource_ref_not_foundになる。対象はclaimed_markの種類を
+    問わず本文の行すべて(source_number_matchに限らない)。既存のsource_unfetchable
+    (sourcesには載っているがキャッシュに本文が無い)とは意味が分かれることも確かめる。"""
+    sources_by_id = {"SRC-OK": {"source_id": "SRC-OK", "usage": "quotable", "content_sha256": "x"}}
+
+    # --- 正例(反応してほしい: 不合格になる。3件) ---
+    line_missing_ref = {
+        "claimed_mark": "source_number_match", "numbers": [{"value": 1}],
+        "source_ref": "SRC-MISSING", "excerpt": "何か", "attribution": "出典：テスト", "processing_note": "注記",
+    }
+    mark, reason, _ = ve.verify_line(line_missing_ref, sources_by_id, ".")
+    check("検査33/正例1: source_number_matchでsource_refが見つからなければ不合格", mark, "unverified")
+    check("検査33/正例1: 理由はsource_ref_not_found", reason, "source_ref_not_found")
+
+    line_reported_missing_ref = {"claimed_mark": "reported_unverified", "source_ref": "SRC-MISSING"}
+    mark2, reason2, _ = ve.verify_line(line_reported_missing_ref, sources_by_id, ".")
+    check("検査33/正例2: reported_unverifiedの行でもsource_refが見つからなければ対象になる", mark2, "unverified")
+    check("検査33/正例2: 理由はsource_ref_not_found", reason2, "source_ref_not_found")
+
+    line_explainer_missing_ref = {"claimed_mark": "explainer", "numbers": [], "source_ref": "SRC-MISSING"}
+    mark3, reason3, _ = ve.verify_line(line_explainer_missing_ref, sources_by_id, ".")
+    check("検査33/正例3: explainerの行でもsource_refが見つからなければ対象になる", mark3, "unverified")
+    check("検査33/正例3: 理由はsource_ref_not_found", reason3, "source_ref_not_found")
+
+    # --- 負例(反応してほしくない例。5件以上) ---
+    line_explainer_null_ref = {"claimed_mark": "explainer", "numbers": [], "source_ref": None}
+    mark4, reason4, _ = ve.verify_line(line_explainer_null_ref, sources_by_id, ".")
+    check(
+        "検査33/負例1: source_refがnullの解説行は従来どおりexplainerのまま",
+        (mark4, reason4), ("explainer", None),
+    )
+
+    line_empty_ref = {"claimed_mark": "explainer", "numbers": [], "source_ref": ""}
+    mark5, reason5, _ = ve.verify_line(line_empty_ref, sources_by_id, ".")
+    check("検査33/負例2: source_refが空文字の行も対象外(explainerのまま)", mark5, "explainer")
+
+    line_found_reported = {"claimed_mark": "reported_unverified", "source_ref": "SRC-OK"}
+    mark6, reason6, _ = ve.verify_line(line_found_reported, sources_by_id, ".")
+    check("検査33/負例3: source_refが見つかれば従来どおりreported_unverifiedになる", mark6, "reported_unverified")
+
+    line_found_no_cache = {
+        "claimed_mark": "source_number_match", "numbers": [{"value": 1}],
+        "source_ref": "SRC-OK", "excerpt": "何か", "attribution": "出典：テスト", "processing_note": "注記",
+    }
+    mark7, reason7, _ = ve.verify_line(line_found_no_cache, sources_by_id, "/nonexistent-cache-dir")
+    check(
+        "検査33/負例4: source_refは見つかるがキャッシュが無い場合はsource_unfetchable"
+        "(source_ref_not_foundとは区別される)",
+        (mark7, reason7), ("unverified", "source_unfetchable"),
+    )
+
+    line_no_key = {"claimed_mark": "explainer", "numbers": []}
+    mark8, reason8, _ = ve.verify_line(line_no_key, sources_by_id, ".")
+    check("検査33/負例5: source_refキー自体が無い行も対象外(explainerのまま)", mark8, "explainer")
+
+
+def test_check_published_at():
+    """タスク16-2c-1 修正11(検査36): 出典のpublished_at(発表日)が本文中にどれかの
+    書き方(要件定義書v12 13章の6通り)で見つかるかどうかを確かめる。7日間は記録だけで
+    行は一切落とさない(markは変更しない)。"""
+    with tempfile.TemporaryDirectory() as d:
+        write(d, "SRC-ISO.txt", "本文の先頭。2026-09-18に発表した。")
+        write(d, "SRC-SLASH0.txt", "本文の先頭。2026/09/18に発表した。")
+        write(d, "SRC-SLASH1.txt", "本文の先頭。2026/9/18に発表した。")
+        write(d, "SRC-KANJI.txt", "本文の先頭。2026年9月18日に発表した。")
+        write(d, "SRC-REIWA.txt", "本文の先頭。令和8年9月18日に発表した。")
+        write(d, "SRC-NOYEAR.txt", "本文の先頭。9月18日に発表した。")
+        write(d, "SRC-NOTFOUND.txt", "本文の先頭。まったく違う日付が書かれている。")
+
+        def edition_for(source_ids, published_at="2026-09-18T10:00:00+09:00"):
+            sources = [{"source_id": sid, "published_at": published_at} for sid in source_ids]
+            lines = [{"line_id": f"L-{i}", "source_ref": sid} for i, sid in enumerate(source_ids)]
+            return {
+                "sources": sources,
+                "sections": [{"section_id": "change", "articles": [{"lines": lines}]}],
+            }
+
+        # --- 正例(反応してほしい: 確認できない出典として記録される) ---
+        edition_fail = edition_for(["SRC-NOTFOUND"])
+        hits, srcs = ve.run_check_published_at(edition_fail, d)
+        check("検査36/正例: 本文にどの書き方も無ければ確認できなかった出典として記録される", srcs, ["SRC-NOTFOUND"])
+        check("検査36/正例: 参照している行数(1行)がhitsに数えられる", hits, 1)
+        check(
+            "検査36/正例: 行自体は落とされない(markは変更しない。記録するだけ)",
+            len(edition_fail["sections"][0]["articles"][0]["lines"]), 1,
+        )
+
+        # --- 負例(反応してほしくない例。6つの書き方それぞれ) ---
+        for label, sid in [
+            ("2026-09-18", "SRC-ISO"), ("2026/09/18", "SRC-SLASH0"),
+            ("2026/9/18", "SRC-SLASH1"), ("2026年9月18日", "SRC-KANJI"),
+            ("令和8年9月18日", "SRC-REIWA"), ("9月18日", "SRC-NOYEAR"),
+        ]:
+            edition_ok = edition_for([sid])
+            hits_ok, srcs_ok = ve.run_check_published_at(edition_ok, d)
+            check(f"検査36/負例(書き方:{label}): 本文にあれば確認できたとみなされ記録されない", srcs_ok, [])
+            check(f"検査36/負例(書き方:{label}): hitsも0", hits_ok, 0)
+
+        # published_atがnullの出典は対象外(件数に入らない)
+        edition_null_pub = edition_for(["SRC-NOTFOUND"], published_at=None)
+        hits_null, srcs_null = ve.run_check_published_at(edition_null_pub, d)
+        check(
+            "検査36/負例8: published_atがnullの出典は対象外なので件数に入らない",
+            (hits_null, srcs_null), (0, []),
+        )
+
+        # キャッシュ自体が無い出典も対象外
+        edition_no_cache = edition_for(["SRC-NOCACHE"])
+        hits_nocache, srcs_nocache = ve.run_check_published_at(edition_no_cache, d)
+        check(
+            "検査36/負例9: キャッシュに本文のファイルが無い出典も対象外",
+            (hits_nocache, srcs_nocache), (0, []),
+        )
+
+
 def test_stale_sources():
     """検査9(36時間ルール)。基準時刻はrun_at_dt(スクリプトの実行時刻)。
     公表時刻が古い行/わからない行を、どちらも件数を分けて落とすことを確かめる。"""
@@ -2807,6 +2924,8 @@ def main():
     test_read_source_text()
     test_check_evidence_source_ref()
     test_verify_line_source_unreadable()
+    test_check_source_ref_not_found()
+    test_check_published_at()
     test_stale_sources()
     test_stop_and_watch_split()
     test_check_minus_direction()

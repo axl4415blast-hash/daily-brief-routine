@@ -473,12 +473,18 @@ def verify_line(line, sources_by_id, cache_dir):
     source_ref = line.get("source_ref")
     excerpt = line.get("excerpt")
 
+    # 検査33: source_refが空でないのに、sources一覧にそのIDが見つからない場合は
+    # 不合格にする。claimed_markの種類を問わず、本文の行すべてが対象(source_number_match
+    # に限らない)。source_refがnull・空の行は対象外(存在しないIDを指しているわけ
+    # ではないため)。この判定を最初に行うことで、後続の検査(16など)に届く時点では
+    # source_refが真であれば必ずsources一覧に見つかることが保証される。
+    if source_ref and source_ref not in sources_by_id:
+        return "unverified", "source_ref_not_found", None
+
     # 検査16: 本文を取得していない出典(usageがquotable以外)からのexcerptは認めない。
     # claimed_markの種類を問わず、行にsource_refとexcerptの両方があれば対象になる。
     # usageが記録されていない・null・空文字・想定外の値の出典も「quotableではない」ものと
     # して扱う(usageの書き忘れが、抜き出しを通す抜け道にならないようにするため)。
-    # source_refがsources一覧に見つからない場合は対象にしない(該当する出典自体が
-    # 特定できないため、他の既存検査に判定を委ねる)。
     if source_ref and excerpt:
         source = sources_by_id.get(source_ref)
         if source is not None and source.get("usage") != "quotable":
@@ -495,9 +501,11 @@ def verify_line(line, sources_by_id, cache_dir):
         if not source_ref or not excerpt or not attribution or not processing_note:
             return "unverified", "missing_field", None
 
-        source = sources_by_id.get(source_ref)
+        # 検査33により、ここに到達した時点でsource_refは必ずsources一覧に見つかっている
+        # (source is Noneにはならない)。source_unfetchableは「sourcesには載っているが、
+        # キャッシュに本文のファイルが無い」という意味だけになった。
         cache_path = Path(cache_dir) / f"{source_ref}.txt"
-        if source is None or not cache_path.is_file():
+        if not cache_path.is_file():
             return "unverified", "source_unfetchable", None
 
         raw_bytes = cache_path.read_bytes()
@@ -641,6 +649,66 @@ def run_check_e_stale_sources(edition, run_at_dt):
                 kept_lines.append(line)
             article["lines"] = kept_lines
     return stale, unknown_published_at
+
+
+def _reiwa_year(seireki_year):
+    """西暦を令和の年数に直す(令和1年=2019年)。"""
+    return seireki_year - 2018
+
+
+def published_at_candidates(year, month, day):
+    """検査36で本文を探す、発表日の書き方の候補(要件定義書v12 13章の6通り)。
+    月日にゼロ埋めが要る書き方(2件)以外は、ゼロ埋めしない元の月日をそのまま使う。"""
+    return [
+        f"{year:04d}-{month:02d}-{day:02d}",
+        f"{year:04d}/{month:02d}/{day:02d}",
+        f"{year:04d}/{month}/{day}",
+        f"{year:04d}年{month}月{day}日",
+        f"令和{_reiwa_year(year)}年{month}月{day}日",
+        f"{month}月{day}日",
+    ]
+
+
+def run_check_published_at(edition, cache_dir):
+    """検査36(要件定義書v12 5.6・13章): 出典のpublished_at(発表日)が本物かどうかを、
+    出典本文にその日付の書き方(published_at_candidates()の6通り)のどれかが含まれて
+    いるかで確かめる。7日間は記録するだけで、行は一切落とさない(markは変更しない)。
+
+    対象は、published_atが空でなく、かつキャッシュに本文のファイルがあって読める
+    出典だけ。published_atがnull、キャッシュが無い・読めない出典は対象外(件数にも
+    入れない)。判定は出典ごとに1回だけ行う(同じ出典を参照する行が複数あっても、
+    本文の読み込みと照合は1回)。
+
+    戻り値: (確認できなかった出典を参照する本文の行の数, 確認できなかった出典IDの一覧)。"""
+    line_counts_by_source = {}
+    for _section, _article, line in iter_lines(edition):
+        ref = line.get("source_ref")
+        if ref:
+            line_counts_by_source[ref] = line_counts_by_source.get(ref, 0) + 1
+
+    unverified_hits = 0
+    unverified_sources = []
+    for source in edition.get("sources", []):
+        source_id = source.get("source_id")
+        published_dt = parse_datetime_assume_jst(source.get("published_at"))
+        if published_dt is None:
+            continue
+        cache_path = Path(cache_dir) / f"{source_id}.txt"
+        if not cache_path.is_file():
+            continue
+        body_text = read_source_text(cache_path)
+        if body_text is None:
+            continue
+
+        body_norm = normalize_text(body_text)
+        local_dt = published_dt.astimezone(JST)
+        candidates = published_at_candidates(local_dt.year, local_dt.month, local_dt.day)
+        found = any(normalize_text(candidate) in body_norm for candidate in candidates)
+        if not found:
+            unverified_hits += line_counts_by_source.get(source_id, 0)
+            unverified_sources.append(source_id)
+
+    return unverified_hits, unverified_sources
 
 
 def run_check_baseline_late(edition, run_at_dt):
@@ -1614,6 +1682,8 @@ def main():
         dropped_inferences = run_check_d_inferences(edition)
         stale_hits, unknown_published_at_hits = run_check_e_stale_sources(edition, run_at_dt)
         stale_check_skipped = 0  # run_at_dtは常に読み取れるため、判定を飛ばす理由が無い。
+        # 検査36: 記録だけを取り、行は落とさない(要件定義書v12 13章。7日間の様子見)。
+        published_at_unverified_hits, published_at_unverified_sources = run_check_published_at(edition, args.cache)
 
         # 検査20: 号の遅延判定。常に今回の実行時刻で判定する(修正B)。first_runの
         # 中の値は判定に使わない(AIが書けるファイルの中にある値のため)。
@@ -1751,6 +1821,8 @@ def main():
             "market_open_reported": market_open_result["reported"],
             "codelist_unavailable": hypothesis_extra["codelist_unavailable"],
             "baseline_date_check_skipped": hypothesis_extra["baseline_date_check_skipped"],
+            "published_at_unverified_hits": published_at_unverified_hits,
+            "published_at_unverified_sources": published_at_unverified_sources,
         }
         if industry_report is not None:
             edition["verification"].update(industry_report)
