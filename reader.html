@@ -222,20 +222,6 @@
     margin:0 0 14px;
   }
 
-  .lead{
-    background:var(--panel);
-    border-left:3px solid var(--accent);
-    padding:12px 14px;
-    margin:0 0 20px;
-  }
-  .lead p{
-    font-size:17px;
-    font-weight:500;
-    line-height:1.7;
-    color:var(--fg);
-    margin:0;
-  }
-
   /* ============ 事実の行 ============ */
   .fact-line{ margin:0 0 20px; }
   .fact-line:last-child{ margin-bottom:0; }
@@ -1080,18 +1066,6 @@
     return details;
   }
 
-  // ---------- リード(冒頭1行) ----------
-
-  function renderLead(factLines){
-    if(factLines.length === 0) return null;
-    var lead = el("div", { class: "lead" });
-    var first = factLines[0];
-    var p = document.createElement("p");
-    p.appendChild(buildFactTextNode(first.text, first.numbers));
-    lead.appendChild(p);
-    return lead;
-  }
-
   // ---------- AIによる推論 ----------
 
   function renderInferences(list){
@@ -1151,10 +1125,6 @@
     artEl.appendChild(el("h3", { class: "headline", text: art.headline || "" }));
 
     var lines = art.lines || [];
-    var factLines = lines.filter(function(l){ return isFactMark(l.mark); });
-    var lead = renderLead(factLines);
-    if(lead) artEl.appendChild(lead);
-
     artEl.appendChild(renderArticleBody(lines, sourcesById));
 
     if(art.inferences && art.inferences.length > 0){
