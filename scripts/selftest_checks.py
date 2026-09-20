@@ -27,6 +27,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import edinet_fetch
+import edinet_codelist as ec
 import verify_edition as ve
 import pick_industry_companies as pic
 
@@ -1003,6 +1004,92 @@ def test_pick_industry_companies_matching():
     )
 
 
+def _ec_row(name, edinet_code, ticker_raw, capital="1000", listed="上場", industry="テスト業種"):
+    """edinet_codelist.find_company_by_name向けの、コードリストの1行相当のダミー行。"""
+    return {
+        ec.COL_FILER_NAME: name,
+        ec.COL_EDINET_CODE: edinet_code,
+        ec.COL_TICKER_RAW: ticker_raw,
+        ec.COL_LISTED: listed,
+        ec.COL_INDUSTRY: industry,
+        ec.COL_CAPITAL: capital,
+    }
+
+
+def test_find_company_by_name():
+    """edinet_codelist.find_company_by_name(会社名から上場会社を1件だけ引く)の
+    正例・負例。部分一致・あいまい一致では絶対に当ててはいけない(引けないことは
+    失敗ではなく正しい動作)。"""
+
+    base_rows = [
+        _ec_row("テスト銀行株式会社", "E-C001", "10000", capital="5000"),
+        _ec_row("テスト非上場株式会社", "E-C002", "20000", listed="非上場", capital="3000"),
+        _ec_row("テストコード無し株式会社", "E-C003", "", capital="1000"),
+        _ec_row("テスト重複株式会社", "E-C004", "30000", capital="2000"),
+        _ec_row("テスト重複株式会社", "E-C005", "40000", capital="2500"),
+    ]
+
+    # --- 負例1: '銀行'のような一般名詞では、どの会社にも当ててはいけない ---
+    check("company/負例1: '銀行'は何も返さない", ec.find_company_by_name("銀行", base_rows, []), None)
+
+    # --- 負例2: '日本'のような一般名詞でも同様 ---
+    check("company/負例2: '日本'は何も返さない", ec.find_company_by_name("日本", base_rows, []), None)
+
+    # --- 負例3: 'トヨタ'で'トヨタ自動車'を部分一致で拾ってはいけない ---
+    toyota_rows = [_ec_row("トヨタ自動車株式会社", "E-TOYOTA", "70000", capital=100000)]
+    check(
+        "company/負例3: 'トヨタ'は'トヨタ自動車'を部分一致で拾わない",
+        ec.find_company_by_name("トヨタ", toyota_rows, []), None,
+    )
+
+    # --- 負例4: 上場区分が'上場'でない会社は当たらない ---
+    check(
+        "company/負例4: 上場区分が'上場'でない会社は何も返さない",
+        ec.find_company_by_name("テスト非上場株式会社", base_rows, []), None,
+    )
+
+    # --- 負例5: 証券コードが空の会社は当たらない ---
+    check(
+        "company/負例5: 証券コードが空の会社は何も返さない",
+        ec.find_company_by_name("テストコード無し株式会社", base_rows, []), None,
+    )
+
+    # --- 負例6: 同じ名前の行が2つあれば、複数一致として何も返さない ---
+    check(
+        "company/負例6: 同名の行が2つあれば何も返さない(複数一致)",
+        ec.find_company_by_name("テスト重複株式会社", base_rows, []), None,
+    )
+
+    # --- 正例7: 提出者名との完全一致 ---
+    result = ec.find_company_by_name("テスト銀行株式会社", base_rows, [])
+    check("company/正例7: matched_byは'filer_name'", result["matched_by"], "filer_name")
+    check("company/正例7: entity_relationは'same'", result["entity_relation"], "same")
+    check("company/正例7: company_nameは'テスト銀行株式会社'", result["company_name"], "テスト銀行株式会社")
+
+    # --- 正例8: 法人格・全角半角の違いがあっても同じ会社に一致する ---
+    result_variant = ec.find_company_by_name("テスト銀行", base_rows, [])
+    check("company/正例8: '株式会社'を省いても同じedinet_codeに一致する", result_variant["edinet_code"], "E-C001")
+    check("company/正例8: matched_byは'filer_name'", result_variant["matched_by"], "filer_name")
+
+    # --- 正例9: 別名表(aliases.csv相当)にだけある呼び名での一致 ---
+    alias_rows = [{
+        "news_name": "テスト銀行アルファ",
+        "official_name": "テストフィナンシャルグループ株式会社",
+        "entity_relation": "parent",
+        "edinet_code": "E-C010",
+        "ticker": "8411",
+    }]
+    rows_with_group = base_rows + [_ec_row("テストフィナンシャルグループ株式会社", "E-C010", "84110", capital="8000")]
+    result_alias = ec.find_company_by_name("テスト銀行アルファ", rows_with_group, alias_rows)
+    check("company/正例9: matched_byは'alias'", result_alias["matched_by"], "alias")
+    check("company/正例9: news_entityは元の呼び名'テスト銀行アルファ'", result_alias["news_entity"], "テスト銀行アルファ")
+    check("company/正例9: entity_relationは別名表の'parent'", result_alias["entity_relation"], "parent")
+    check(
+        "company/正例9: company_nameはコードリストの正式名'テストフィナンシャルグループ株式会社'",
+        result_alias["company_name"], "テストフィナンシャルグループ株式会社",
+    )
+
+
 def test_testdata_copy_integration():
     """3.3: scripts/testdata を一時フォルダにコピーし、コピーの方に対してCLI全体を
     走らせることで、本体のscripts/testdataには一切書き込まないことを確かめる。
@@ -1054,6 +1141,7 @@ def main():
     test_check_baseline_late()
     test_stop_words_remove_line_not_whole_edition()
     test_pick_industry_companies_matching()
+    test_find_company_by_name()
     test_testdata_copy_integration()
 
     total = len(results)

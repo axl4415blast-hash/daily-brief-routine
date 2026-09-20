@@ -16,7 +16,10 @@ EDINETコードリストは、書類一覧API(edinet_fetch.py)とは別物で、
   # (d) ニュースの呼び名 -> 上場会社 の対応表(aliases.csv)を作り直す
   python3 scripts/edinet_codelist.py build-aliases --input aliases_input.csv --out scripts/aliases.csv
 
-終了コード: 0=成功 1=想定内の失敗(通信失敗・保存済みCSV無し等) 2=スクリプト自体のエラー
+  # (e) 社名を指定して、上場会社を1件だけ引く(完全一致のみ。近い名前は返さない)
+  python3 scripts/edinet_codelist.py company --name "会社名"
+
+終了コード: 0=成功 1=想定内の失敗(通信失敗・保存済みCSV無し・見つからない等) 2=スクリプト自体のエラー
 """
 import argparse
 import csv
@@ -38,6 +41,7 @@ import edinet_fetch
 
 CODELIST_URL = "https://disclosure2dl.edinet-fsa.go.jp/searchdocument/codelist/Edinetcode.zip"
 CACHE_DIR = Path(".cache/reference")
+ALIASES_PATH = Path(__file__).resolve().parent / "aliases.csv"
 LOG_PATH = Path("reference/codelist_log.jsonl")
 RETRY_WAIT_SECONDS = 5
 
@@ -425,6 +429,118 @@ def cmd_build_aliases(args):
     return 0
 
 
+def find_company_by_name(name, rows, alias_rows):
+    """入力された会社名から、上場会社を1件だけ引く。
+
+    ①提出者名との完全一致(正規化した上で)を先に探し、1件も当たらなかった
+    ときだけ②別名表(aliases.csv)のnews_nameとの完全一致を探す。当たった行が
+    ちょうど1件のときだけ結果を返す。当たらない・複数当たる場合はNoneを返す
+    (近い名前・部分一致では返さない。引けないことは失敗ではなく正しい動作)。
+
+    対象にする行は「上場区分が上場」かつ「証券コードが空でない」行だけ
+    (EXCLUDED_INDUSTRIESによる業種の除外はここでは行わない。あの除外は
+    業種から会社を選ぶときだけの規則のため)。
+
+    rows: コードリストの行のリスト(CSVの列名のまま)
+    alias_rows: aliases.csvの行のリスト(news_name/official_name/
+    entity_relation/edinet_code/tickerの辞書)
+
+    戻り値: 見つかった場合は
+      {"matched_by", "company_name", "news_entity", "entity_relation",
+       "edinet_code", "ticker", "industry", "capital_million"}
+    の辞書、それ以外はNone。
+    """
+    normalized_input = _normalize_company_name(name)
+    name_index = _build_listed_name_index(rows)
+
+    matches = name_index.get(normalized_input, [])
+    if len(matches) > 1:
+        return None
+    if len(matches) == 1:
+        r = matches[0]
+        ticker, _reason = edinet_fetch.derive_ticker((r.get(COL_TICKER_RAW) or "").strip())
+        if ticker is None:
+            return None
+        return {
+            "matched_by": "filer_name",
+            "company_name": r.get(COL_FILER_NAME),
+            "news_entity": None,
+            "entity_relation": "same",
+            "edinet_code": r.get(COL_EDINET_CODE),
+            "ticker": ticker,
+            "industry": r.get(COL_INDUSTRY),
+            "capital_million": _parse_capital(r.get(COL_CAPITAL)),
+        }
+
+    alias_matches = [
+        a for a in alias_rows
+        if _normalize_company_name(a.get("news_name")) == normalized_input
+    ]
+    if len(alias_matches) != 1:
+        return None
+    alias = alias_matches[0]
+
+    code_matches = [
+        r for r in rows
+        if r.get(COL_LISTED) == LISTED_VALUE
+        and (r.get(COL_TICKER_RAW) or "").strip()
+        and r.get(COL_EDINET_CODE) == alias.get("edinet_code")
+    ]
+    if len(code_matches) != 1:
+        return None
+    r = code_matches[0]
+    ticker, _reason = edinet_fetch.derive_ticker((r.get(COL_TICKER_RAW) or "").strip())
+    if ticker is None:
+        return None
+
+    entity_relation = alias.get("entity_relation")
+    if entity_relation == "self":
+        entity_relation = "same"
+
+    return {
+        "matched_by": "alias",
+        "company_name": r.get(COL_FILER_NAME),
+        "news_entity": alias.get("news_name"),
+        "entity_relation": entity_relation,
+        "edinet_code": r.get(COL_EDINET_CODE),
+        "ticker": ticker,
+        "industry": r.get(COL_INDUSTRY),
+        "capital_million": _parse_capital(r.get(COL_CAPITAL)),
+    }
+
+
+def cmd_company(args):
+    rows, retrieved_date = load_codelist()
+    if rows is None:
+        print("先に fetch を実行してください", file=sys.stderr)
+        return 1
+
+    with open(ALIASES_PATH, encoding="utf-8", newline="") as f:
+        alias_rows = list(csv.DictReader(f))
+
+    result = find_company_by_name(args.name, rows, alias_rows)
+    if result is None:
+        print(f"'{args.name}' に一致する上場会社が見つかりませんでした", file=sys.stderr)
+        return 1
+
+    output = {
+        "query": args.name,
+        "matched_by": result["matched_by"],
+        "company_name": result["company_name"],
+        "news_entity": result["news_entity"],
+        "entity_relation": result["entity_relation"],
+        "edinet_code": result["edinet_code"],
+        "ticker": result["ticker"],
+        "industry": result["industry"],
+        "capital_million": result["capital_million"],
+        "retrieved_date": retrieved_date,
+        "attribution": ATTRIBUTION_TMPL.format(url=CODELIST_URL, date=_format_japanese_date(retrieved_date)),
+        "processing_note": PROCESSING_NOTE,
+    }
+    print(json.dumps(output, ensure_ascii=False, indent=1))
+    return 0
+
+
 def cmd_industry(args):
     result = get_companies_by_industry(args.industry, limit=args.limit)
     if result is None:
@@ -455,6 +571,9 @@ def main():
     p_build_aliases.add_argument("--input", required=True)
     p_build_aliases.add_argument("--out", required=True)
 
+    p_company = sub.add_parser("company", help="社名を指定して、上場会社を1件だけ引く(完全一致のみ)")
+    p_company.add_argument("--name", required=True)
+
     args = parser.parse_args()
 
     if args.command == "fetch":
@@ -465,6 +584,8 @@ def main():
         return cmd_industry(args)
     if args.command == "build-aliases":
         return cmd_build_aliases(args)
+    if args.command == "company":
+        return cmd_company(args)
     return 2
 
 
