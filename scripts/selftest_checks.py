@@ -1165,6 +1165,133 @@ def test_pick_industry_companies_matching():
     )
 
 
+def test_generic_words_dictionary():
+    """修正2(名寄せ規則6): scripts/generic_words.txt による除外の正例・負例。
+    実際のファイル(scripts/generic_words.txt)を使う。テスト実行はリポジトリの
+    ルートから行う前提(python3 scripts/selftest_checks.py)。"""
+
+    # --- 正例1: 辞書に「コア」があるとき、本文「コアの上昇率は…」でその
+    # 照合名の会社がmentioned_in_textにならない ---
+    candidates = [_pic_candidate("コア株式会社", "E-GW-CORE", "1001", 1000)]
+    article = {"text_blob": "コアの上昇率は前年比で上昇した。"}
+    selected = pic.select_companies_for_pick(candidates, article, {}, set(), 1)
+    check(
+        "一般語辞書/正例1: 辞書の'コア'は本文'コアの上昇率'でmentioned_in_textにならない",
+        selected[0]["selection_rule"], "capital_rank",
+    )
+
+    # --- 正例2: 辞書に無い普通の会社名(ゆうちょ銀行)は、これまでどおり本文照合で選ばれる ---
+    candidates_yucho = [_pic_candidate("ゆうちょ銀行", "E-GW-YUCHO", "1002", 1000)]
+    article_yucho = {"text_blob": "ゆうちょ銀行は新サービスを開始した。"}
+    selected_yucho = pic.select_companies_for_pick(candidates_yucho, article_yucho, {}, set(), 1)
+    check(
+        "一般語辞書/正例2: 辞書に無い'ゆうちょ銀行'はこれまでどおり本文照合で選ばれる",
+        selected_yucho[0]["selection_rule"], "mentioned_in_text",
+    )
+
+    # --- 正例3: 別名(aliases)側の照合名が辞書に載っている場合も除外される ---
+    candidates_alias = [_pic_candidate("テスト持株株式会社", "E-GW-ALIAS", "1003", 1000)]
+    aliases_alias = {"E-GW-ALIAS": [{"news_name": "コア", "entity_relation": "parent"}]}
+    article_alias = {"text_blob": "コアの説明が本日あった。"}
+    selected_alias = pic.select_companies_for_pick(candidates_alias, article_alias, aliases_alias, set(), 1)
+    check(
+        "一般語辞書/正例3: エイリアス側の照合名'コア'が辞書にあれば除外される",
+        selected_alias[0]["selection_rule"], "capital_rank",
+    )
+
+    # --- 正例4: 辞書ファイルが無くても異常終了せず、除外0件で動く ---
+    original_path = pic.GENERIC_WORDS_PATH
+    try:
+        pic.GENERIC_WORDS_PATH = Path("scripts/generic_words_does_not_exist.txt")
+        words = pic.load_generic_words()
+        check("一般語辞書/正例4: 辞書ファイルが無くても例外にならず、除外0件(空集合)になる", words, set())
+    finally:
+        pic.GENERIC_WORDS_PATH = original_path
+
+    # --- 負例5: 部分一致では除外しない(辞書'コア'で、照合名'コアラ'の会社は消えない) ---
+    candidates_koala = [_pic_candidate("コアラ株式会社", "E-GW-KOALA", "1004", 1000)]
+    article_koala = {"text_blob": "コアラの生態調査が行われた。"}
+    selected_koala = pic.select_companies_for_pick(candidates_koala, article_koala, {}, set(), 1)
+    check(
+        "一般語辞書/負例5: 部分一致(辞書'コア'/照合名'コアラ')では除外しない",
+        selected_koala[0]["selection_rule"], "mentioned_in_text",
+    )
+
+    # --- 正例6: 半角カタカナ等でも、正規化後に一致すれば除外される ---
+    candidates_halfwidth = [_pic_candidate("ｺｱ株式会社", "E-GW-HW", "1005", 1000)]
+    article_halfwidth = {"text_blob": "コアの説明が本日あった。"}
+    selected_halfwidth = pic.select_companies_for_pick(candidates_halfwidth, article_halfwidth, {}, set(), 1)
+    check(
+        "一般語辞書/正例6: 半角カタカナ'ｺｱ'も正規化後は'コア'と一致して除外される",
+        selected_halfwidth[0]["selection_rule"], "capital_rank",
+    )
+
+    # --- 正例7: 辞書で除外された会社も、資本金順では選ばれる(消えない) ---
+    candidates_both = [
+        _pic_candidate("コア株式会社", "E-GW-CORE2", "1006", 3000),
+        _pic_candidate("テスト電機株式会社", "E-GW-OTHER", "1007", 1000),
+    ]
+    article_both = {"text_blob": "この記事には関係する会社名が出てこない。"}
+    selected_both = pic.select_companies_for_pick(candidates_both, article_both, {}, set(), 2)
+    check("一般語辞書/正例7: 辞書で除外された会社も候補には残り、2社とも選ばれる", len(selected_both), 2)
+    by_code = {s["candidate"]["edinet_code"]: s["selection_rule"] for s in selected_both}
+    check(
+        "一般語辞書/正例7: 辞書除外された'コア株式会社'は資本金順(capital_rank)で選ばれる",
+        by_code.get("E-GW-CORE2"), "capital_rank",
+    )
+
+
+def test_v12_generic_word_negative_examples():
+    """v12 3.4(5)が名指しした一般語の負例5件(依頼書16-2c-2 第8節)。
+
+    当初の指示文は「5件とも_is_word_forming(直後がひらがなでなければ一致を
+    認めない仕組み)が防いでいる」としていたが、実在の正式社名で検算した
+    結果、防いでいるのは_is_word_formingではなく『照合名(正式な社名)その
+    ものが本文に一部としてすら現れない』ことだと判明した(依頼者確認済み・
+    指示文を訂正)。そのため、5件は実在の正式社名で「当たらないこと」を
+    確かめる形にする。
+
+    あわせて、架空の短い照合名('日本'/'東京'という2文字だけの会社)を使うと
+    _is_word_formingは実際には防げない(直後が助詞'の'のときは境界とみなし、
+    一致を許してしまう)ことを示し、その穴を一般語辞書(コア等と同じ仕組み)で
+    塞いだことを確かめる。"""
+
+    # --- v12の5件: 実在の正式社名では、どれも本文に当たらない ---
+    real_cases = [
+        ("大成建設株式会社", "E-V12-1", "今年は大成長を遂げた分野が多い。", "大成建設"),
+        ("前田建設工業株式会社", "E-V12-2", "前田氏がコメントを発表した。", "前田建設工業"),
+        ("王子ホールディングス株式会社", "E-V12-3", "王子駅前が再開発される。", "王子ホールディングス"),
+        ("日本製鉄株式会社", "E-V12-4", "日本の鉄鋼業界は変化している。", "日本製鉄"),
+        ("東京電力ホールディングス株式会社", "E-V12-5", "東京の電力需要が増えている。", "東京電力ホールディングス"),
+    ]
+    for company_name, edinet_code, text, label in real_cases:
+        candidates = [_pic_candidate(company_name, edinet_code, "0000", 1000)]
+        article = {"text_blob": text}
+        selected = pic.select_companies_for_pick(candidates, article, {}, set(), 1)
+        check(
+            f"v12一般語の負例/実在社名'{label}'は本文'{text}'にmentioned_in_textとして当たらない",
+            selected[0]["selection_rule"], "capital_rank",
+        )
+
+    # --- 一般語辞書が塞いだ穴: 照合名が'日本'/'東京'そのものの会社は、
+    # 辞書に載っているため本文照合から外れる。ただし資本金順では選ばれる。 ---
+    for word, text, label in [
+        ("日本", "日本の鉄鋼業界は変化している。", "'日本'"),
+        ("東京", "東京の電力需要が増えている。", "'東京'"),
+    ]:
+        candidates = [_pic_candidate(f"{word}株式会社", f"E-V12-GW-{word}", "0000", 1000)]
+        article = {"text_blob": text}
+        selected = pic.select_companies_for_pick(candidates, article, {}, set(), 1)
+        check(
+            f"v12一般語の負例/照合名が{label}そのものの会社は辞書に載っているため本文照合から外れる",
+            selected[0]["selection_rule"], "capital_rank",
+        )
+        check(
+            f"v12一般語の負例/{label}の会社は除外されても資本金順では選ばれる(候補から消えない)",
+            len(selected), 1,
+        )
+
+
 def test_pick_industry_companies_relation_and_ticker():
     """作業A: 定型文2種類化・entity_relationの統一(same/parent)・ticker_sourceの正例・負例。
     edinet_codelist.get_companies_by_industryを差し替えて、コードリスト実データに
@@ -1328,6 +1455,113 @@ def test_pick_industry_companies_excluded_tickers():
         check(
             "作業B/8.5(規則6)負例: 上段から削除された会社(除外集合が空)は下段の候補に戻る",
             "1234" in tickers_not_excluded, True,
+        )
+    finally:
+        pic.edinet_codelist.get_companies_by_industry = original
+
+
+def test_dropped_names_records():
+    """修正3(a)・修正2: legacy_substring_rule_dropped(旧規則4)と
+    generic_name_dropped(一般語辞書)の記録が正しく件数・会社名を持つこと。
+    両者は原因が別なので混ぜない(それぞれ別のキーに入る)ことも確かめる。"""
+    original = pic.edinet_codelist.get_companies_by_industry
+
+    # --- 正例8: 包含関係のある会社が無い号では0件かつ空配列 ---
+    def fake_no_overlap(industry, limit=10**9):
+        return {
+            "attribution": "テスト出典", "processing_note": "テスト注記",
+            "companies": [
+                {
+                    "company_name": "テスト物産株式会社", "edinet_code": "E-DROP-1",
+                    "ticker": "9001", "industry": "テスト業種", "capital_million": 1000,
+                    "retrieved_date": "2026-09-19",
+                },
+            ],
+        }
+
+    pic.edinet_codelist.get_companies_by_industry = fake_no_overlap
+    try:
+        edition = {
+            "sections": [{
+                "section_id": "s", "articles": [
+                    {
+                        "article_id": "ART-NOOVERLAP", "headline": "見出し",
+                        "lines": [{"line_id": "L-01", "text": "この記事には関係する会社名が出てこない。"}],
+                    },
+                ],
+            }],
+        }
+        articles_by_id = pic.index_articles(edition)
+        hyp_doc = {
+            "edition_id": "2026-09-24-test", "hypotheses": [],
+            "industry_picks": [
+                {"article_id": "ART-NOOVERLAP", "event_id": "EVT-1", "industry": "テスト業種", "industry_line_ids": ["L-01"]},
+            ],
+        }
+        result = pic.run(hyp_doc, articles_by_id, {})
+        check(
+            "記録/正例8: 包含関係のある会社が無い号ではlegacy_substring_rule_droppedが0件",
+            result["legacy_substring_rule_dropped"], {"count": 0, "names": []},
+        )
+        check(
+            "記録/正例8: 一般語に当たる会社が無い号ではgeneric_name_droppedも0件",
+            result["generic_name_dropped"], {"count": 0, "names": []},
+        )
+    finally:
+        pic.edinet_codelist.get_companies_by_industry = original
+
+    # --- 正例9: 包含関係がある場合に件数と社名が入る(三井物産/三井) ---
+    def fake_overlap(industry, limit=10**9):
+        return {
+            "attribution": "テスト出典", "processing_note": "テスト注記",
+            "companies": [
+                {
+                    "company_name": "三井物産株式会社", "edinet_code": "E-DROP-MITSUI-B",
+                    "ticker": "8031", "industry": "テスト業種", "capital_million": 5000,
+                    "retrieved_date": "2026-09-19",
+                },
+                {
+                    "company_name": "三井株式会社", "edinet_code": "E-DROP-MITSUI",
+                    "ticker": "9999", "industry": "テスト業種", "capital_million": 3000,
+                    "retrieved_date": "2026-09-19",
+                },
+            ],
+        }
+
+    pic.edinet_codelist.get_companies_by_industry = fake_overlap
+    try:
+        edition = {
+            "sections": [{
+                "section_id": "s", "articles": [
+                    {
+                        "article_id": "ART-OVERLAP", "headline": "見出し",
+                        "lines": [{
+                            "line_id": "L-01",
+                            "text": "三井物産が新規事業を発表した。三井は単独でも別の事業を進めている。",
+                        }],
+                    },
+                ],
+            }],
+        }
+        articles_by_id = pic.index_articles(edition)
+        hyp_doc = {
+            "edition_id": "2026-09-24-test", "hypotheses": [],
+            "industry_picks": [
+                {"article_id": "ART-OVERLAP", "event_id": "EVT-1", "industry": "テスト業種", "industry_line_ids": ["L-01"]},
+            ],
+        }
+        result = pic.run(hyp_doc, articles_by_id, {})
+        check(
+            "記録/正例9: 包含関係のある会社(三井)がlegacy_substring_rule_droppedに1件記録される",
+            result["legacy_substring_rule_dropped"]["count"], 1,
+        )
+        check(
+            "記録/正例9: legacy_substring_rule_droppedの会社名は'三井株式会社'",
+            result["legacy_substring_rule_dropped"]["names"], ["三井株式会社"],
+        )
+        check(
+            "記録/正例9: 一般語辞書とは原因が別のためgeneric_name_droppedは0件のまま(混ざらない)",
+            result["generic_name_dropped"], {"count": 0, "names": []},
         )
     finally:
         pic.edinet_codelist.get_companies_by_industry = original
@@ -2240,6 +2474,139 @@ def test_should_abort_rerun():
     )
 
 
+def test_number_coverage():
+    """修正4: compute_number_coverage()の単体テスト。判定には使わない記録専用。"""
+
+    # --- 正例10: 数字が無い行ではtext_number_tokensが0 ---
+    edition_no_digits = {
+        "sections": [{
+            "section_id": "s", "articles": [{
+                "article_id": "A", "lines": [
+                    {"line_id": "L1", "text": "本日は特に変化がなかった。", "numbers": [], "mark": "unverified"},
+                ],
+            }],
+        }],
+    }
+    coverage_no_digits = ve.compute_number_coverage(edition_no_digits)
+    check("number_coverage/正例10: 数字が無い行ではtext_number_tokensが0", coverage_no_digits["text_number_tokens"], 0)
+    check("number_coverage/正例10: numbers_declaredも0", coverage_no_digits["numbers_declared"], 0)
+    check("number_coverage/正例10: gapも0", coverage_no_digits["gap"], 0)
+
+    # --- 正例11: 全角数字「２０２６」が正規化後に数えられる ---
+    edition_fullwidth = {
+        "sections": [{
+            "section_id": "s", "articles": [{
+                "article_id": "A", "lines": [
+                    {"line_id": "L2", "text": "２０２６年の予測です。", "numbers": [2026], "mark": "source_number_match"},
+                ],
+            }],
+        }],
+    }
+    coverage_fullwidth = ve.compute_number_coverage(edition_fullwidth)
+    check("number_coverage/正例11: 全角数字'２０２６'は正規化後に1個として数えられる", coverage_fullwidth["text_number_tokens"], 1)
+    check("number_coverage/正例11: numbers_declaredは1(numbersが1件)", coverage_fullwidth["numbers_declared"], 1)
+    check("number_coverage/正例11: 一致していればgapは0", coverage_fullwidth["gap"], 0)
+    check(
+        "number_coverage/正例11: by_markの'source_number_match'に内訳が入る",
+        coverage_fullwidth["by_mark"]["source_number_match"],
+        {"text_number_tokens": 1, "numbers_declared": 1},
+    )
+
+    # --- 反応してほしくない例: 「1,901」のようなカンマ区切りの数字は
+    # normalize_text()でカンマが消えるため1個として数える(2個にならない) ---
+    edition_comma = {
+        "sections": [{
+            "section_id": "s", "articles": [{
+                "article_id": "A", "lines": [
+                    {"line_id": "L3", "text": "売上高は1,901億円だった。", "numbers": [1901], "mark": "source_number_match"},
+                ],
+            }],
+        }],
+    }
+    coverage_comma = ve.compute_number_coverage(edition_comma)
+    check(
+        "number_coverage/反応してほしくない例: カンマ区切り'1,901'は1個として数える(2個にならない)",
+        coverage_comma["text_number_tokens"], 1,
+    )
+
+    # --- 反応してほしくない例: 日付「2026年9月18日」は3個として数える ---
+    edition_date = {
+        "sections": [{
+            "section_id": "s", "articles": [{
+                "article_id": "A", "lines": [
+                    {"line_id": "L4", "text": "2026年9月18日に発表された。", "numbers": [], "mark": "explainer"},
+                ],
+            }],
+        }],
+    }
+    coverage_date = ve.compute_number_coverage(edition_date)
+    check(
+        "number_coverage/反応してほしくない例: 日付'2026年9月18日'は3個として数える(判定には使わない)",
+        coverage_date["text_number_tokens"], 3,
+    )
+
+
+def test_sources_published_at_null():
+    """修正5: count_sources_published_at_null()の単体テスト。
+    change枠の行が落ちた件数を数える既存のunknown_published_at_hitsとは別集計で、
+    そちらの値は変えないことも確かめる。"""
+
+    # --- 正例12: published_atがnullの出典が正しく数えられる(null/空文字/missing) ---
+    edition = {
+        "sections": [{
+            "section_id": "change", "articles": [{
+                "article_id": "A", "lines": [
+                    {"line_id": "L1", "text": "本文1。", "numbers": [], "source_ref": "S1", "claimed_mark": "unverified"},
+                ],
+            }],
+        }],
+        "sources": [
+            {"source_id": "S1", "published_at": None},
+            {"source_id": "S2", "published_at": ""},
+            {"source_id": "S3"},
+            {"source_id": "S4", "published_at": "2026-09-19T10:00:00+09:00"},
+        ],
+    }
+    result = ve.count_sources_published_at_null(edition)
+    check("sources_published_at_null/正例12: null/空文字/キー無しの3件が数えられる", result["count"], 3)
+    check(
+        "sources_published_at_null/正例12: source_idsに該当する3件が入る(値が入っているS4は入らない)",
+        sorted(result["source_ids"]), ["S1", "S2", "S3"],
+    )
+
+    # --- unknown_published_at_hits(change枠の行が落ちた件数)は既存どおり ---
+    edition_for_stale = json.loads(json.dumps(edition))  # run_check_e_stale_sourcesは行を削除するため複製を使う
+    now = dt.datetime.now(ve.JST)
+    stale_hits, unknown_published_at_hits = ve.run_check_e_stale_sources(edition_for_stale, now)
+    check(
+        "sources_published_at_null/正例12: unknown_published_at_hitsは変わらない"
+        "(change枠でpublished_atが無い出典を参照する行1件のみ)",
+        unknown_published_at_hits, 1,
+    )
+    check(
+        "sources_published_at_null/正例12: sources_published_at_null(3件)と"
+        "unknown_published_at_hits(1件)は別集計になる(S2・S3はどの行からも参照されていないため)",
+        result["count"] != unknown_published_at_hits, True,
+    )
+
+
+def test_rerun_detected():
+    """修正8: compute_rerun_detected()の単体テスト。実行時刻には一切依存しない
+    (号にverificationがあるかどうかだけで決まる)。判定には使わない。"""
+    check(
+        "rerun_detected/正例13: verificationが無い号(初回)ではFalse",
+        ve.compute_rerun_detected(None), False,
+    )
+    check(
+        "rerun_detected/正例13: verificationが空辞書でも(キー自体はある)Trueになる",
+        ve.compute_rerun_detected({}), True,
+    )
+    check(
+        "rerun_detected/正例13: verificationに中身がある号(2回目以降)ではTrue",
+        ve.compute_rerun_detected({"script_version": "2.0.0", "run_at": "2026-09-19T08:00:00+09:00"}), True,
+    )
+
+
 def test_skip_companies_when_market_closed():
     """修正3の正例: market_openがfalseの号は、下段(industry_examples)も作らず、
     industry_picks_discardedに件数が記録される。
@@ -2937,8 +3304,11 @@ def main():
     test_check_baseline_late()
     test_stop_words_remove_line_not_whole_edition()
     test_pick_industry_companies_matching()
+    test_generic_words_dictionary()
+    test_v12_generic_word_negative_examples()
     test_pick_industry_companies_relation_and_ticker()
     test_pick_industry_companies_excluded_tickers()
+    test_dropped_names_records()
     test_find_company_by_name()
     test_check_lower_relation_text()
     test_check_lower_industry()
@@ -2962,6 +3332,9 @@ def main():
     test_first_run_created_on_first_verification()
     test_first_run_unchanged_on_second_run()
     test_should_abort_rerun()
+    test_number_coverage()
+    test_sources_published_at_null()
+    test_rerun_detected()
     test_skip_companies_when_market_closed()
     test_industry_examples_not_skipped_when_market_open_and_not_late()
     test_check_edition_date()
