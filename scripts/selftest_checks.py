@@ -749,7 +749,9 @@ def test_count_invalid_source_usages():
 
 def test_check_baseline_late():
     """検査20(号の遅延判定)の正例・負例。修正1により、判定基準はgenerated_at(AIの自己申告)
-    ではなくrun_at_dt(スクリプトの実行時刻)になった。"""
+    ではなくrun_at_dt(スクリプトの実行時刻)になった。さらに修正1(タスク16-2c-1)により、
+    昼号(noon)は時刻の制限が無くなり、実行時刻にかかわらず常にFalseになった
+    (朝号(morning)の8:50判定はそのまま残る)。"""
     def run_at(iso):
         return dt.datetime.fromisoformat(iso)
 
@@ -765,11 +767,6 @@ def test_check_baseline_late():
     check(
         "検査20/正例: 朝号(morning)で実行時刻09:20はbaseline_late",
         ve.run_check_baseline_late(edition("morning"), run_at("2026-09-24T09:20:00+09:00")),
-        True,
-    )
-    check(
-        "検査20/正例: 昼号(noon)で実行時刻14:51はbaseline_late",
-        ve.run_check_baseline_late(edition("noon"), run_at("2026-09-24T14:51:00+09:00")),
         True,
     )
 
@@ -810,6 +807,17 @@ def test_check_baseline_late():
         "検査20/負例7: generated_atが壊れた文字列でも、実行時刻(09:20)で正しくTrueと判定される",
         ve.run_check_baseline_late(edition("morning", generated_at="not-a-datetime"), run_at("2026-09-24T09:20:00+09:00")),
         True,
+    )
+    check(
+        "検査20/負例8(修正1): 昼号は実行時刻が15:00でもbaseline_lateにならない"
+        "(昼号の基準は「読んだ時点の株価」であり、時刻の制限が無いため)",
+        ve.run_check_baseline_late(edition("noon"), run_at("2026-09-24T15:00:00+09:00")),
+        False,
+    )
+    check(
+        "検査20/負例9(修正1): 昼号は実行時刻が23:59でもbaseline_lateにならない",
+        ve.run_check_baseline_late(edition("noon"), run_at("2026-09-24T23:59:00+09:00")),
+        False,
     )
 
 

@@ -79,7 +79,6 @@ VALID_PUBLISHER_TYPES = {
 }
 SOURCE_POLICY_COLUMNS = ("domain", "usage", "publisher_type", "independent_check", "attribution_template")
 MORNING_DEADLINE = dt.time(8, 50)
-NOON_DEADLINE = dt.time(14, 50)
 
 _WS_RE = re.compile(r"[ \t\r\n　]")
 _COMMA_RE = re.compile(r"(?<=[0-9]),(?=[0-9])")
@@ -645,17 +644,17 @@ def run_check_e_stale_sources(edition, run_at_dt):
 
 
 def run_check_baseline_late(edition, run_at_dt):
-    """検査20: 号の遅延判定。スクリプトの実行時刻(run_at_dt、日本時間)が、morning号なら8:50、
-    noon号なら14:50を過ぎていたらTrueを返す。evening号は常にFalse(判定しない)。
+    """検査20: 号の遅延判定。スクリプトの実行時刻(run_at_dt、日本時間)が、morning号なら
+    8:50を過ぎていたらTrueを返す。noon号・evening号は常にFalse(判定しない)。
+    昼号(noon)は基準が「読んだ時点の株価」であり、時刻の制限が無いため対象外
+    (要件定義書v12 3.5(3))。
     generated_at(AIの自己申告)はこの判定にはいっさい使わない。AIが書き換えられる値を
     基準にすると、実際は門限を過ぎているのに間に合ったことにできてしまうため。"""
     slot = edition.get("slot")
-    if slot not in ("morning", "noon"):
+    if slot != "morning":
         return False
     local_time = run_at_dt.astimezone(JST).time()
-    if slot == "morning":
-        return local_time > MORNING_DEADLINE
-    return local_time > NOON_DEADLINE
+    return local_time > MORNING_DEADLINE
 
 
 def check_market_open(edition, calendar_dir):
