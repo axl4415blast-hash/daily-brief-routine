@@ -19,6 +19,7 @@ scripts/testdata の中身が書き換わってしまう(過去に2回、この�
 
 1件でも期待と異なれば、終了コード1で終わる。
 """
+import json
 import shutil
 import subprocess
 import sys
@@ -1128,6 +1129,66 @@ def test_pick_industry_companies_relation_and_ticker():
     )
 
 
+def test_pick_industry_companies_excluded_tickers():
+    """作業B(8.5・規則6): 上段(hypotheses)に残っている会社のtickerを、下段の候補から
+    除くこと。edinet_codelist.get_companies_by_industryを差し替えて、架空の会社
+    (テスト重複・テスト非重複)だけで確かめる。"""
+    original = pic.edinet_codelist.get_companies_by_industry
+
+    def fake_get_companies_by_industry(industry, limit=10**9):
+        return {
+            "attribution": "テスト出典", "processing_note": "テスト注記",
+            "companies": [
+                {
+                    "company_name": "テスト重複株式会社", "edinet_code": "E-DUP-1",
+                    "ticker": "1234", "industry": "テスト業種", "capital_million": 1000,
+                    "retrieved_date": "2026-09-19",
+                },
+                {
+                    "company_name": "テスト非重複株式会社", "edinet_code": "E-DUP-2",
+                    "ticker": "5678", "industry": "テスト業種", "capital_million": 500,
+                    "retrieved_date": "2026-09-19",
+                },
+            ],
+        }
+
+    pic.edinet_codelist.get_companies_by_industry = fake_get_companies_by_industry
+    try:
+        edition = {
+            "sections": [{
+                "section_id": "s", "articles": [
+                    {
+                        "article_id": "ART-EXCL", "headline": "見出し",
+                        "lines": [{"line_id": "L-01", "text": "この記事には関係する会社名が出てこない。"}],
+                    },
+                ],
+            }],
+        }
+        articles_by_id = pic.index_articles(edition)
+        hyp_doc = {
+            "edition_id": "2026-09-24-test", "hypotheses": [],
+            "industry_picks": [
+                {"article_id": "ART-EXCL", "event_id": "EVT-EXCL", "industry": "テスト業種", "industry_line_ids": ["L-01"]},
+            ],
+        }
+
+        # --- 正例: 上段に残っているticker'1234'の会社は、下段の候補から除かれる ---
+        result_excluded = pic.run(hyp_doc, articles_by_id, {}, {"1234"})
+        tickers_excluded = {e["ticker"] for e in result_excluded["examples"]}
+        check("作業B/8.5(規則6)正例: 上段に残るticker'1234'の会社は下段に出ない", "1234" in tickers_excluded, False)
+        check("作業B/8.5(規則6)正例: 除外後も他の候補(ticker'5678')は下段に出る", "5678" in tickers_excluded, True)
+
+        # --- 負例: 上段の会社が検査で削除された(除外集合が空)場合、下段の候補に戻る ---
+        result_not_excluded = pic.run(hyp_doc, articles_by_id, {}, set())
+        tickers_not_excluded = {e["ticker"] for e in result_not_excluded["examples"]}
+        check(
+            "作業B/8.5(規則6)負例: 上段から削除された会社(除外集合が空)は下段の候補に戻る",
+            "1234" in tickers_not_excluded, True,
+        )
+    finally:
+        pic.edinet_codelist.get_companies_by_industry = original
+
+
 def _ec_row(name, edinet_code, ticker_raw, capital="1000", listed="上場", industry="テスト業種"):
     """edinet_codelist.find_company_by_name向けの、コードリストの1行相当のダミー行。"""
     return {
@@ -1250,6 +1311,90 @@ def test_testdata_copy_integration():
     )
 
 
+def test_verify_edition_industry_integration():
+    """作業B(8.6): verify_edition.pyを1回実行するだけでindustry_examplesができること、
+    同じファイルに2回続けて実行しても結果が変わらない(二重に増えない)ことを確かめる。
+    実データ(EDINETコードリスト)には依存せず、架空の会社(テスト統合株式会社)だけを
+    含む偽のコードリストCSVを、一時フォルダのcwd相対.cache/reference/に置いて使う。"""
+    src_testdata = REPO_ROOT / "scripts" / "testdata"
+    with tempfile.TemporaryDirectory() as d:
+        work_dir = Path(d)
+        dst = work_dir / "testdata"
+        shutil.copytree(src_testdata, dst)
+
+        edition_path = dst / "editions" / "2026-09-24" / "morning.json"
+        hyp_path = dst / "hypotheses" / "2026-09-24-morning.json"
+        cache_dir = dst / "cache"
+        calendar_dir = REPO_ROOT / "calendar"
+
+        # L-12(article_id=ART-TEST-001)は claimed_mark が reported_unverified で、
+        # 出典の照合を経ずに確定した印がreported_unverifiedになる行(検査28を通る
+        # 根拠として使う。L-01は出典の照合条件(processing_note等)を満たさず
+        # unverifiedになるため使わない)。
+        hyp_doc = json.loads(hyp_path.read_text(encoding="utf-8"))
+        hyp_doc["industry_picks"] = [{
+            "article_id": "ART-TEST-001", "event_id": "EVT-INTEG",
+            "industry": "テスト業種", "industry_line_ids": ["L-12"],
+        }]
+        hyp_path.write_text(json.dumps(hyp_doc, ensure_ascii=False, indent=1), encoding="utf-8")
+
+        codelist_dir = work_dir / ".cache" / "reference"
+        codelist_dir.mkdir(parents=True, exist_ok=True)
+        csv_text = (
+            "ダウンロード実行日,2026-09-24\n"
+            "ＥＤＩＮＥＴコード,提出者名,提出者業種,上場区分,資本金,証券コード\n"
+            "E-INTEG-1,テスト統合株式会社,テスト業種,上場,5000,90010\n"
+        )
+        (codelist_dir / "EdinetcodeDlInfo_2026-09-24.csv").write_bytes(csv_text.encode("cp932"))
+
+        def run_once():
+            return subprocess.run(
+                [sys.executable, str(REPO_ROOT / "scripts" / "verify_edition.py"),
+                 "--edition", str(edition_path), "--hypotheses", str(hyp_path),
+                 "--cache", str(cache_dir), "--calendar", str(calendar_dir)],
+                capture_output=True, text=True, cwd=str(work_dir),
+            )
+
+        result1 = run_once()
+        check(
+            "作業B/8.6: industry_picksを含めてverify_edition.pyを実行すると正常終了する(終了コード0)",
+            result1.returncode, 0,
+        )
+
+        hyp_after1 = json.loads(hyp_path.read_text(encoding="utf-8"))
+        examples1 = hyp_after1.get("industry_examples")
+        check("作業B/8.6: 1回の実行でindustry_examplesが1社作られる", len(examples1 or []), 1)
+        if examples1:
+            check(
+                "作業B/8.6: 選ばれた会社は偽コードリストの'テスト統合株式会社'",
+                examples1[0]["company_name"], "テスト統合株式会社",
+            )
+            check("作業B/8.6: ticker_sourceが'edinet_codelist'", examples1[0].get("ticker_source"), "edinet_codelist")
+
+        edition_after1 = json.loads(edition_path.read_text(encoding="utf-8"))
+        check(
+            "作業B/8.6: verificationにindustry_examples_totalが記録される",
+            edition_after1["verification"].get("industry_examples_total"), 1,
+        )
+
+        result2 = run_once()
+        check("作業B/8.6: 同じファイルに2回目を実行しても正常終了する(終了コード0)", result2.returncode, 0)
+        hyp_after2 = json.loads(hyp_path.read_text(encoding="utf-8"))
+        check(
+            "作業B/8.6: 2回続けて実行してもindustry_examplesが二重に増えない(1社のまま)",
+            len(hyp_after2.get("industry_examples") or []), 1,
+        )
+
+    status = subprocess.run(
+        ["git", "status", "--porcelain", "--", "scripts/testdata"],
+        cwd=str(REPO_ROOT), capture_output=True, text=True,
+    )
+    check(
+        "作業B/8.6: scripts/testdata本体はテスト実行後もgit的に変更されていない",
+        status.stdout.strip(), "",
+    )
+
+
 def main():
     test_read_source_text()
     test_check_evidence_source_ref()
@@ -1266,8 +1411,10 @@ def main():
     test_stop_words_remove_line_not_whole_edition()
     test_pick_industry_companies_matching()
     test_pick_industry_companies_relation_and_ticker()
+    test_pick_industry_companies_excluded_tickers()
     test_find_company_by_name()
     test_testdata_copy_integration()
+    test_verify_edition_industry_integration()
 
     total = len(results)
     passed = sum(1 for _, ok, _, _ in results if ok)

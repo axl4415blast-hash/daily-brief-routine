@@ -362,9 +362,19 @@ def _has_any_mention(candidates, article, aliases_by_edinet_code):
     return bool(_find_mentions(blob, usable_entries))
 
 
-def run(hypotheses_doc, articles_by_id, aliases_by_edinet_code):
+def run(hypotheses_doc, articles_by_id, aliases_by_edinet_code, excluded_tickers=None):
     """industry_picksを処理し、industry_examplesと集計を作る。
-    既存のhypotheses配列には一切触れない(読んで件数を数えるだけ)。
+    既存のhypotheses配列には一切触れない(読んで件数を数えるだけ)。呼び出し元
+    (verify_edition.py)が上段の検査を済ませた後のhypotheses_doc["hypotheses"]
+    (検査で削除されずに残った上段だけ)を渡す前提で、下段の枠(hyp_count経由)は
+    その残った件数から計算する。
+
+    hypotheses_doc に industry_examples(AIが書いてしまったもの)が既にあれば、
+    中身を見ずに丸ごと捨てて件数だけ数える(会社を選ぶのは機械の役目のため)。
+
+    excluded_tickers: 号全体で上段(hypotheses)に残っている会社のtickerの集合。
+    規則6(上段にいる会社は下段の候補にしない)のため、この集合に入っている
+    tickerの候補企業は、下段の選定から除く。
 
     下段の枠(号全体で最大2社)を複数のindustry_picksで分け合うときは、まず
     各pickに1社ずつ配り(1業種2社・1記事2社・上段と合わせて5社、の上限内で)、
@@ -372,6 +382,11 @@ def run(hypotheses_doc, articles_by_id, aliases_by_edinet_code):
     「本文に名前が出ている会社を選べるpickを先にする、同条件なら
     industry_picksの配列順のまま」で決める(常に同じ結果になるようにするため)。
     """
+    excluded_tickers = excluded_tickers or set()
+
+    ai_written_examples = hypotheses_doc.get("industry_examples")
+    ai_written_examples_discarded = len(ai_written_examples) if isinstance(ai_written_examples, list) else 0
+
     hyp_count = len(hypotheses_doc.get("hypotheses") or [])
     overall_budget = min(LOWER_SECTION_LIMIT, max(0, TOTAL_LIMIT - hyp_count))
 
@@ -388,6 +403,13 @@ def run(hypotheses_doc, articles_by_id, aliases_by_edinet_code):
             if not ok:
                 skip_log.append((pick, reason))
                 continue
+            usable_companies = [
+                c for c in industry_result["companies"] if c["ticker"] not in excluded_tickers
+            ]
+            if not usable_companies:
+                skip_log.append((pick, "候補が全て上段(hypotheses)の会社と重複していたため選べない"))
+                continue
+            industry_result = dict(industry_result, companies=usable_companies)
             article = articles_by_id[pick.get("article_id")]
             has_mention = _has_any_mention(industry_result["companies"], article, aliases_by_edinet_code)
             valid_entries.append({
@@ -395,7 +417,11 @@ def run(hypotheses_doc, articles_by_id, aliases_by_edinet_code):
                 "article": article, "has_mention": has_mention, "count": 0,
             })
     except CodelistMissingError as e:
-        return {"fatal_error": str(e)}
+        return {
+            "fatal_error": str(e),
+            "total_pick_count": total_pick_count,
+            "ai_written_examples_discarded": ai_written_examples_discarded,
+        }
 
     # 安定ソート(sorted)なので、has_mentionだけをキーにすれば、同条件のものは
     # industry_picksの配列順のまま残る。
@@ -456,6 +482,8 @@ def run(hypotheses_doc, articles_by_id, aliases_by_edinet_code):
             "entity_relation": item["entity_relation"],
             "evidence_grade": "inferred",
             "selection_rule": item["selection_rule"],
+            # 下段は会社ごとの見立てを持たない(業種だけで機械的に選ぶため常にnull)。
+            "impact_kind": None,
             "relation_text": relation_text_tmpl.format(industry=industry_name),
             "industry_source": "edinet_codelist",
             "industry_retrieved_date": c["retrieved_date"],
@@ -507,6 +535,7 @@ def run(hypotheses_doc, articles_by_id, aliases_by_edinet_code):
         "overall_budget": overall_budget,
         "total_pick_count": total_pick_count,
         "zero_pick_count": zero_pick_count,
+        "ai_written_examples_discarded": ai_written_examples_discarded,
     }
 
 
@@ -523,6 +552,8 @@ def print_summary(result):
 
     total = len(result["examples"])
     print(f"上段(hypotheses)の件数: {result['hyp_count']}件 / 下段の枠: {result['overall_budget']}社")
+    if result["ai_written_examples_discarded"]:
+        print(f"AIが書いたindustry_examplesを破棄: {result['ai_written_examples_discarded']}件")
     print(f"industry_picks: {result['total_pick_count']}件(うち0社になったもの: {result['zero_pick_count']}件)")
     print(f"選んだ会社: {total}社")
     print(

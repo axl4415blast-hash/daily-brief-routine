@@ -49,6 +49,7 @@ import unicodedata
 from pathlib import Path
 
 import edinet_fetch
+import pick_industry_companies
 
 KNOWN_CLAIMED_MARKS = {
     "source_number_match",
@@ -772,10 +773,12 @@ def run_hypothesis_checks(hypotheses_doc, edition, business_days, ng_words, cach
     return total_violations, reasons
 
 
+
 def print_report(edition_path, stats, stop_hits, watch_hits, dropped_inferences, stale_hits,
                   unknown_published_at_hits, stale_skipped,
                   hypothesis_violations, hypothesis_reasons, number_failure_details, ok,
-                  baseline_late=False, ticker_crosscheck="skipped", source_usage_invalid_hits=0):
+                  baseline_late=False, ticker_crosscheck="skipped", source_usage_invalid_hits=0,
+                  industry_report=None):
     print("=" * 60)
     print(f"照合結果: {edition_path}")
     print("=" * 60)
@@ -854,6 +857,17 @@ def print_report(edition_path, stats, stop_hits, watch_hits, dropped_inferences,
     elif hypothesis_violations:
         print(f"仮説に関する指摘件数: {hypothesis_violations}")
 
+    if industry_report:
+        print(f"業種の指定(industry_picks)の件数: {industry_report['industry_picks_total']}件")
+        if industry_report["ai_written_examples_discarded"]:
+            print(f"AIが書いたindustry_examplesを破棄した件数: {industry_report['ai_written_examples_discarded']}件")
+        print(f"下段(業種から選んだ企業欄)の会社数: {industry_report['industry_examples_total']}社")
+
+        short_match = industry_report["short_name_match_count"]
+        print(f"3文字以下の名前で本文一致した件数: {short_match['count']}件")
+        if short_match["names"]:
+            print(f"  該当した名前: {'、'.join(short_match['names'])}")
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -900,6 +914,7 @@ def main():
         hypothesis_violations = 0
         hypothesis_reasons = {}
         hypotheses_doc = None
+        industry_report = None
         if args.hypotheses:
             hypotheses_doc = load_json(args.hypotheses)
             hypotheses_doc["baseline_late"] = baseline_late
@@ -907,6 +922,33 @@ def main():
             hypothesis_violations, hypothesis_reasons = run_hypothesis_checks(
                 hypotheses_doc, edition, business_days, ng_words, args.cache, edinet_companies
             )
+
+            # 5. 下段(業種から選ぶ企業欄)の選定。規則6: 上段の検査が終わって残った
+            # 会社のtickerを、下段の候補から除く(社名の文字列では比べない)。
+            excluded_tickers = {
+                h.get("ticker") for h in hypotheses_doc["hypotheses"] if h.get("ticker")
+            }
+            articles_by_id = pick_industry_companies.index_articles(edition)
+            aliases_by_edinet_code = pick_industry_companies.load_aliases()
+            pick_result = pick_industry_companies.run(
+                hypotheses_doc, articles_by_id, aliases_by_edinet_code, excluded_tickers
+            )
+
+            if pick_result.get("fatal_error"):
+                # コードリストが未取得。号全体は保存し、下段だけ空のまま扱う。
+                hypotheses_doc["industry_examples"] = []
+            else:
+                hypotheses_doc["industry_examples"] = pick_result["examples"]
+
+            industry_report = {
+                "industry_picks_total": pick_result.get("total_pick_count", 0),
+                "industry_examples_total": len(hypotheses_doc["industry_examples"]),
+                "ai_written_examples_discarded": pick_result.get("ai_written_examples_discarded", 0),
+                "short_name_match_count": {
+                    "count": pick_result.get("mentioned_short_count", 0),
+                    "names": pick_result.get("short_name_matches", []),
+                },
+            }
 
         run_at = dt.datetime.now(dt.timezone(dt.timedelta(hours=9))).isoformat()
         edition["verification"] = {
@@ -933,6 +975,8 @@ def main():
             "baseline_late": baseline_late,
             "source_usage_invalid_hits": source_usage_invalid_hits,
         }
+        if industry_report is not None:
+            edition["verification"].update(industry_report)
 
         with open(edition_path, "w", encoding="utf-8") as f:
             json.dump(edition, f, ensure_ascii=False, indent=1)
@@ -947,6 +991,7 @@ def main():
             hypothesis_violations, hypothesis_reasons, number_failure_details, ok=True,
             baseline_late=baseline_late, ticker_crosscheck=ticker_crosscheck,
             source_usage_invalid_hits=source_usage_invalid_hits,
+            industry_report=industry_report,
         )
         return 0
 
