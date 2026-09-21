@@ -397,7 +397,14 @@ def test_stop_and_watch_split():
 
 def test_check_minus_direction():
     """検査12(directionがminusの仮説の3条件)の正例・負例。
-    出典はEDINET風の文書(提出者自身の開示)を想定し、会社名は架空名(テスト物産)。"""
+    出典はEDINET風の文書(提出者自身の開示)を想定し、会社名は架空名(テスト物産)。
+
+    2026年9月21日の追加指示により、条件2は「evidence_filer_nameがcompany_nameと一致するか」
+    ではなく「evidence_role(apply_edinet_evidence()が出典URLの書類管理番号から機械で
+    確定した値)がfiler_selfかどうか」に変わった。この関数(check_minus_direction単体)は
+    evidence_roleが既に確定している前提で判定するだけなので、ここではevidence_roleを
+    直接設定して確かめる(apply_edinet_evidence自体の正例・負例はtest_apply_edinet_evidenceで
+    確かめる)。"""
     with tempfile.TemporaryDirectory() as d:
         ok_body = "テスト物産株式会社は有価証券報告書を提出した。売上高は前期比で減少した。"
         write(d, "SRC-OK.txt", ok_body.encode("utf-8"))
@@ -413,7 +420,7 @@ def test_check_minus_direction():
                 "company_name": "テスト物産",
                 "direction": "minus",
                 "evidence_grade": "primary",
-                "evidence_filer_name": "テスト物産",
+                "evidence_role": "filer_self",
                 "evidence_excerpt": "売上高は前期比で減少した",
                 "evidence_source_ref": "SRC-OK",
             }
@@ -427,8 +434,13 @@ def test_check_minus_direction():
             False,
         )
         check(
-            "検査12/正例: evidence_filer_nameがcompany_nameと一致しなければ不合格",
-            ve.check_minus_direction(base_minus(evidence_filer_name="テスト電機"), sources, d),
+            "検査12/正例(★今回の変更点): evidence_roleがfiler_selfでなければ不合格(mentioned)",
+            ve.check_minus_direction(base_minus(evidence_role="mentioned"), sources, d),
+            False,
+        )
+        check(
+            "検査12/正例: evidence_roleがnullでも不合格",
+            ve.check_minus_direction(base_minus(evidence_role=None), sources, d),
             False,
         )
         check(
@@ -463,20 +475,10 @@ def test_check_minus_direction():
             True,
         )
         check(
-            "検査12/負例: evidence_filer_nameの前後に半角空白が入っているだけなら合格",
-            ve.check_minus_direction(base_minus(evidence_filer_name=" テスト物産 "), sources, d),
-            True,
-        )
-        check(
-            "検査12/負例: evidence_filer_nameの前後に全角空白が入っているだけなら合格",
-            ve.check_minus_direction(base_minus(evidence_filer_name="　テスト物産　"), sources, d),
-            True,
-        )
-        check(
             "検査12/負例: directionがplusでevidence_gradeがinferredでも合格(minus専用の検査のため)",
             ve.check_minus_direction(
                 {"company_name": "テスト物産", "direction": "plus", "evidence_grade": "inferred",
-                 "evidence_excerpt": None, "evidence_filer_name": None, "evidence_source_ref": None},
+                 "evidence_excerpt": None, "evidence_role": None, "evidence_source_ref": None},
                 sources, d,
             ),
             True,
@@ -484,7 +486,14 @@ def test_check_minus_direction():
 
 
 def test_check_ticker_fields():
-    """検査13(ticker/ticker_sourceの確認)の正例・負例。証券コードは実在しない9999/9998。"""
+    """検査13(ticker/ticker_sourceの確認)の正例・負例。証券コードは実在しない9999/9998。
+
+    2026年9月21日の追加指示により、条件3(EDINET一覧との突き合わせ)は
+    ticker_sourceがedinet_seccodeの仮説にだけ適用するようになった(edinet_codelist
+    経路は検査31が担当する)。そのため、条件3を確かめる基本ケースはticker_sourceを
+    edinet_seccodeにする。また、links.price_historyとtickerの突き合わせは条件3の
+    外に出したため、ticker_source・edinet_companiesの有無に関係なく常に働くことを
+    別途確かめる。"""
     edinet_companies = [
         {"filer_name": "テスト物産", "ticker": "9999"},
         {"filer_name": "テスト電機", "ticker": "9998"},
@@ -494,7 +503,7 @@ def test_check_ticker_fields():
         hyp = {
             "company_name": "テスト物産",
             "ticker": "9999",
-            "ticker_source": "edinet",
+            "ticker_source": "edinet_seccode",
         }
         hyp.update(overrides)
         return hyp
@@ -516,12 +525,12 @@ def test_check_ticker_fields():
         "ticker_source_missing",
     )
     check(
-        "検査13/正例: EDINET一覧のtickerと食い違えば不合格",
+        "検査13/正例: ticker_sourceがedinet_seccodeでEDINET一覧のtickerと食い違えば不合格",
         ve.check_ticker_fields(base(ticker="9998"), edinet_companies),
         "ticker_mismatch",
     )
     check(
-        "検査13/正例: EDINET一覧に会社名が見つからなければ不合格",
+        "検査13/正例: ticker_sourceがedinet_seccodeでEDINET一覧に会社名が見つからなければ不合格(#11)",
         ve.check_ticker_fields(base(company_name="テスト建設"), edinet_companies),
         "ticker_mismatch",
     )
@@ -529,6 +538,22 @@ def test_check_ticker_fields():
         "検査13/正例: links.price_historyのURL(/quote/と.Tの間)に違う証券コードが入っていれば不合格",
         ve.check_ticker_fields(
             base(links={"price_history": "https://finance.yahoo.co.jp/quote/9998.T/history"}), edinet_companies
+        ),
+        "ticker_mismatch",
+    )
+    check(
+        "検査13/正例(#12): links.price_historyの食い違いは、ticker_sourceがedinet_codelistでも不合格",
+        ve.check_ticker_fields(
+            base(ticker_source="edinet_codelist",
+                 links={"price_history": "https://finance.yahoo.co.jp/quote/9998.T/history"}),
+            edinet_companies,
+        ),
+        "ticker_mismatch",
+    )
+    check(
+        "検査13/正例(#12): links.price_historyの食い違いは、EDINET一覧が読めない(None)場合でも不合格",
+        ve.check_ticker_fields(
+            base(links={"price_history": "https://finance.yahoo.co.jp/quote/9998.T/history"}), None
         ),
         "ticker_mismatch",
     )
@@ -561,6 +586,18 @@ def test_check_ticker_fields():
         ),
         None,
     )
+    check(
+        "検査13/負例(★穴をふさぐ本題・#10): ticker_sourceがedinet_codelistの仮説は、"
+        "EDINET一覧に社名が無くても検査13の条件3では削除されない(検査31が担当するため)",
+        ve.check_ticker_fields(base(ticker_source="edinet_codelist", company_name="テスト建設"), edinet_companies),
+        None,
+    )
+    check(
+        "検査13/負例(#10): ticker_sourceがedinet_codelistなら、EDINET一覧のtickerと"
+        "食い違っていても条件3では削除されない",
+        ve.check_ticker_fields(base(ticker_source="edinet_codelist", ticker="9998"), edinet_companies),
+        None,
+    )
 
     # --- 英字入りの証券コード(2024年1月以降の新規上場を想定) ---
     edinet_companies_with_letter = edinet_companies + [
@@ -571,7 +608,7 @@ def test_check_ticker_fields():
         hyp = {
             "company_name": "テスト新興",
             "ticker": "130A",
-            "ticker_source": "edinet",
+            "ticker_source": "edinet_seccode",
         }
         hyp.update(overrides)
         return hyp
@@ -2961,55 +2998,202 @@ def test_check_hypothesis_baseline_late_input():
     )
 
 
-def test_evidence_role_and_auto_check_target():
-    """修正2・3: evidence_role/auto_check_targetはAIには書かせず、スクリプトが
-    確定する。AIが書いた値は一致・不一致にかかわらず必ず上書きされることを確かめる。"""
-    hyps = [
-        # 0: company_nameとevidence_filer_nameが完全一致、impact_kindがprice_stated
-        #    → filer_self かつ auto_check_target=True
-        {"company_name": "テスト物産", "evidence_filer_name": "テスト物産", "impact_kind": "price_stated"},
-        # 1: 前後に空白があっても一致とみなす(strip_ws)
-        {"company_name": "テスト物産", "evidence_filer_name": "  テスト物産　", "impact_kind": "amount_stated"},
-        # 2: evidence_filer_nameが違う会社 → mentioned、auto_check_target=False
-        {"company_name": "テスト物産", "evidence_filer_name": "他社株式会社", "impact_kind": "price_stated"},
-        # 3: evidence_filer_nameがnull → mentioned
-        {"company_name": "テスト物産", "evidence_filer_name": None, "impact_kind": "amount_stated"},
-        # 4: filer_selfだがimpact_kindがfact_only → auto_check_target=False
-        {"company_name": "テスト物産", "evidence_filer_name": "テスト物産", "impact_kind": "fact_only"},
-        # 5: AIがevidence_role="mentioned"/auto_check_target=Trueと書いても、
-        #    実際は一致するので"filer_self"に、impact_kindが無いのでauto_check_targetはFalseに
-        #    上書きされる(AIの自己申告は判定に使わない)。
+def test_apply_edinet_evidence():
+    """2026年9月21日の追加指示: evidence_filer_name/evidence_doc_type/evidence_role/
+    impact_kind/impact_kind_source/auto_check_targetを、AIに書かせず出典URLの書類管理番号
+    からEDINET書類一覧を引いて機械で確定するapply_edinet_evidence()の正例・負例。
+
+    このテストはtest_evidence_role_and_auto_check_target()を置き換えるもの(旧版は
+    evidence_filer_nameとcompany_nameの文字列比較で判定していたが、今回その仕組み自体を
+    ふさいだため、EDINET書類一覧を引く新しい仕組みで確かめ直す)。"""
+    edinet_companies = [
+        # 書類種別240(公開買付届出書)。フェローテックが提出した書類(doc_id: S100Z392)。
+        # company_nameが提出者本人の場合と、対象会社(TOB例外)の場合の両方をこの1件で試す。
         {
-            "company_name": "テスト物産", "evidence_filer_name": "テスト物産",
-            "evidence_role": "mentioned", "auto_check_target": True,
+            "filer_name": "株式会社フェローテック", "ticker": "6890",
+            "doc_id": "S100Z392", "doc_type_code": "240",
+            "doc_description": "公開買付届出書",
+        },
+        # 書類種別350(大量保有報告書・変更報告書)
+        {
+            "filer_name": "テスト投資株式会社", "ticker": "1000",
+            "doc_id": "S100AMOUNT", "doc_type_code": "350",
+            "doc_description": "変更報告書",
+        },
+        # 書類種別120(対応表に無いコード。有価証券報告書)
+        {
+            "filer_name": "テスト物産", "ticker": "9999",
+            "doc_id": "S100UNMAPPED", "doc_type_code": "120",
+            "doc_description": "有価証券報告書",
         },
     ]
-    hypotheses_doc = {"hypotheses": hyps}
-    edition = {"sections": [], "market_open": True, "baseline_late": False, "sources": []}
-    ve.run_hypothesis_checks(hypotheses_doc, edition, [], [], "/nonexistent", None, None)
 
-    check("evidence_role/正例0: 完全一致+price_statedはfilei_selfかつauto_check_target=True".replace("filei", "filer"),
-          (hyps[0]["evidence_role"], hyps[0]["auto_check_target"]), ("filer_self", True))
+    sources = {
+        "SRC-TOB": {
+            "source_id": "SRC-TOB",
+            "url": "https://disclosure2.edinet-fsa.go.jp/api/v2/documents/S100Z392?type=1",
+        },
+        "SRC-AMOUNT": {
+            "source_id": "SRC-AMOUNT",
+            "url": "https://disclosure2.edinet-fsa.go.jp/api/v2/documents/S100AMOUNT?type=1",
+        },
+        "SRC-UNMAPPED": {
+            "source_id": "SRC-UNMAPPED",
+            "url": "https://disclosure2.edinet-fsa.go.jp/api/v2/documents/S100UNMAPPED?type=1",
+        },
+        "SRC-NOTFOUND": {
+            "source_id": "SRC-NOTFOUND",
+            "url": "https://disclosure2.edinet-fsa.go.jp/api/v2/documents/S100NONE?type=1",
+        },
+        "SRC-NEWS": {
+            "source_id": "SRC-NEWS",
+            "url": "https://www.nikkei.com/article/DGXZQOxxxxxxx/",
+        },
+        # EDINETのドメインだが、書類一覧APIそのもののURL(書類管理番号を含まない形)。
+        # editions/2026-09-18/evening.json のSRC-004と同じ形。
+        "SRC-UNPARSED": {
+            "source_id": "SRC-UNPARSED",
+            "url": "https://api.edinet-fsa.go.jp/api/v2/documents.json?date=2026-09-18&type=2",
+        },
+    }
+
+    def hyp(**kw):
+        h = {"company_name": "テスト物産", "evidence_source_ref": None, "impact_kind": None}
+        h.update(kw)
+        return h
+
+    # --- 1: 書類種別240、company_nameが提出者本人 → filer_self/price_stated/edinet_doctype ---
+    h1 = hyp(company_name="株式会社フェローテック", evidence_source_ref="SRC-TOB")
+    ve.apply_edinet_evidence([h1], sources, edinet_companies)
     check(
-        "evidence_role/正例1: 前後の空白を除いて一致すればfiler_self(auto_check_target=True)",
-        (hyps[1]["evidence_role"], hyps[1]["auto_check_target"]), ("filer_self", True),
+        "apply_edinet_evidence/#1: 書類種別240・提出者本人はfiler_self/price_stated/edinet_doctype",
+        (h1["evidence_role"], h1["impact_kind"], h1["impact_kind_source"]),
+        ("filer_self", "price_stated", "edinet_doctype"),
     )
     check(
-        "evidence_role/負例1: 会社名が違えばmentioned(auto_check_target=False)",
-        (hyps[2]["evidence_role"], hyps[2]["auto_check_target"]), ("mentioned", False),
+        "apply_edinet_evidence/#1: evidence_filer_name/evidence_doc_typeも書類一覧の値で埋まる",
+        (h1["evidence_filer_name"], h1["evidence_doc_type"]),
+        ("株式会社フェローテック", "公開買付届出書"),
+    )
+
+    # --- 7・9(★今回ふさぐ穴): TOB対象会社(提出者は別会社=フェローテック) ---
+    #     AIがevidence_filer_nameにcompany_nameと同じ文字列を書いていても、機械は
+    #     出典の実際の提出者(フェローテック)で判定するのでmentionedになる。
+    h9 = hyp(
+        company_name="株式会社日本抵抗器製作所", evidence_source_ref="SRC-TOB",
+        evidence_filer_name="株式会社日本抵抗器製作所",  # AIの自己申告(誤り)
+        impact_kind="fact_only",  # AIの自己申告(こちらも機械の値で上書きされる)
+    )
+    ve.apply_edinet_evidence([h9], sources, edinet_companies)
+    check(
+        "apply_edinet_evidence/#9(★穴の再現): AIが書いたevidence_filer_nameは使われず、"
+        "evidence_roleはmentionedになる",
+        h9["evidence_role"], "mentioned",
     )
     check(
-        "evidence_role/負例2: evidence_filer_nameがnullならmentioned",
-        (hyps[3]["evidence_role"], hyps[3]["auto_check_target"]), ("mentioned", False),
+        "apply_edinet_evidence/#9: evidence_filer_nameも書類一覧の提出者名(フェローテック)で上書きされる",
+        h9["evidence_filer_name"], "株式会社フェローテック",
     )
     check(
-        "evidence_role/負例3: filer_selfでもimpact_kindがfact_onlyならauto_check_target=False",
-        (hyps[4]["evidence_role"], hyps[4]["auto_check_target"]), ("filer_self", False),
+        "apply_edinet_evidence/#7(TOB例外): impact_kindは書類種別からprice_stated/edinet_doctypeに決まる",
+        (h9["impact_kind"], h9["impact_kind_source"]), ("price_stated", "edinet_doctype"),
     )
     check(
-        "evidence_role/負例4(修正2・3): AIが書いたevidence_role/auto_check_targetは"
-        "一致・不一致にかかわらず必ず上書きされる",
-        (hyps[5]["evidence_role"], hyps[5]["auto_check_target"]), ("filer_self", False),
+        "apply_edinet_evidence/#7(TOB例外): evidence_roleがmentionedでもauto_check_targetはtrue(条件b)",
+        h9["auto_check_target"], True,
+    )
+
+    # --- 2: 書類種別350 → amount_stated ---
+    h2 = hyp(company_name="テスト投資株式会社", evidence_source_ref="SRC-AMOUNT")
+    ve.apply_edinet_evidence([h2], sources, edinet_companies)
+    check(
+        "apply_edinet_evidence/#2: 書類種別350はamount_stated/edinet_doctype",
+        (h2["impact_kind"], h2["impact_kind_source"]), ("amount_stated", "edinet_doctype"),
+    )
+
+    # --- 3・8: 対応表に無いコード(120) → null/edinet_doctype_unmapped、auto_check_targetもfalse ---
+    h3 = hyp(evidence_source_ref="SRC-UNMAPPED", impact_kind="price_stated")
+    counts3 = ve.apply_edinet_evidence([h3], sources, edinet_companies)
+    check(
+        "apply_edinet_evidence/#3: 対応表に無いコード(120)はimpact_kindがnull、edinet_doctype_unmapped",
+        (h3["impact_kind"], h3["impact_kind_source"]), (None, "edinet_doctype_unmapped"),
+    )
+    check(
+        "apply_edinet_evidence/#3: impact_kind_undetermined_by_doc_typeに'120'が1件記録される",
+        counts3["impact_kind_undetermined_by_doc_type"].get("120"), 1,
+    )
+    check(
+        "apply_edinet_evidence/#8: AIがprice_statedと書いても、対応表に無ければauto_check_targetはfalse",
+        h3["auto_check_target"], False,
+    )
+
+    # --- 4: 書類管理番号は取れるが、その日の一覧に無い → mentioned/null/edinet_doc_not_found ---
+    h4 = hyp(evidence_source_ref="SRC-NOTFOUND", impact_kind="amount_stated")
+    ve.apply_edinet_evidence([h4], sources, edinet_companies)
+    check(
+        "apply_edinet_evidence/#4: 一覧に無いdoc_idはmentioned/null/edinet_doc_not_found",
+        (h4["evidence_role"], h4["impact_kind"], h4["impact_kind_source"]),
+        ("mentioned", None, "edinet_doc_not_found"),
+    )
+
+    # --- 5: 出典が報道記事(EDINETでない) → mentioned/null/no_edinet_doc ---
+    h5 = hyp(evidence_source_ref="SRC-NEWS", impact_kind="price_stated")
+    ve.apply_edinet_evidence([h5], sources, edinet_companies)
+    check(
+        "apply_edinet_evidence/#5: 報道記事の出典はmentioned/null/no_edinet_doc",
+        (h5["evidence_role"], h5["impact_kind"], h5["impact_kind_source"]),
+        ("mentioned", None, "no_edinet_doc"),
+    )
+
+    # --- 6: 書類一覧が読めない(edinet_companies=None) → 全件mentioned/null/doclist_unavailable ---
+    h6a = hyp(company_name="株式会社フェローテック", evidence_source_ref="SRC-TOB",
+              evidence_filer_name="株式会社フェローテック", impact_kind="price_stated")
+    h6b = hyp(evidence_source_ref="SRC-NEWS")
+    hyps6 = [h6a, h6b]
+    ve.apply_edinet_evidence(hyps6, sources, None)
+    check(
+        "apply_edinet_evidence/#6: 書類一覧が読めない場合、全件mentioned/null/doclist_unavailableになる",
+        [(h["evidence_role"], h["impact_kind"], h["impact_kind_source"]) for h in hyps6],
+        [("mentioned", None, "doclist_unavailable"), ("mentioned", None, "doclist_unavailable")],
+    )
+    check("apply_edinet_evidence/#6: 仮説は削除されない(件数がそのまま2件)", len(hyps6), 2)
+
+    # --- edinet_url_unparsed: EDINETドメインだが書類管理番号が取れないURL ---
+    h_unparsed = hyp(evidence_source_ref="SRC-UNPARSED")
+    counts_unparsed = ve.apply_edinet_evidence([h_unparsed], sources, edinet_companies)
+    check(
+        "apply_edinet_evidence/URL形: EDINETドメインだが書類管理番号が取れないURLはedinet_url_unparsedが1",
+        counts_unparsed["edinet_url_unparsed"], 1,
+    )
+    check(
+        "apply_edinet_evidence/URL形: 書類管理番号が取れなかった場合もimpact_kind_sourceはno_edinet_doc",
+        h_unparsed["impact_kind_source"], "no_edinet_doc",
+    )
+    h_news_for_count = hyp(evidence_source_ref="SRC-NEWS")
+    counts_news = ve.apply_edinet_evidence([h_news_for_count], sources, edinet_companies)
+    check(
+        "apply_edinet_evidence/URL形: 報道記事(EDINETドメインでない)はedinet_url_unparsedに数えない",
+        counts_news["edinet_url_unparsed"], 0,
+    )
+
+    # --- overridden件数・impact_kind_source_counts ---
+    h_over = hyp(
+        company_name="株式会社フェローテック", evidence_source_ref="SRC-TOB",
+        evidence_filer_name="違う値", evidence_doc_type="違う値", impact_kind="amount_stated",
+    )
+    counts_over = ve.apply_edinet_evidence([h_over], sources, edinet_companies)
+    check(
+        "apply_edinet_evidence/overridden: AIの値と機械の値が違えば3つとも1件ずつ数えられる",
+        (
+            counts_over["evidence_filer_name_overridden"],
+            counts_over["evidence_doc_type_overridden"],
+            counts_over["impact_kind_overridden"],
+        ),
+        (1, 1, 1),
+    )
+    check(
+        "apply_edinet_evidence/impact_kind_source_counts: edinet_doctypeが1件記録される",
+        counts_over["impact_kind_source_counts"].get("edinet_doctype"), 1,
     )
 
 
@@ -3316,7 +3500,7 @@ def main():
     test_check_lower_ticker()
     test_check_lower_listed_and_ticker_match()
     test_run_slot_allocation()
-    test_evidence_role_and_auto_check_target()
+    test_apply_edinet_evidence()
     test_check_hypothesis_listed_and_ticker_match()
     test_check_hypothesis_impact_reason()
     test_check_hypothesis_relation_text_number()

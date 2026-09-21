@@ -35,9 +35,12 @@
   ]
 }
 
-evidence_filer_name / evidence_excerpt は検査12(directionがminusの仮説の3条件)、
-ticker_source / links.price_history は検査13(証券コードの確認)で使う。どちらも
-今回追加した項目のため、依頼文には例示が無い(本スクリプトが定める形)。
+evidence_excerpt は検査12(directionがminusの仮説の3条件)、ticker_source / links.price_history は
+検査13(証券コードの確認)で使う。evidence_filer_name / evidence_doc_type / evidence_role /
+impact_kind / impact_kind_source / auto_check_target はAIには書かせず、出典URLの書類管理番号
+からEDINET書類一覧を引いてapply_edinet_evidence()が機械で確定する(check_hypothesis()の
+ループより先に実行する)。どちらも今回追加した項目のため、依頼文には例示が無い
+(本スクリプトが定める形)。
 """
 import argparse
 import csv
@@ -70,8 +73,29 @@ REQUIRED_HYPOTHESIS_FIELDS = [
     "baseline_date", "baseline_price_type", "horizon_business_days",
 ]
 # links.price_history のURL(https://finance.yahoo.co.jp/quote/{証券コード}.T/history)から
-# /quote/ と .T の間の文字列を取り出す(検査13の条件3で使う)。
+# /quote/ と .T の間の文字列を取り出す(検査13で使う)。
 PRICE_HISTORY_CODE_RE = re.compile(r"/quote/([^/]+)\.T(?:/|$)")
+# 出典のURL(https://disclosure2.edinet-fsa.go.jp/api/v2/documents/{書類管理番号}?type=1)から
+# 書類管理番号を取り出す(evidence_filer_name/evidence_doc_type/evidence_role/impact_kindを
+# 機械で確定する処理で使う)。editions/配下の実データで確認できた形はこれ1種類のみ
+# (2026年9月21日時点)。見たことのない形のURLは無理に解釈せず、取り出せなかった件数を
+# edinet_url_unparsedとして記録する。
+EDINET_DOC_ID_RE = re.compile(
+    r"^https://disclosure2\.edinet-fsa\.go\.jp/api/v2/documents/([^/?]+)(?:\?|$)"
+)
+# 書類種別コード(docTypeCode)からimpact_kindを機械で決めるための対応表。ここに無い
+# コードにはimpact_kindを付けない(fact_onlyは機械では付けない。届出の種類が幅広く、
+# 事実と違う表示になりうるため)。あとから対応表を広げやすいよう、ここに1か所でまとめる。
+EDINET_DOC_TYPE_IMPACT_KIND = {
+    "240": "price_stated",   # 公開買付届出書
+    "250": "price_stated",   # 訂正公開買付届出書
+    "270": "price_stated",   # 公開買付報告書
+    "280": "price_stated",   # 訂正公開買付報告書
+    "350": "amount_stated",  # 大量保有報告書・変更報告書
+    "360": "amount_stated",  # 訂正報告書(大量保有・変更)
+    "220": "amount_stated",  # 自己株券買付状況報告書
+    "230": "amount_stated",  # 訂正自己株券買付状況報告書
+}
 VALID_SOURCE_USAGES = {"quotable", "link_only", "snippet_only"}
 VALID_PUBLISHER_TYPES = {
     "government_statistics", "central_bank", "company_disclosure",
@@ -890,7 +914,9 @@ def check_evidence_source_ref(hyp, sources_by_id, cache_dir):
 def check_minus_direction(hyp, sources_by_id, cache_dir):
     """検査12: direction が minus の仮説は、次の3条件をすべて満たすときだけ残す。
       1. evidence_grade が primary
-      2. evidence_filer_name が company_name と(前後の空白を除いて)完全一致する
+      2. evidence_role が filer_self(出典の書類の提出者がcompany_name自身であることを、
+         apply_edinet_evidence()が機械で確定した値。呼び出し側で、この検査より先に
+         apply_edinet_evidence()を実行しておくこと)
       3. evidence_excerpt が evidence_source_ref の出典本文にそのまま存在する
          (検査1と同じ照合の仕方)
     direction が plus の仮説はこの検査の対象外(常に合格)。evidence_excerptが
@@ -901,9 +927,7 @@ def check_minus_direction(hyp, sources_by_id, cache_dir):
     if hyp.get("evidence_grade") != "primary":
         return False
 
-    company_name = strip_ws(hyp.get("company_name"))
-    filer_name = strip_ws(hyp.get("evidence_filer_name"))
-    if not company_name or not filer_name or company_name != filer_name:
+    if hyp.get("evidence_role") != "filer_self":
         return False
 
     excerpt = hyp.get("evidence_excerpt")
@@ -948,15 +972,136 @@ def load_edinet_companies(cache_dir):
     return None
 
 
+def is_edinet_domain(url):
+    """URLのホスト名がEDINET(edinet-fsa.go.jp)のものかどうかを判定する。
+    disclosure2.edinet-fsa.go.jp・api.edinet-fsa.go.jpのどちらもEDINETのドメインとして扱う。"""
+    if not url:
+        return False
+    try:
+        host = urlparse(url).hostname or ""
+    except ValueError:
+        return False
+    return host == "edinet-fsa.go.jp" or host.endswith(".edinet-fsa.go.jp")
+
+
+def extract_edinet_doc_id(url):
+    """出典のURLからEDINETの書類管理番号を取り出す。EDINET_DOC_ID_REの形に合わなければ
+    (EDINETのドメインかどうかにかかわらず)Noneを返す。"""
+    if not url:
+        return None
+    m = EDINET_DOC_ID_RE.match(url)
+    return m.group(1) if m else None
+
+
+def apply_edinet_evidence(hyps, sources_by_id, edinet_companies):
+    """上段の仮説ごとに、evidence_filer_name/evidence_doc_type/evidence_role/impact_kind/
+    impact_kind_source/auto_check_targetを、AIに書かせず出典URLの書類管理番号から
+    EDINET書類一覧を引いて確定する。AIが書いた値は一致・不一致にかかわらず必ず上書きする
+    (判定に使ってよいのはスクリプトが自分で決めた値だけのため)。impact_reasonはAIが書いた
+    値のまま上書きしない。
+
+    戻り値: verificationに記録する件数・内訳をまとめたdict。"""
+    counts = {
+        "evidence_filer_name_overridden": 0,
+        "evidence_doc_type_overridden": 0,
+        "impact_kind_overridden": 0,
+        "impact_kind_source_counts": {},
+        "impact_kind_undetermined_by_doc_type": {},
+        "edinet_url_unparsed": 0,
+    }
+
+    doc_by_id = {}
+    if edinet_companies is not None:
+        for c in edinet_companies:
+            doc_id = c.get("doc_id")
+            if doc_id:
+                doc_by_id[doc_id] = c
+
+    for hyp in hyps:
+        company_name = strip_ws(hyp.get("company_name"))
+        ref = hyp.get("evidence_source_ref")
+        source = sources_by_id.get(ref) if ref else None
+        url = source.get("url") if source else None
+
+        doc_id = extract_edinet_doc_id(url)
+        if doc_id is None and is_edinet_domain(url):
+            counts["edinet_url_unparsed"] += 1
+
+        record = doc_by_id.get(doc_id) if doc_id else None
+
+        old_filer_name = hyp.get("evidence_filer_name")
+        old_doc_type = hyp.get("evidence_doc_type")
+        old_impact_kind = hyp.get("impact_kind")
+
+        if edinet_companies is None:
+            new_filer_name = None
+            new_doc_type = None
+            new_role = "mentioned"
+            new_impact_kind = None
+            new_impact_kind_source = "doclist_unavailable"
+        elif record is not None:
+            new_filer_name = record.get("filer_name")
+            new_doc_type = record.get("doc_description")
+            filer_name_stripped = strip_ws(new_filer_name)
+            new_role = "filer_self" if (company_name and filer_name_stripped and company_name == filer_name_stripped) else "mentioned"
+            doc_type_code = record.get("doc_type_code")
+            if doc_type_code in EDINET_DOC_TYPE_IMPACT_KIND:
+                new_impact_kind = EDINET_DOC_TYPE_IMPACT_KIND[doc_type_code]
+                new_impact_kind_source = "edinet_doctype"
+            else:
+                new_impact_kind = None
+                new_impact_kind_source = "edinet_doctype_unmapped"
+                counts["impact_kind_undetermined_by_doc_type"][doc_type_code] = (
+                    counts["impact_kind_undetermined_by_doc_type"].get(doc_type_code, 0) + 1
+                )
+        else:
+            new_filer_name = None
+            new_doc_type = None
+            new_role = "mentioned"
+            new_impact_kind = None
+            new_impact_kind_source = "edinet_doc_not_found" if doc_id is not None else "no_edinet_doc"
+
+        hyp["evidence_filer_name"] = new_filer_name
+        hyp["evidence_doc_type"] = new_doc_type
+        hyp["evidence_role"] = new_role
+        hyp["impact_kind"] = new_impact_kind
+        hyp["impact_kind_source"] = new_impact_kind_source
+
+        # 検査20相当のTOB例外(condition b): 買い付ける側が提出者のため対象会社はmentionedに
+        # なるが、機械が書類種別からprice_statedと決めた場合に限り自動対象に含める。AIが
+        # impact_kindにprice_statedと書いただけでは対象にならない(impact_kind_sourceの
+        # 条件が必ず付く)。
+        cond_a = new_impact_kind in ("price_stated", "amount_stated") and new_role == "filer_self"
+        cond_b = new_impact_kind == "price_stated" and new_impact_kind_source == "edinet_doctype"
+        hyp["auto_check_target"] = bool(cond_a or cond_b)
+
+        if old_filer_name != new_filer_name:
+            counts["evidence_filer_name_overridden"] += 1
+        if old_doc_type != new_doc_type:
+            counts["evidence_doc_type_overridden"] += 1
+        if old_impact_kind != new_impact_kind:
+            counts["impact_kind_overridden"] += 1
+        counts["impact_kind_source_counts"][new_impact_kind_source] = (
+            counts["impact_kind_source_counts"].get(new_impact_kind_source, 0) + 1
+        )
+
+    return counts
+
+
 def check_ticker_fields(hyp, edinet_companies):
     """検査13: ticker/ticker_sourceの確認。次のいずれかに当たったら不合格(None以外を返す)。
       1. ticker が null・空、または証券コードの形(edinet_fetch.is_valid_ticker、英字混在を含む)
          に合わない
       2. ticker_source が null・空
-      3. EDINET書類一覧が読める場合に、company_name と ticker の組がその一覧に見つからない
-         (links.price_history のURL「https://finance.yahoo.co.jp/quote/{証券コード}.T/history」の
-         /quote/ と .T の間の文字列が ticker と違う場合も含む。その形に合わないURLは比較せず飛ばす)
-    EDINET書類一覧が読めない(edinet_companiesがNone)場合、条件3は適用しない。
+      3. ticker_source が edinet_seccode の仮説について、EDINET書類一覧が読める場合に、
+         company_name と ticker の組がその一覧に見つからない。
+         (ticker_source が edinet_codelist の仮説はここでは対象外。検査31
+         (check_hypothesis_ticker_match)がコードリストとの突き合わせを担当する。
+         EDINET書類一覧が読めない(edinet_companiesがNone)場合も、この条件は適用しない)
+      4. links.price_history のURL「https://finance.yahoo.co.jp/quote/{証券コード}.T/history」の
+         /quote/ と .T の間の文字列が ticker と違う。その形に合わないURLは比較せず飛ばす。
+         (ticker_source の値や edinet_companies の有無に関係なく、常に適用する。仮説自身の
+         2つの値を比べるだけで、EDINETのデータを必要としないため)
     証券コードの形の判定はedinet_fetch.is_valid_ticker()を使う(derive_ticker()と同じ判定を
     2か所に書かないため)。"""
     ticker = hyp.get("ticker")
@@ -966,17 +1111,15 @@ def check_ticker_fields(hyp, edinet_companies):
     if not hyp.get("ticker_source"):
         return "ticker_source_missing"
 
-    if edinet_companies is None:
-        return None
-
-    company_name = strip_ws(hyp.get("company_name"))
-    match = None
-    for c in edinet_companies:
-        if strip_ws(c.get("filer_name")) == company_name:
-            match = c
-            break
-    if match is None or match.get("ticker") != ticker:
-        return "ticker_mismatch"
+    if hyp.get("ticker_source") == "edinet_seccode" and edinet_companies is not None:
+        company_name = strip_ws(hyp.get("company_name"))
+        match = None
+        for c in edinet_companies:
+            if strip_ws(c.get("filer_name")) == company_name:
+                match = c
+                break
+        if match is None or match.get("ticker") != ticker:
+            return "ticker_mismatch"
 
     price_history = (hyp.get("links") or {}).get("price_history")
     if price_history:
@@ -1213,7 +1356,19 @@ def run_hypothesis_checks(hypotheses_doc, edition, business_days, ng_words, cach
     kept = []
     # 修正4・5・12(a): コードリストが読めなかった場合、検査21・31は適用しない
     # (企業欄が丸ごと削除されるのを避けるため)。読めたかどうかはverificationに記録する。
-    extra_counts = {"codelist_unavailable": codelist_rows is None, "baseline_date_check_skipped": 0}
+    # edinet_doclist_unavailableも同様に、hypotheses自体が空になる号(市場休場・遅延号)
+    # でもEDINET書類一覧が読めたかどうかをそのまま記録する。
+    extra_counts = {
+        "codelist_unavailable": codelist_rows is None,
+        "baseline_date_check_skipped": 0,
+        "evidence_filer_name_overridden": 0,
+        "evidence_doc_type_overridden": 0,
+        "impact_kind_overridden": 0,
+        "impact_kind_source_counts": {},
+        "impact_kind_undetermined_by_doc_type": {},
+        "edinet_url_unparsed": 0,
+        "edinet_doclist_unavailable": edinet_companies is None,
+    }
 
     market_open = edition.get("market_open", True)
     baseline_late = bool(edition.get("baseline_late"))
@@ -1235,21 +1390,18 @@ def run_hypothesis_checks(hypotheses_doc, edition, business_days, ng_words, cach
     if evidence_unreadable:
         reasons["evidence_source_unreadable"] = evidence_unreadable
 
-    # 修正2・3(要件定義書v12 3.4(2)・5.4): evidence_role/auto_check_targetはAIには
-    # 書かせず、スクリプトが確定する。AIが書いた値は一致・不一致にかかわらず必ず
-    # 上書きする(判定に使ってよいのはスクリプトが自分で決めた値だけのため)。
-    for hyp in hyps:
-        company_name = strip_ws(hyp.get("company_name"))
-        filer_name = strip_ws(hyp.get("evidence_filer_name"))
-        if company_name and filer_name and company_name == filer_name:
-            hyp["evidence_role"] = "filer_self"
-        else:
-            hyp["evidence_role"] = "mentioned"
-
-        if hyp.get("impact_kind") in ("price_stated", "amount_stated") and hyp["evidence_role"] == "filer_self":
-            hyp["auto_check_target"] = True
-        else:
-            hyp["auto_check_target"] = False
+    # 修正2・3(要件定義書v12 3.4(2)・5.4)、および2026年9月21日の追加指示: evidence_filer_name/
+    # evidence_doc_type/evidence_role/impact_kind/impact_kind_source/auto_check_targetはAIには
+    # 書かせず、出典URLの書類管理番号からEDINET書類一覧を引いてスクリプトが確定する。
+    # 検査12(evidence_role)・検査23(impact_kind)がこの結果を見るため、check_hypothesis()の
+    # ループより必ず先に実行すること。
+    evidence_counts = apply_edinet_evidence(hyps, sources_by_id, edinet_companies)
+    extra_counts["evidence_filer_name_overridden"] = evidence_counts["evidence_filer_name_overridden"]
+    extra_counts["evidence_doc_type_overridden"] = evidence_counts["evidence_doc_type_overridden"]
+    extra_counts["impact_kind_overridden"] = evidence_counts["impact_kind_overridden"]
+    extra_counts["impact_kind_source_counts"] = evidence_counts["impact_kind_source_counts"]
+    extra_counts["impact_kind_undetermined_by_doc_type"] = evidence_counts["impact_kind_undetermined_by_doc_type"]
+    extra_counts["edinet_url_unparsed"] = evidence_counts["edinet_url_unparsed"]
 
     for hyp in hyps:
         reason = check_hypothesis(
@@ -1799,7 +1951,17 @@ def main():
 
         hypothesis_violations = 0
         hypothesis_reasons = {}
-        hypothesis_extra = {"codelist_unavailable": False, "baseline_date_check_skipped": 0}
+        hypothesis_extra = {
+            "codelist_unavailable": False,
+            "baseline_date_check_skipped": 0,
+            "evidence_filer_name_overridden": 0,
+            "evidence_doc_type_overridden": 0,
+            "impact_kind_overridden": 0,
+            "impact_kind_source_counts": {},
+            "impact_kind_undetermined_by_doc_type": {},
+            "edinet_url_unparsed": 0,
+            "edinet_doclist_unavailable": edinet_companies is None,
+        }
         hypotheses_doc = None
         industry_report = None
         if args.hypotheses:
@@ -1933,6 +2095,15 @@ def main():
             "market_open_reported": market_open_result["reported"],
             "codelist_unavailable": hypothesis_extra["codelist_unavailable"],
             "baseline_date_check_skipped": hypothesis_extra["baseline_date_check_skipped"],
+            # 2026年9月21日の追加指示: evidence_filer_name/evidence_doc_type/impact_kindを
+            # AIの値からEDINET書類一覧で機械判定した値へ上書きした件数・内訳(記録専用)。
+            "evidence_filer_name_overridden": hypothesis_extra["evidence_filer_name_overridden"],
+            "evidence_doc_type_overridden": hypothesis_extra["evidence_doc_type_overridden"],
+            "impact_kind_overridden": hypothesis_extra["impact_kind_overridden"],
+            "impact_kind_source_counts": hypothesis_extra["impact_kind_source_counts"],
+            "impact_kind_undetermined_by_doc_type": hypothesis_extra["impact_kind_undetermined_by_doc_type"],
+            "edinet_url_unparsed": hypothesis_extra["edinet_url_unparsed"],
+            "edinet_doclist_unavailable": hypothesis_extra["edinet_doclist_unavailable"],
             "published_at_unverified_hits": published_at_unverified_hits,
             "published_at_unverified_sources": published_at_unverified_sources,
             # 修正5: 記録専用(判定には使わない)。既存のunknown_published_at_hitsは変えない。
