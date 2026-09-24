@@ -1,0 +1,868 @@
+{
+ "schema_version": 2,
+ "edition_id": "2026-09-24-evening",
+ "date": "2026-09-24",
+ "slot": "evening",
+ "generated_at": "2026-09-24T18:30:00+09:00",
+ "market_open": true,
+ "baseline": {
+  "date": "2026-09-25",
+  "price_type": "next_open"
+ },
+ "sources": [
+  {
+   "source_id": "SRC-001",
+   "url": "https://www.boj.or.jp/about/press/kaiken_2026/kk260924a.pdf",
+   "publisher": "日本銀行",
+   "publisher_type": "central_bank",
+   "title": "総裁記者会見（2026年9月18日）",
+   "published_at": null,
+   "fetched_at": "2026-09-24T17:05:00+09:00",
+   "fetch_method": "curl",
+   "content_sha256": "5404851ee88cd96669d3c2195d0be3245444b0eba5ea80f100466ee1154759c6",
+   "usage": "quotable",
+   "attribution": "出典：日本銀行「総裁記者会見（2026年9月18日）」（https://www.boj.or.jp/about/press/kaiken_2026/kk260924a.pdf）",
+   "processing_note": "本サイトが同資料をもとに作成"
+  },
+  {
+   "source_id": "SRC-002",
+   "url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20260916a.htm",
+   "publisher": "Board of Governors of the Federal Reserve System",
+   "publisher_type": "central_bank",
+   "title": "Federal Reserve issues FOMC statement",
+   "published_at": "2026-09-16T14:00:00-04:00",
+   "fetched_at": "2026-09-24T17:08:00+09:00",
+   "fetch_method": "curl",
+   "content_sha256": "d8f5363850a27429c19da2c7faad8b73799bd5df766a5da0d1402eef6a487a9a",
+   "usage": "quotable",
+   "attribution": "出典：Board of Governors of the Federal Reserve System「Federal Reserve issues FOMC statement」（https://www.federalreserve.gov/newsevents/pressreleases/monetary20260916a.htm）",
+   "processing_note": "本サイトが同資料をもとに翻訳・要約して作成"
+  },
+  {
+   "source_id": "SRC-003",
+   "url": "https://www.customs.go.jp/toukei/shinbun/trade-st/gaiyo2026_08.pdf",
+   "publisher": "財務省",
+   "publisher_type": "government_statistics",
+   "title": "令和8年8月分貿易統計（速報）の概要",
+   "published_at": null,
+   "fetched_at": "2026-09-24T17:12:00+09:00",
+   "fetch_method": "curl",
+   "content_sha256": "d27c7a1f9c6a6b7712b73bf19447c9b0a7b2161263fc0c6441f64ff6c9cdbda8",
+   "usage": "quotable",
+   "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/gaiyo2026_08.pdf）",
+   "processing_note": "本サイトが同資料をもとに作成"
+  },
+  {
+   "source_id": "SRC-004",
+   "url": "https://www.boj.or.jp/about/bcp/fso/fso260924a.pdf",
+   "publisher": "日本銀行・関東財務局",
+   "publisher_type": "central_bank",
+   "title": "令和8年台風第25号に伴う災害等に対する金融上の措置について",
+   "published_at": null,
+   "fetched_at": "2026-09-24T17:03:00+09:00",
+   "fetch_method": "curl",
+   "content_sha256": "0af732cac650b2ad7c3f4a6c6bafe43e5ec225467069eddf6960b4d345fe8677",
+   "usage": "quotable",
+   "attribution": "出典：日本銀行「令和8年台風第25号に伴う災害等に対する金融上の措置について」（https://www.boj.or.jp/about/bcp/fso/fso260924a.pdf）",
+   "processing_note": "本サイトが同資料をもとに作成"
+  },
+  {
+   "source_id": "SRC-EDINET-LIST",
+   "url": "https://api.edinet-fsa.go.jp/api/v2/documents.json?date=2026-09-24&type=2",
+   "publisher": "金融庁",
+   "publisher_type": "company_disclosure",
+   "title": "EDINET 書類一覧（2026年9月24日）",
+   "published_at": null,
+   "fetched_at": "2026-09-24T17:02:00+09:00",
+   "fetch_method": "urllib",
+   "content_sha256": "9b26e09e80a62e273057e48697ecd83114980354abc732cbd2377468cbc07ad9",
+   "usage": "quotable",
+   "attribution": "出典：EDINET閲覧（提出）サイト（https://api.edinet-fsa.go.jp/api/v2/documents.json?date=2026-09-24&type=2）",
+   "processing_note": "本サイトが同資料をもとに作成"
+  },
+  {
+   "source_id": "SRC-006",
+   "url": "https://disclosure2.edinet-fsa.go.jp/api/v2/documents/S100Z3TZ?type=1",
+   "publisher": "清水建設株式会社",
+   "publisher_type": "company_disclosure",
+   "title": "臨時報告書（清水建設株式会社）",
+   "published_at": null,
+   "fetched_at": "2026-09-24T17:25:00+09:00",
+   "fetch_method": "urllib",
+   "content_sha256": "03f0dc0ab735162c9f19e7d6b1fe22d93dda1c22d7b6d079c47e83e0824f0e0e",
+   "usage": "quotable",
+   "attribution": "出典：EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/api/v2/documents/S100Z3TZ?type=1）",
+   "processing_note": "本サイトが同資料をもとに作成"
+  },
+  {
+   "source_id": "SRC-007",
+   "url": "https://disclosure2.edinet-fsa.go.jp/api/v2/documents/S100Z3U6?type=1",
+   "publisher": "ＧＭＯインターネット株式会社",
+   "publisher_type": "company_disclosure",
+   "title": "臨時報告書（ＧＭＯインターネット株式会社）",
+   "published_at": null,
+   "fetched_at": "2026-09-24T17:30:00+09:00",
+   "fetch_method": "urllib",
+   "content_sha256": "f7c68e7e5c11b2d7acf3738dc2709f5f31618347a0609ed0f3768b5ddd2c011e",
+   "usage": "quotable",
+   "attribution": "出典：EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/api/v2/documents/S100Z3U6?type=1）",
+   "processing_note": "本サイトが同資料をもとに作成"
+  }
+ ],
+ "sections": [
+  {
+   "section_id": "big",
+   "title": "大きな出来事",
+   "articles": [
+    {
+     "article_id": "ART-2026-09-24-001",
+     "event_id": "EVT-2026-09-24-001",
+     "headline": "日銀、政策金利を1.25%に引き上げ",
+     "lines": [
+      {
+       "line_id": "L-001-01",
+       "text": "日本銀行は9月18日の金融政策決定会合で、政策金利である無担保コールレート・オーバーナイト物の誘導目標を、従来の1.0%程度から1.25%程度へと変更することを賛成多数で決定した。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 1.0,
+         "unit": "%",
+         "label": "利上げ前の政策金利誘導目標"
+        },
+        {
+         "value": 1.25,
+         "unit": "%",
+         "label": "利上げ後の政策金利誘導目標"
+        }
+       ],
+       "source_ref": "SRC-001",
+       "excerpt": "無担保コールレート・オーバーナイト物の誘導目標を、従来の1.0％程度から1.25％程度へと変更することを賛成多数で決定しました",
+       "attribution": "出典：日本銀行「総裁記者会見（2026年9月18日）」（https://www.boj.or.jp/about/press/kaiken_2026/kk260924a.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-001-02",
+       "text": "この決定には政策委員のうち2名が反対したが、賛成多数で決定に至った。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "source_ref": null,
+       "excerpt": null,
+       "attribution": null,
+       "processing_note": null,
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-001-03",
+       "text": "総裁は、銀行の貸出残高が前年比で5、6%の高い伸びを示しているとして、金融環境は緩和的だと述べた。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 5,
+         "unit": "%",
+         "label": "銀行貸出残高の前年比伸び率（下限側）"
+        },
+        {
+         "value": 6,
+         "unit": "%",
+         "label": "銀行貸出残高の前年比伸び率（上限側）"
+        }
+       ],
+       "source_ref": "SRC-001",
+       "excerpt": "銀行の貸出残高は前年比で5、6％の高い伸びを示しており",
+       "attribution": "出典：日本銀行「総裁記者会見（2026年9月18日）」（https://www.boj.or.jp/about/press/kaiken_2026/kk260924a.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-001-04",
+       "text": "総裁は、生鮮食品を除く消費者物価の基調的な上昇率が2%に近づいているとの認識を示した。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 2,
+         "unit": "%",
+         "label": "基調的な物価上昇率が近づいているとされた水準"
+        }
+       ],
+       "source_ref": "SRC-001",
+       "excerpt": "消費者物価の基調的な上昇率は2％に近づいています",
+       "attribution": "出典：日本銀行「総裁記者会見（2026年9月18日）」（https://www.boj.or.jp/about/press/kaiken_2026/kk260924a.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-001-05",
+       "text": "総裁は、政策金利が仮に1.5%になった場合の金融環境の評価については、その時点までの経済・金融変数の動きを見て改めて判断するとした。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 1.5,
+         "unit": "%",
+         "label": "想定問答で示された次の利上げ後の政策金利水準"
+        }
+       ],
+       "source_ref": "SRC-001",
+       "excerpt": "仮に次に1.5％に金利が上がったときに",
+       "attribution": "出典：日本銀行「総裁記者会見（2026年9月18日）」（https://www.boj.or.jp/about/press/kaiken_2026/kk260924a.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-001-06",
+       "text": "同じ会合で、気候変動対応オペについて、貸付金利を変動金利にするとともに貸付総額の上限を50兆円とする変更を全員一致で決定した。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 50,
+         "unit": "兆円",
+         "label": "気候変動対応オペの貸付総額の上限"
+        }
+       ],
+       "source_ref": "SRC-001",
+       "excerpt": "変動金利化と50兆円の上限",
+       "attribution": "出典：日本銀行「総裁記者会見（2026年9月18日）」（https://www.boj.or.jp/about/press/kaiken_2026/kk260924a.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-001-07",
+       "text": "記者からは、今回の利上げにより政策金利が31年ぶりの高い水準に達したとの指摘があった。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 31,
+         "unit": "年",
+         "label": "政策金利の水準が同程度だった前回からの経過年数（質問での指摘）"
+        }
+       ],
+       "source_ref": "SRC-001",
+       "excerpt": "31年ぶりの高い水準",
+       "attribution": "出典：日本銀行「総裁記者会見（2026年9月18日）」（https://www.boj.or.jp/about/press/kaiken_2026/kk260924a.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-001-08",
+       "text": "会見では、長期金利が3%、超長期金利が4%程度の水準にあることについても質疑があった。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 3,
+         "unit": "%",
+         "label": "長期金利の水準（質問での言及）"
+        },
+        {
+         "value": 4,
+         "unit": "%",
+         "label": "超長期金利の水準（質問での言及）"
+        }
+       ],
+       "source_ref": "SRC-001",
+       "excerpt": "長期金利3％、超長期金利4％という状態は",
+       "attribution": "出典：日本銀行「総裁記者会見（2026年9月18日）」（https://www.boj.or.jp/about/press/kaiken_2026/kk260924a.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-001-09",
+       "text": "財務省の統計によると、税関長公示レートの令和8年8月の平均は1ドル=160.64円で、前年同月に比べて8.7%の円安水準だった。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 160.64,
+         "unit": "円",
+         "label": "税関長公示レートの令和8年8月平均（対ドル）"
+        },
+        {
+         "value": 8.7,
+         "unit": "%",
+         "label": "対ドルレートの前年同月比の円安幅"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "160.64円／ドル（対前年同月比：8.7％の円安）",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/gaiyo2026_08.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      }
+     ],
+     "inferences": [
+      {
+       "inference_id": "INF-2026-09-24-001-1",
+       "text": "政策金利の引き上げが続けば、預貯金金利や住宅ローン金利など、家計や企業の資金調達コストに遅れて波及する可能性がある。",
+       "falsifier": "次回会合で利上げが見送られ、金融機関の金利改定も止まれば、この見方は成り立たない。",
+       "check_metric": "日本銀行 預金・貸出関連統計、都市銀行の住宅ローン金利",
+       "check_by": "2026-11-30"
+      }
+     ]
+    },
+    {
+     "article_id": "ART-2026-09-24-002",
+     "event_id": "EVT-2026-09-24-002",
+     "headline": "FRB、フェデラルファンド金利を3.75〜4%に引き上げ",
+     "lines": [
+      {
+       "line_id": "L-002-01",
+       "text": "FRBは9月16日、フェデラルファンド金利の誘導目標を0.25%ポイント引き上げ、3.75〜4%のレンジとした。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 4,
+         "unit": "%",
+         "label": "FF金利誘導目標のレンジ上限"
+        }
+       ],
+       "source_ref": "SRC-002",
+       "excerpt": "raise the target range for the federal funds rate by 1/4 percentage point to 3-3/4 to 4 percent",
+       "attribution": "出典：Board of Governors of the Federal Reserve System「Federal Reserve issues FOMC statement」（https://www.federalreserve.gov/newsevents/pressreleases/monetary20260916a.htm）",
+       "processing_note": "本サイトが同資料をもとに翻訳・要約して作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-02",
+       "text": "この決定はFOMCメンバーの12対0の全会一致で承認された。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 12,
+         "unit": "人",
+         "label": "FOMC声明に賛成した委員の人数"
+        },
+        {
+         "value": 0,
+         "unit": "人",
+         "label": "FOMC声明に反対した委員の人数"
+        }
+       ],
+       "source_ref": "SRC-002",
+       "excerpt": "approved the following statement for release by a 12 – 0 vote",
+       "attribution": "出典：Board of Governors of the Federal Reserve System「Federal Reserve issues FOMC statement」（https://www.federalreserve.gov/newsevents/pressreleases/monetary20260916a.htm）",
+       "processing_note": "本サイトが同資料をもとに翻訳・要約して作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-03",
+       "text": "声明文では「インフレは高止まりしている」としている。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "source_ref": null,
+       "excerpt": null,
+       "attribution": null,
+       "processing_note": null,
+       "mark": "explainer",
+       "mark_reason": null
+      }
+     ],
+     "inferences": [
+      {
+       "inference_id": "INF-2026-09-24-002-1",
+       "text": "日米の金融政策がともに引き締め方向にある間は、為替相場の変動が輸出入コストを通じて幅広い業種の採算に影響する可能性がある。",
+       "falsifier": "日米の政策金利差が大きく縮まらないまま円安が続けば、この見方は成り立たない。",
+       "check_metric": "税関長公示レート（対ドル）の月次推移",
+       "check_by": "2026-10-31"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "section_id": "change",
+   "title": "新しい変化",
+   "articles": [
+    {
+     "article_id": "ART-2026-09-24-003",
+     "event_id": "EVT-2026-09-24-003",
+     "headline": "本日、清水建設とＧＭＯグループから新たな開示",
+     "lines": [
+      {
+       "line_id": "L-003-01",
+       "text": "本日、清水建設株式会社が海外市場での転換社債型新株予約権付社債の発行を、株式会社ＧＭＯインターネットがグループ会社の子会社化をそれぞれEDINETに届け出た。金額を含む詳しい内容は、後掲の「深掘り」と「波及を追う」の記事で扱う。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "source_ref": null,
+       "excerpt": null,
+       "attribution": null,
+       "processing_note": null,
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-02",
+       "text": "日本銀行は同日、令和8年台風第25号の被災者向けに、預貯金の払戻しや融資条件の変更など弾力的な対応を金融機関へ要請する文書を、関東財務局千葉・東京財務事務所と連名で公表した。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "source_ref": null,
+       "excerpt": null,
+       "attribution": null,
+       "processing_note": null,
+       "mark": "explainer",
+       "mark_reason": null
+      }
+     ],
+     "inferences": []
+    }
+   ]
+  },
+  {
+   "section_id": "ripple",
+   "title": "波及を追う",
+   "articles": [
+    {
+     "article_id": "ART-2026-09-24-004",
+     "event_id": "EVT-2026-09-24-004",
+     "headline": "ＧＭＯインターネット、ＧＭＯコマースを完全子会社化へ",
+     "lines": [
+      {
+       "line_id": "L-004-01",
+       "text": "ＧＭＯインターネット株式会社は9月24日の取締役会で、親会社が保有するＧＭＯコマース株式会社の株式を取得し、10月1日付で連結子会社化することを決議した。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "source_ref": null,
+       "excerpt": null,
+       "attribution": null,
+       "processing_note": null,
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-02",
+       "text": "この株式取得の対価は、株式取得価額の概算額で4,376百万円とされている。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 4376,
+         "unit": "百万円",
+         "label": "株式取得価額（概算額）"
+        }
+       ],
+       "source_ref": "SRC-007",
+       "excerpt": "株式取得価額 （概算額）       4,376百万円",
+       "attribution": "出典：EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/api/v2/documents/S100Z3U6?type=1）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-03",
+       "text": "アドバイザリー費用等を含めた取得対価の合計の概算額は4,445百万円とされている。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 4445,
+         "unit": "百万円",
+         "label": "アドバイザリー費用等を含めた取得対価の合計（概算額）"
+        }
+       ],
+       "source_ref": "SRC-007",
+       "excerpt": "合計（概算額）　　　　　　　　4,445百万円",
+       "attribution": "出典：EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/api/v2/documents/S100Z3U6?type=1）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-04",
+       "text": "ＧＭＯコマースは、親会社グループであるＧＭＯインターネットグループ株式会社が発行済株式の65.96%を保有している。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 65.96,
+         "unit": "%",
+         "label": "GMOインターネットグループのGMOコマース株式保有比率"
+        }
+       ],
+       "source_ref": "SRC-007",
+       "excerpt": "GMO-IGが発行済株式の65.96％を保有しております",
+       "attribution": "出典：EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/api/v2/documents/S100Z3U6?type=1）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      }
+     ],
+     "inferences": [
+      {
+       "inference_id": "INF-2026-09-24-004-1",
+       "text": "グループ内での資本の付け替えが続けば、ＧＭＯグループの上場子会社どうしの持ち合い構造がさらに変わる可能性がある。",
+       "falsifier": "今回の取得以降、グループ内の株式異動が起きなければこの見方は成り立たない。",
+       "check_metric": "ＧＭＯインターネット株式会社・ＧＭＯインターネットグループ株式会社のEDINET提出書類",
+       "check_by": "2026-12-24"
+      }
+     ]
+    },
+    {
+     "article_id": "ART-2026-09-24-005",
+     "event_id": "EVT-2026-09-24-005",
+     "headline": "貿易統計にみる原油高と円安の波及",
+     "lines": [
+      {
+       "line_id": "L-005-01",
+       "text": "財務省によると、令和8年8月の輸入額は原粗油や半導体等電子部品等の増加により前年同月比28.0%増となった。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 28.0,
+         "unit": "%",
+         "label": "輸入総額の前年同月比（原粗油等の増加による）"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "輸入は原粗油、半導体等電子部品等が増加し、＋28.0％となった。",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/gaiyo2026_08.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-005-02",
+       "text": "輸出額は前年同月比19.3%増の10兆484億円だった。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 19.3,
+         "unit": "%",
+         "label": "輸出額の前年同月比"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "輸　　出　金　額　10兆　484億円　＋19.3％",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/gaiyo2026_08.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-005-03",
+       "text": "一方、輸出の数量指数の前年同月比は2.5%の伸びにとどまり、金額の伸びより小さかった。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 2.5,
+         "unit": "%",
+         "label": "輸出数量指数の前年同月比"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "数量指数　94.5　＋2.5％",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/gaiyo2026_08.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-005-04",
+       "text": "輸入の数量指数の前年同月比も2.7%の伸びにとどまり、金額の伸び（28.0%）との差が大きかった。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 2.7,
+         "unit": "%",
+         "label": "輸入数量指数の前年同月比"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "数量指数　97.2　＋2.7％",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/gaiyo2026_08.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-005-05",
+       "text": "地域別では、EUからの輸入額が前年同月比20.4%増え、医薬品や自動車の増加が寄与した。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 20.4,
+         "unit": "%",
+         "label": "EUからの輸入額の前年同月比"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "輸　入　1兆　969億円　＋20.4％",
+       "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/gaiyo2026_08.pdf）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-005-06",
+       "text": "輸出入額の伸びの大半が数量ではなく価格の上昇によるものであることは、円安や資源高が貿易額を押し上げている構図を示している。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "source_ref": null,
+       "excerpt": null,
+       "attribution": null,
+       "processing_note": null,
+       "mark": "explainer",
+       "mark_reason": null
+      }
+     ],
+     "inferences": [
+      {
+       "inference_id": "INF-2026-09-24-005-1",
+       "text": "円安と資源価格の高止まりが続けば、原粗油や輸入原材料を多く使う業種のコスト負担がさらに増す可能性がある。",
+       "falsifier": "原油価格が下落し円安も是正されれば、この見方は成り立たない。",
+       "check_metric": "財務省 貿易統計 令和8年9月分の輸入額・数量指数",
+       "check_by": "2026-10-16"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "section_id": "deep",
+   "title": "深掘り",
+   "articles": [
+    {
+     "article_id": "ART-2026-09-24-006",
+     "event_id": "EVT-2026-09-24-006",
+     "headline": "清水建設、欧州・アジア市場で転換社債1000億円を発行へ",
+     "lines": [
+      {
+       "line_id": "L-006-01",
+       "text": "清水建設株式会社は9月24日の取締役会で、2031年満期のユーロ円建転換社債型新株予約権付社債の発行を決議した。発行価額（払込金額）は本社債の額面金額の100.5%とされている。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 100.5,
+         "unit": "%",
+         "label": "2031年満期分の発行価額（払込金額）、額面に対する割合"
+        }
+       ],
+       "source_ref": "SRC-006",
+       "excerpt": "本社債の額面金額の100.5％（各本社債の額面金額　1,000万円）",
+       "attribution": "出典：EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/api/v2/documents/S100Z3TZ?type=1）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-006-02",
+       "text": "同じ2031年満期分の発行価格（募集価格）は、本社債の額面金額の103.0%とされている。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 103.0,
+         "unit": "%",
+         "label": "2031年満期分の発行価格（募集価格）、額面に対する割合"
+        }
+       ],
+       "source_ref": "SRC-006",
+       "excerpt": "本社債の額面金額の103.0％",
+       "attribution": "出典：EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/api/v2/documents/S100Z3TZ?type=1）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-006-03",
+       "text": "2031年満期分の社債の券面額の総額は500億円とされている。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 500,
+         "unit": "億円",
+         "label": "2031年満期分の社債券面総額"
+        }
+       ],
+       "source_ref": "SRC-006",
+       "excerpt": "500億円及び代替新株予約権付社債券に係る本社債の額面金額合計額を合計した額",
+       "attribution": "出典：EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/api/v2/documents/S100Z3TZ?type=1）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-006-04",
+       "text": "清水建設は同時に、2033年満期の同種の転換社債型新株予約権付社債も決議しており、その券面額の総額も500億円とされている。あわせて2つの銘柄で総額1000億円規模の資金調達となる。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 500,
+         "unit": "億円",
+         "label": "2033年満期分の社債券面総額"
+        }
+       ],
+       "source_ref": "SRC-006",
+       "excerpt": "500億円及び代替新株予約権付社債券に係る本社債の額面金額合計額を合計した額",
+       "attribution": "出典：EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/api/v2/documents/S100Z3TZ?type=1）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-006-05",
+       "text": "2033年満期分の発行価額（払込金額）も、本社債の額面金額の100.5%とされている。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 100.5,
+         "unit": "%",
+         "label": "2033年満期分の発行価額（払込金額）、額面に対する割合"
+        }
+       ],
+       "source_ref": "SRC-006",
+       "excerpt": "本社債の額面金額の100.5％（各本社債の額面金額　1,000万円）",
+       "attribution": "出典：EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/api/v2/documents/S100Z3TZ?type=1）",
+       "processing_note": "本サイトが同資料をもとに作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-006-06",
+       "text": "募集は欧州及びアジアを中心とする海外市場（米国を除く）で行われる。償還期限は2031年満期分が2031年10月14日、2033年満期分が2033年10月13日である。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "source_ref": null,
+       "excerpt": null,
+       "attribution": null,
+       "processing_note": null,
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-006-07",
+       "text": "転換社債型新株予約権付社債は、発行企業の株式に転換できる権利が付いた社債で、通常の社債より低い金利での調達が期待できる一方、転換が進めば既存株主の持ち分が薄まる可能性がある仕組みである。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "source_ref": null,
+       "excerpt": null,
+       "attribution": null,
+       "processing_note": null,
+       "mark": "explainer",
+       "mark_reason": null
+      }
+     ],
+     "inferences": [
+      {
+       "inference_id": "INF-2026-09-24-006-1",
+       "text": "海外投資家からの調達資金は、清水建設の設備投資や大型工事案件の原資に充てられる可能性がある。",
+       "falsifier": "調達資金の使途が投資拡大ではなく、借換えなど既存債務の圧縮に限られると分かれば、この見方は成り立たない。",
+       "check_metric": "清水建設株式会社の有価証券報告書・決算資料における設備投資額",
+       "check_by": "2027-05-31"
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "baseline_late": false,
+ "verification": {
+  "script_version": "2.0.0",
+  "run_at": "2026-09-24T17:25:44.433314+09:00",
+  "first_run": {
+   "run_at": "2026-09-24T17:24:08.657415+09:00",
+   "baseline_late": false,
+   "market_open_reported": null,
+   "source_policy_overwritten": 7,
+   "generated_at_reported": "2026-09-24T18:30:00+09:00",
+   "generated_at_parsed": true,
+   "generated_at_drift_minutes": -65
+  },
+  "lines_total": 31,
+  "passed": 23,
+  "unverified": 0,
+  "reported_unverified": 0,
+  "explainer": 8,
+  "recommendation_stop_hits": 0,
+  "recommendation_stop_removed": 0,
+  "recommendation_warn_hits": 0,
+  "recommendation_warnings": [],
+  "stale_source_hits": 0,
+  "unknown_published_at_hits": 0,
+  "stale_check_skipped": 0,
+  "inference_dropped": 0,
+  "hypothesis_violations": 1,
+  "unverified_reasons": {},
+  "ticker_crosscheck": "applied",
+  "baseline_late": false,
+  "source_usage_invalid_hits": 0,
+  "source_policy_applied": true,
+  "source_policy_overwritten": 0,
+  "source_policy_unlisted_domains": [],
+  "market_open_source": "calendar",
+  "market_open_overwritten": false,
+  "market_open_reported": true,
+  "codelist_unavailable": false,
+  "baseline_date_check_skipped": 0,
+  "evidence_filer_name_overridden": 0,
+  "evidence_doc_type_overridden": 0,
+  "impact_kind_overridden": 3,
+  "impact_kind_source_counts": {
+   "edinet_doctype_unmapped": 3
+  },
+  "impact_kind_undetermined_by_doc_type": {
+   "180": 3
+  },
+  "edinet_url_unparsed": 0,
+  "edinet_doclist_unavailable": false,
+  "published_at_unverified_hits": 2,
+  "published_at_unverified_sources": [
+   "SRC-002"
+  ],
+  "sources_published_at_null": {
+   "count": 6,
+   "source_ids": [
+    "SRC-001",
+    "SRC-003",
+    "SRC-004",
+    "SRC-EDINET-LIST",
+    "SRC-006",
+    "SRC-007"
+   ]
+  },
+  "number_coverage": {
+   "text_number_tokens": 66,
+   "numbers_declared": 28,
+   "gap": 38,
+   "by_mark": {
+    "source_number_match": {
+     "text_number_tokens": 51,
+     "numbers_declared": 28
+    },
+    "explainer": {
+     "text_number_tokens": 15,
+     "numbers_declared": 0
+    }
+   }
+  },
+  "rerun_detected": true,
+  "industry_picks_discarded": 0,
+  "industry_picks_total": 3,
+  "industry_examples_total": 2,
+  "industry_example_violations": {
+   "total": 0,
+   "reasons": {}
+  },
+  "ai_written_examples_discarded": 0,
+  "slot_violations": {
+   "total": 0,
+   "reasons": {}
+  },
+  "short_name_match_count": {
+   "count": 0,
+   "names": []
+  },
+  "allowed_industries_count": 30,
+  "legacy_substring_rule_dropped": {
+   "count": 0,
+   "names": []
+  },
+  "generic_name_dropped": {
+   "count": 0,
+   "names": []
+  }
+ }
+}

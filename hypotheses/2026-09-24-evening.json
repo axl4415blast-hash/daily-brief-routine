@@ -1,0 +1,208 @@
+{
+ "schema_version": 3,
+ "edition_id": "2026-09-24-evening",
+ "generated_at": "2026-09-24T18:30:00+09:00",
+ "market_open": true,
+ "baseline_late": false,
+ "hypotheses": [
+  {
+   "hypothesis_id": "2026-09-24-evening-1",
+   "event_id": "EVT-2026-09-24-006",
+   "company_name": "清水建設株式会社",
+   "ticker": "1803",
+   "ticker_source": "edinet_seccode",
+   "article_id": "ART-2026-09-24-006",
+   "line_ids": [
+    "L-006-01",
+    "L-006-02",
+    "L-006-03",
+    "L-006-04",
+    "L-006-05"
+   ],
+   "evidence_grade": "primary",
+   "evidence_source_ref": "SRC-006",
+   "evidence_filer_name": "清水建設株式会社",
+   "evidence_doc_type": "臨時報告書",
+   "evidence_excerpt": null,
+   "evidence_role": "filer_self",
+   "impact_kind": null,
+   "impact_reason": "臨時報告書。2031年満期・2033年満期のユーロ円建転換社債型新株予約権付社債を、それぞれ額面総額500億円で発行すると届け出ている。",
+   "news_entity": null,
+   "entity_relation": "same",
+   "relation_text": "海外の投資家向けに転換社債を発行し、事業資金を調達する立場にある。",
+   "direction": "plus",
+   "falsifier": "調達した資金が新たな投資に向かわず、既存債務の借換えにとどまると分かれば、この見方は成り立たない。",
+   "auto_check_target": false,
+   "added_by": "auto",
+   "baseline_date": "2026-09-25",
+   "baseline_price_type": "next_open",
+   "baseline_observed_at": null,
+   "baseline_benchmark_price": null,
+   "baseline_benchmark_observed_at": null,
+   "baseline_late_input": false,
+   "horizon_business_days": 20,
+   "deadline_date": "2026-10-26",
+   "links": {
+    "price_history": "https://finance.yahoo.co.jp/quote/1803.T/history",
+    "disclosure_search": "https://www.release.tdnet.info/inbs/I_main_00.html"
+   },
+   "impact_kind_source": "edinet_doctype_unmapped"
+  },
+  {
+   "hypothesis_id": "2026-09-24-evening-2",
+   "event_id": "EVT-2026-09-24-004",
+   "company_name": "ＧＭＯインターネット株式会社",
+   "ticker": "4784",
+   "ticker_source": "edinet_seccode",
+   "article_id": "ART-2026-09-24-004",
+   "line_ids": [
+    "L-004-01",
+    "L-004-02",
+    "L-004-03",
+    "L-004-04"
+   ],
+   "evidence_grade": "primary",
+   "evidence_source_ref": "SRC-007",
+   "evidence_filer_name": "ＧＭＯインターネット株式会社",
+   "evidence_doc_type": "臨時報告書",
+   "evidence_excerpt": null,
+   "evidence_role": "filer_self",
+   "impact_kind": null,
+   "impact_reason": "臨時報告書。ＧＭＯコマース株式会社の株式を取得価額（概算額）4,376百万円で取得し、連結子会社化すると届け出ている。",
+   "news_entity": null,
+   "entity_relation": "same",
+   "relation_text": "グループ会社の株式を取得し、連結子会社として傘下に収める立場にある。",
+   "direction": "plus",
+   "falsifier": "株式取得が完了せず子会社化が実現しなければ、この見方は成り立たない。",
+   "auto_check_target": false,
+   "added_by": "auto",
+   "baseline_date": "2026-09-25",
+   "baseline_price_type": "next_open",
+   "baseline_observed_at": null,
+   "baseline_benchmark_price": null,
+   "baseline_benchmark_observed_at": null,
+   "baseline_late_input": false,
+   "horizon_business_days": 20,
+   "deadline_date": "2026-10-26",
+   "links": {
+    "price_history": "https://finance.yahoo.co.jp/quote/4784.T/history",
+    "disclosure_search": "https://www.release.tdnet.info/inbs/I_main_00.html"
+   },
+   "impact_kind_source": "edinet_doctype_unmapped"
+  },
+  {
+   "hypothesis_id": "2026-09-24-evening-3",
+   "event_id": "EVT-2026-09-24-004",
+   "company_name": "ＧＭＯコマース株式会社",
+   "ticker": "410A",
+   "ticker_source": "edinet_seccode",
+   "article_id": "ART-2026-09-24-004",
+   "line_ids": [
+    "L-004-01",
+    "L-004-02",
+    "L-004-03",
+    "L-004-04"
+   ],
+   "evidence_grade": "reported",
+   "evidence_source_ref": "SRC-007",
+   "evidence_filer_name": "ＧＭＯインターネット株式会社",
+   "evidence_doc_type": "臨時報告書",
+   "evidence_excerpt": null,
+   "evidence_role": "mentioned",
+   "impact_kind": null,
+   "impact_reason": "ＧＭＯインターネット株式会社の臨時報告書において、取得対象子会社として株式取得価額等の金額とともに社名が記載されている。",
+   "news_entity": null,
+   "entity_relation": "same",
+   "relation_text": "親会社グループから株式を取得され、連結子会社となる立場にある。",
+   "direction": "plus",
+   "falsifier": "株式取得が完了せず子会社化が実現しなければ、この見方は成り立たない。",
+   "auto_check_target": false,
+   "added_by": "auto",
+   "baseline_date": "2026-09-25",
+   "baseline_price_type": "next_open",
+   "baseline_observed_at": null,
+   "baseline_benchmark_price": null,
+   "baseline_benchmark_observed_at": null,
+   "baseline_late_input": false,
+   "horizon_business_days": 20,
+   "deadline_date": "2026-10-26",
+   "links": {
+    "price_history": "https://finance.yahoo.co.jp/quote/410A.T/history",
+    "disclosure_search": "https://www.release.tdnet.info/inbs/I_main_00.html"
+   },
+   "impact_kind_source": "edinet_doctype_unmapped"
+  }
+ ],
+ "industry_picks": [
+  {
+   "article_id": "ART-2026-09-24-001",
+   "event_id": "EVT-2026-09-24-001",
+   "industry": "銀行業",
+   "industry_line_ids": [
+    "L-001-03"
+   ]
+  },
+  {
+   "article_id": "ART-2026-09-24-005",
+   "event_id": "EVT-2026-09-24-005",
+   "industry": "石油・石炭製品",
+   "industry_line_ids": [
+    "L-005-01"
+   ]
+  },
+  {
+   "article_id": "ART-2026-09-24-006",
+   "event_id": "EVT-2026-09-24-006",
+   "industry": "建設業",
+   "industry_line_ids": [
+    "L-006-03"
+   ]
+  }
+ ],
+ "industry_examples": [
+  {
+   "example_id": "2026-09-24-evening-x1",
+   "article_id": "ART-2026-09-24-001",
+   "event_id": "EVT-2026-09-24-001",
+   "industry": "銀行業",
+   "line_ids": [
+    "L-001-03"
+   ],
+   "company_name": "株式会社ゆうちょ銀行",
+   "ticker": "7182",
+   "ticker_source": "edinet_codelist",
+   "news_entity": null,
+   "entity_relation": "same",
+   "evidence_grade": "inferred",
+   "selection_rule": "capital_rank",
+   "impact_kind": null,
+   "relation_text": "東証33業種の「銀行業」に属する上場企業の例です。この業種で資本金がもっとも大きい会社から順に選んでいます。",
+   "industry_source": "edinet_codelist",
+   "industry_retrieved_date": "2026-09-24",
+   "attribution": "出典：EDINET閲覧（提出）サイト EDINETコードリスト（https://disclosure2dl.edinet-fsa.go.jp/searchdocument/codelist/Edinetcode.zip）、PDL1.0（https://www.digital.go.jp/resources/open_data/public_data_license_v1.0）（2026年9月24日に取得）",
+   "processing_note": "EDINET閲覧（提出）サイトをもとに本サイト作成（上場区分が「上場」の行を抽出し、証券コードの末尾0を除いた）"
+  },
+  {
+   "example_id": "2026-09-24-evening-x2",
+   "article_id": "ART-2026-09-24-005",
+   "event_id": "EVT-2026-09-24-005",
+   "industry": "石油・石炭製品",
+   "line_ids": [
+    "L-005-01"
+   ],
+   "company_name": "出光興産株式会社",
+   "ticker": "5019",
+   "ticker_source": "edinet_codelist",
+   "news_entity": null,
+   "entity_relation": "same",
+   "evidence_grade": "inferred",
+   "selection_rule": "capital_rank",
+   "impact_kind": null,
+   "relation_text": "東証33業種の「石油・石炭製品」に属する上場企業の例です。この業種で資本金がもっとも大きい会社から順に選んでいます。",
+   "industry_source": "edinet_codelist",
+   "industry_retrieved_date": "2026-09-24",
+   "attribution": "出典：EDINET閲覧（提出）サイト EDINETコードリスト（https://disclosure2dl.edinet-fsa.go.jp/searchdocument/codelist/Edinetcode.zip）、PDL1.0（https://www.digital.go.jp/resources/open_data/public_data_license_v1.0）（2026年9月24日に取得）",
+   "processing_note": "EDINET閲覧（提出）サイトをもとに本サイト作成（上場区分が「上場」の行を抽出し、証券コードの末尾0を除いた）"
+  }
+ ]
+}
