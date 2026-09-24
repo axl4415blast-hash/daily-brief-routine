@@ -25,6 +25,20 @@
     --warn:#8A4B00;
     --warn-bg:#FBF0E2;
     --dash:#A9B4BF;
+
+    --sec-big:#A32D2D;
+    --sec-change:#185FA5;
+    --sec-ripple:#854F0B;
+    --sec-deep:#534AB7;
+
+    --badge1-bg:#D3D1C7; --badge1-fg:#2C2C2A;
+    --badge2-bg:#FAC775; --badge2-fg:#633806;
+    --badge3-bg:#C0DD97; --badge3-fg:#27500A;
+    --badge4-bg:#F5C4B3; --badge4-fg:#712B13;
+
+    --line-verified:#3B6D11;
+    --explainer-fg:#5F5E5A;
+    --inference-accent:#534AB7;
   }
   @media (prefers-color-scheme: dark){
     :root{
@@ -43,6 +57,20 @@
       --warn:#E0A45F;
       --warn-bg:#2E2314;
       --dash:#4A5560;
+
+      --sec-big:#F09595;
+      --sec-change:#85B7EB;
+      --sec-ripple:#EF9F27;
+      --sec-deep:#AFA9EC;
+
+      --badge1-bg:#5F5E5A; --badge1-fg:#F1EFE8;
+      --badge2-bg:#EF9F27; --badge2-fg:#412402;
+      --badge3-bg:#639922; --badge3-fg:#173404;
+      --badge4-bg:#D85A30; --badge4-fg:#FAECE7;
+
+      --line-verified:#639922;
+      --explainer-fg:#B4B2A9;
+      --inference-accent:#AFA9EC;
     }
   }
 
@@ -210,6 +238,14 @@
     color:var(--fg);
     margin:0;
   }
+  .section-big .section-bar{ background:var(--sec-big); }
+  .section-big .section-heading h2{ color:var(--sec-big); }
+  .section-change .section-bar{ background:var(--sec-change); }
+  .section-change .section-heading h2{ color:var(--sec-change); }
+  .section-ripple .section-bar{ background:var(--sec-ripple); }
+  .section-ripple .section-heading h2{ color:var(--sec-ripple); }
+  .section-deep .section-bar{ background:var(--sec-deep); }
+  .section-deep .section-heading h2{ color:var(--sec-deep); }
 
   article.article{ margin:0 0 32px; }
   article.article:last-child{ margin-bottom:0; }
@@ -223,7 +259,11 @@
   }
 
   /* ============ 事実の行 ============ */
-  .fact-line{ margin:0 0 20px; }
+  .fact-line{
+    margin:0 0 20px;
+    border-left:2px solid var(--line-verified);
+    padding-left:10px;
+  }
   .fact-line:last-child{ margin-bottom:0; }
   .fact-text{
     display:block;
@@ -328,10 +368,11 @@
     margin:0 0 14px;
   }
   .block-line:last-child{ margin-bottom:0; }
+  .block-explainer .block-line{ color:var(--explainer-fg); }
 
   /* ============ AIによる推論 ============ */
   .inference-box{
-    border:1px dashed var(--dash);
+    border:1px dashed var(--inference-accent);
     padding:14px;
     margin:0 0 24px;
   }
@@ -342,7 +383,7 @@
     font-family:'Noto Serif JP', serif;
     font-weight:700;
     font-size:13px;
-    color:var(--muted);
+    color:var(--inference-accent);
     margin:0 0 10px;
   }
   .inference-list{ margin:0; padding:0 0 0 1.2em; }
@@ -475,12 +516,15 @@
     margin:0 0 10px;
   }
   .tag-grade{
-    background:var(--accent);
-    color:#FFFFFF;
     font-size:11px;
     font-weight:500;
     padding:3px 8px;
+    background:var(--badge1-bg);
+    color:var(--badge1-fg);
   }
+  .tag-grade.badge-2{ background:var(--badge2-bg); color:var(--badge2-fg); }
+  .tag-grade.badge-3{ background:var(--badge3-bg); color:var(--badge3-fg); }
+  .tag-grade.badge-4{ background:var(--badge4-bg); color:var(--badge4-fg); }
   .tag-horizon{
     font-family:'Noto Serif JP', serif;
     font-weight:600;
@@ -596,7 +640,7 @@
   };
   var GRADE_LABELS = {
     primary: "この会社名が一次情報に載っている",
-    reported: "報道断片に社名あり",
+    reported: "報道の断片に名前あり",
     // 下段(業種の例)の会社を選んだのはスクリプト(資本金順などの機械的な規則)であり、
     // AIが個別の銘柄を推論したわけではない。「AIによる推論」と表示すると、AIが銘柄を
     // 選んだかのように読まれ、企業欄を上下2枠に分けた意味が失われる。
@@ -648,6 +692,22 @@
   function isFactMark(mark){ return !!FACT_MARKS[mark]; }
 
   function gradeLabel(g){ return GRADE_LABELS[g] || g || "不明"; }
+
+  function companyBadge(h){
+    if(h.evidence_grade === "inferred"){
+      return { cls: "badge-1", text: gradeLabel("inferred") };
+    }
+    if(h.evidence_role === "mentioned" && h.evidence_filer_name){
+      return { cls: "badge-2", text: "他社の一次情報に名前あり" };
+    }
+    if(h.evidence_grade === "primary"){
+      return { cls: "badge-3", text: gradeLabel("primary") };
+    }
+    if(h.evidence_grade === "reported"){
+      return { cls: "badge-4", text: gradeLabel("reported") };
+    }
+    return { cls: "badge-1", text: gradeLabel(h.evidence_grade) };
+  }
 
   function impactKindLabel(k){ return IMPACT_KIND_LABELS[k] || null; }
 
@@ -777,6 +837,15 @@
     out.push(withComma);
     var plain = String(value);
     if(plain !== withComma) out.push(plain);
+    if(Number.isInteger(value)){
+      var oneDecimal = value.toFixed(1);
+      var twoDecimal = value.toFixed(2);
+      var withCommaOneDecimal = value.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+      var withCommaTwoDecimal = value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      [oneDecimal, twoDecimal, withCommaOneDecimal, withCommaTwoDecimal].forEach(function(v){
+        if(out.indexOf(v) === -1) out.push(v);
+      });
+    }
     return out;
   }
 
@@ -1050,19 +1119,20 @@
 
   function renderNonFactBlock(mark, lines, openFirst){
     var heading = NONFACT_HEADINGS[mark] || mark;
+    var blockClass = "block" + (mark === "explainer" ? " block-explainer" : "");
     var linesBox = document.createDocumentFragment();
     lines.forEach(function(line){
       linesBox.appendChild(el("p", { class: "block-line", text: line.text || "" }));
     });
 
     if(lines.length <= 2){
-      var box = el("div", { class: "block" });
+      var box = el("div", { class: blockClass });
       box.appendChild(el("p", { class: "block-heading", text: heading }));
       box.appendChild(linesBox);
       return box;
     }
 
-    var details = el("details", { class: "block" });
+    var details = el("details", { class: blockClass });
     if(openFirst) details.setAttribute("open", "");
 
     var summary = el("summary", { class: "block-heading" });
@@ -1161,6 +1231,8 @@
     ]);
   }
 
+  var SECTION_CLASS = { big: "section-big", change: "section-change", ripple: "section-ripple", deep: "section-deep" };
+
   function renderContent(ed, hy){
     var main = document.getElementById("content");
     clear(main);
@@ -1182,7 +1254,8 @@
     SECTION_ORDER.forEach(function(sid){
       var sec = bySectionId[sid];
       if(!sec) return;
-      var secEl = el("section", { class: "section" });
+      var secClass = "section" + (SECTION_CLASS[sid] ? " " + SECTION_CLASS[sid] : "");
+      var secEl = el("section", { class: secClass });
       secEl.appendChild(sectionHeading(sec.title || sid));
       (sec.articles || []).forEach(function(art){
         secEl.appendChild(renderArticle(art, sourcesById, companyIndex));
@@ -1248,8 +1321,9 @@
     var holding = renderHoldingNote(h);
     if(holding) body.appendChild(holding);
 
+    var badge = companyBadge(h);
     var gradeTags = el("div", { class: "company-tags" });
-    gradeTags.appendChild(el("span", { class: "tag-grade", text: gradeLabel(h.evidence_grade) }));
+    gradeTags.appendChild(el("span", { class: "tag-grade " + badge.cls, text: badge.text }));
     body.appendChild(gradeTags);
 
     var evidenceRoleText = evidenceRoleLabel(h.evidence_role);
@@ -1315,7 +1389,7 @@
     if(holding) wrap.appendChild(holding);
 
     var tags = el("div", { class: "company-tags" });
-    tags.appendChild(el("span", { class: "tag-grade", text: gradeLabel("inferred") }));
+    tags.appendChild(el("span", { class: "tag-grade badge-1", text: gradeLabel("inferred") }));
     wrap.appendChild(tags);
 
     if(ex.relation_text) wrap.appendChild(el("p", { class: "company-relation", text: ex.relation_text }));
