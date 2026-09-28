@@ -1,0 +1,248 @@
+{
+ "edition_id": "2026-09-24-evening",
+ "date": "2026-09-24",
+ "slot": "evening",
+ "generated_at": null,
+ "market_open": null,
+ "sources": [
+  {
+   "source_id": "SRC-EDINET-LIST",
+   "publisher": "金融庁",
+   "title": "EDINET 書類一覧（2026-09-24）",
+   "url": "https://api.edinet-fsa.go.jp/api/v2/documents.json?date=2026-09-24&type=2",
+   "usage": null,
+   "publisher_type": null,
+   "attribution": null,
+   "processing_note": null,
+   "published_at": null
+  },
+  {
+   "source_id": "SRC-EDINET-LIST-PREV",
+   "publisher": "金融庁",
+   "title": "EDINET 書類一覧（2026-09-18）",
+   "url": "https://api.edinet-fsa.go.jp/api/v2/documents.json?date=2026-09-18&type=2",
+   "usage": null,
+   "publisher_type": null,
+   "attribution": null,
+   "processing_note": null,
+   "published_at": null
+  },
+  {
+   "source_id": "C01",
+   "publisher": "カナリア物産株式会社",
+   "title": "公開買付届出書",
+   "url": "https://disclosure2.edinet-fsa.go.jp/api/v2/documents/S-CANARY-01?type=1",
+   "usage": null,
+   "publisher_type": null,
+   "attribution": null,
+   "processing_note": null,
+   "published_at": null,
+   "content_sha256": "422ad7b6191d32a720774769cb0f9b5860c51be7fcaf7eeabd9fb582be1f5ac6"
+  },
+  {
+   "source_id": "C02",
+   "publisher": "カナリア電機株式会社",
+   "title": "自己株券買付状況報告書",
+   "url": "https://disclosure2.edinet-fsa.go.jp/api/v2/documents/S-CANARY-02?type=1",
+   "usage": null,
+   "publisher_type": null,
+   "attribution": null,
+   "processing_note": null,
+   "published_at": null,
+   "content_sha256": "ec8bc73d82d8c41906580b32cab392c3dc88535faba42f9b8bac977db0a0c052"
+  },
+  {
+   "source_id": "C03",
+   "publisher": "カナリア化学株式会社",
+   "title": "臨時報告書",
+   "url": "https://disclosure2.edinet-fsa.go.jp/api/v2/documents/S-CANARY-03?type=1",
+   "usage": null,
+   "publisher_type": null,
+   "attribution": null,
+   "processing_note": null,
+   "published_at": null,
+   "content_sha256": "750c71a1edcdc61cd3b6c1c508166713868bcf06765dbf2c1c918f32f7fa186f"
+  },
+  {
+   "source_id": "C04",
+   "publisher": "カナリア物流株式会社",
+   "title": "有価証券報告書",
+   "url": "https://disclosure2.edinet-fsa.go.jp/api/v2/documents/S-CANARY-04?type=1",
+   "usage": null,
+   "publisher_type": null,
+   "attribution": null,
+   "processing_note": null,
+   "published_at": null,
+   "content_sha256": "7d17eee75b6684f4619d86de940753df3e0cc39ae6178486ea9011faa364ab25"
+  },
+  {
+   "source_id": "C05",
+   "publisher": "架空新聞社",
+   "title": "カナリア工業、新製品を発表",
+   "url": "https://www.nippon.com/ja/canary-article/",
+   "usage": null,
+   "publisher_type": null,
+   "attribution": null,
+   "processing_note": null,
+   "published_at": "2026-09-24T17:00:00+09:00"
+  },
+  {
+   "source_id": "C06",
+   "publisher": "架空商事新報",
+   "title": "架空商事が業務提携",
+   "url": "https://www.example-canary-news.test/article/1",
+   "usage": null,
+   "publisher_type": null,
+   "attribution": null,
+   "processing_note": null,
+   "published_at": "2026-09-24T17:00:00+09:00"
+  },
+  {
+   "source_id": "C07",
+   "publisher": "日本銀行",
+   "title": "企業物価指数(2026年9月)",
+   "url": "https://www.boj.or.jp/statistics/pi/cgpi_2026_09.htm",
+   "usage": null,
+   "publisher_type": null,
+   "attribution": null,
+   "processing_note": null,
+   "published_at": "2026-09-24T17:00:00+09:00"
+  }
+ ],
+ "sections": [
+  {
+   "section_id": "change",
+   "articles": [
+    {
+     "article_id": "A-1",
+     "headline": "カナリア各社の開示が相次ぐ",
+     "lines": [
+      {
+       "line_id": "L-01",
+       "text": "カナリア電機の自己株式取得の総額は500百万円である",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "label": "金額",
+         "value": 500
+        }
+       ],
+       "source_ref": "C02",
+       "excerpt": "自己株式の取得価額の総額は500百万円である",
+       "attribution": null,
+       "processing_note": null
+      },
+      {
+       "line_id": "L-02",
+       "text": "日銀の物価統計は2026年9月分である",
+       "claimed_mark": "reported_unverified",
+       "numbers": [
+        {
+         "label": "日付",
+         "value": "2026-09"
+        }
+       ],
+       "source_ref": "C07",
+       "attribution": null,
+       "processing_note": null
+      },
+      {
+       "line_id": "L-03",
+       "text": "カナリア化学の特別損失は300百万円となる見込み",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "label": "金額",
+         "value": 300
+        }
+       ],
+       "source_ref": "C03",
+       "excerpt": "特別損失の金額は300百万円となる見込みである",
+       "attribution": null,
+       "processing_note": null
+      },
+      {
+       "line_id": "L-04",
+       "text": "注目のカナリア工業が新製品を発表した",
+       "claimed_mark": "unverified",
+       "numbers": [],
+       "source_ref": "C05",
+       "attribution": null,
+       "processing_note": null
+      }
+     ],
+     "inferences": [
+      {
+       "text": "取引先の設備投資が波及する可能性がある",
+       "falsifier": "投資計画が撤回された場合",
+       "check_metric": "設備投資額",
+       "check_by": "2026-12-31"
+      },
+      {
+       "text": "falsifierを書き忘れた推論(削除される見本)",
+       "falsifier": null,
+       "check_metric": "何か",
+       "check_by": "2026-12-31"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "section_id": "big",
+   "articles": [
+    {
+     "article_id": "A-2",
+     "headline": "架空商事とカナリア物産の動き",
+     "lines": [
+      {
+       "line_id": "L-05",
+       "text": "架空商事が業務提携を発表した",
+       "claimed_mark": "reported_unverified",
+       "numbers": [],
+       "source_ref": "C06",
+       "attribution": null,
+       "processing_note": null
+      },
+      {
+       "line_id": "L-06",
+       "text": "主要な業界動向の解説",
+       "claimed_mark": "explainer",
+       "numbers": []
+      },
+      {
+       "line_id": "L-07",
+       "text": "カナリア物産の買付価格は2500円である",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "label": "価格",
+         "value": 2500
+        }
+       ],
+       "source_ref": "C01",
+       "excerpt": "買付価格は1株につき2,500円とする",
+       "attribution": null,
+       "processing_note": null
+      },
+      {
+       "line_id": "L-08",
+       "text": "カナリア物流の契約金額は150百万円である",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "label": "金額",
+         "value": 150
+        }
+       ],
+       "source_ref": "C04",
+       "excerpt": "有力な取引先との契約金額は150百万円である",
+       "attribution": null,
+       "processing_note": null
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

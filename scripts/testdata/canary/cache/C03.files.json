@@ -1,0 +1,8 @@
+{
+ "doc_id": "S-CANARY-03",
+ "files": [
+  "XBRL/PublicDoc/0101010_honbun_canary_C03.htm",
+  "XBRL/PublicDoc/0000000_header_canary_C03.htm"
+ ],
+ "fallback": false
+}

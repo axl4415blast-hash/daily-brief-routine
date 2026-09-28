@@ -35,6 +35,8 @@ import edinet_fetch
 import edinet_codelist as ec
 import verify_edition as ve
 import pick_industry_companies as pic
+import build_index
+import recent_headlines as rh
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -2599,6 +2601,54 @@ def _rebuild_testdata_as_today_evening(src_testdata_root, dst_root):
     return edition_path, hyp_path, today_str
 
 
+CANARY_DIR = REPO_ROOT / "scripts" / "testdata" / "canary"
+# scripts/testdata/canary の中の号は、この日付を「号の日付」「直前の営業日」として
+# 固定で作ってある(実データのscripts/testdataと同じ考え方)。_rebuild_canary_as_today()が
+# テスト実行のたびに「今日」へ書き換える。
+CANARY_BASELINE_DATE = "2026-09-24"
+CANARY_PREV_DATE = "2026-09-18"
+
+
+def _rebuild_canary_as_today(work_dir):
+    """scripts/testdata/canary(日付固定の見本の号)を、「今日のevening号」として
+    書き直したコピーをwork_dir配下に作る(_rebuild_testdata_as_today_evening()と
+    同じ考え方)。日付の文字列をそのまま置き換えるだけで済むように、見本の号の
+    中身(本文・出典・提出時刻)は日付を書いた文字列を含まない形にしてある。
+
+    戻り値: (edition_path, hyp_path, cache_dir, today_str, prev_str)。"""
+    now = dt.datetime.now(ve.JST)
+    today_str = _expected_edition_date("evening", now)
+    prev_str = (dt.datetime.strptime(today_str, "%Y-%m-%d") - dt.timedelta(days=1)).strftime("%Y-%m-%d")
+
+    work_dir = Path(work_dir)
+
+    cache_dir = work_dir / "cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    for src in (CANARY_DIR / "cache").iterdir():
+        if src.suffix == ".json":
+            text = src.read_text(encoding="utf-8")
+            text = text.replace(CANARY_BASELINE_DATE, today_str).replace(CANARY_PREV_DATE, prev_str)
+            (cache_dir / src.name).write_text(text, encoding="utf-8")
+        else:
+            shutil.copy(src, cache_dir / src.name)
+
+    edition_text = (CANARY_DIR / "edition.json").read_text(encoding="utf-8")
+    edition_text = edition_text.replace(CANARY_BASELINE_DATE, today_str).replace(CANARY_PREV_DATE, prev_str)
+    edition_dir = work_dir / "editions" / today_str
+    edition_dir.mkdir(parents=True, exist_ok=True)
+    edition_path = edition_dir / "evening.json"
+    edition_path.write_text(edition_text, encoding="utf-8")
+
+    hyp_text = (CANARY_DIR / "hypotheses.json").read_text(encoding="utf-8")
+    hyp_text = hyp_text.replace(CANARY_BASELINE_DATE, today_str).replace(CANARY_PREV_DATE, prev_str)
+    hyp_dir = work_dir / "hypotheses"
+    hyp_dir.mkdir(parents=True, exist_ok=True)
+    hyp_path = hyp_dir / f"{today_str}-evening.json"
+    hyp_path.write_text(hyp_text, encoding="utf-8")
+
+    return edition_path, hyp_path, cache_dir, today_str, prev_str
+
+
 def _write_fake_codelist(work_dir, rows):
     """rows: (edinet_code, 会社名, 業種, 上場区分, 資本金, 証券コード)のタプルのリスト。"""
     codelist_dir = Path(work_dir) / ".cache" / "reference"
@@ -4634,6 +4684,530 @@ def test_round4_end_to_end_attribution():
     _assert_testdata_untouched("改修27-1第4回/統合テスト")
 
 
+def test_recent_business_days():
+    """改修27-1(4-11): recent_business_days()の「3営業日」の数え方(date_str自身を
+    含めて直近count日分)。scripts/recent_headlines.pyと27-2の続報判定の両方から
+    使う共通関数。"""
+    business_days = ve.load_business_days(str(CALENDAR_DIR))
+    window = ve.recent_business_days(business_days, "2026-09-24", 3)
+    check(
+        "recent_business_days/正例: 2026-09-24を含めて直近3営業日(19〜23日は祝日・休日)",
+        window, ["2026-09-17", "2026-09-18", "2026-09-24"],
+    )
+    check(
+        "recent_business_days/正例: date_str自身が営業日でなくても、それ以前の営業日から数える(土曜)",
+        ve.recent_business_days(business_days, "2026-09-26", 2), ["2026-09-24", "2026-09-25"],
+    )
+    check(
+        "recent_business_days/負例: business_daysが空なら空配列",
+        ve.recent_business_days([], "2026-09-24", 3), [],
+    )
+    check(
+        "recent_business_days/負例: date_strより前の営業日が1つも無ければ空配列",
+        ve.recent_business_days(business_days, "2000-01-01", 3), [],
+    )
+
+
+def test_record_only_keys_edition_level():
+    """改修27-1(4-12): date_only_number_lines・self_declared_unverified・
+    banned_word_hits(紙面側)・change_verified_lines_by_sectionの正例・負例。
+    どれも記録専用で、会社も行も消さないことを確かめる。"""
+    edition = {
+        "sections": [
+            {
+                "section_id": "change",
+                "articles": [{
+                    "article_id": "A-1",
+                    "headline": "架空商事が注目の発表",
+                    "lines": [
+                        {
+                            "line_id": "L-01", "text": "日付と件数だけの行",
+                            "claimed_mark": "reported_unverified",
+                            "numbers": [{"label": "日付", "value": "2026-09-24"}, {"label": "件数2", "value": 3}],
+                            "mark": "reported_unverified",
+                        },
+                        {
+                            "line_id": "L-02", "text": "金額も入っている行",
+                            "claimed_mark": "reported_unverified",
+                            "numbers": [{"label": "日付", "value": "2026-09-24"}, {"label": "金額", "value": 100}],
+                            "mark": "source_number_match",
+                        },
+                        {
+                            "line_id": "L-03", "text": "数字が無い行", "claimed_mark": "explainer",
+                            "numbers": [], "mark": "explainer",
+                        },
+                        {
+                            "line_id": "L-04", "text": "AIが最初からunverifiedと名乗った行",
+                            "claimed_mark": "unverified", "numbers": [], "mark": "unverified",
+                        },
+                    ],
+                    "inferences": [
+                        {"text": "主要な仕入先だと考えられる", "falsifier": "x", "check_metric": "y", "check_by": "z"},
+                    ],
+                }],
+            },
+            {
+                "section_id": "big",
+                "articles": [{
+                    "article_id": "A-2",
+                    "headline": "見出しに禁止語は無い",
+                    "lines": [
+                        {
+                            "line_id": "L-05", "text": "こちらも出典と数字が一致した行",
+                            "claimed_mark": "source_number_match", "numbers": [{"label": "金額", "value": 1}],
+                            "mark": "source_number_match",
+                        },
+                    ],
+                }],
+            },
+        ],
+    }
+
+    # --- date_only_number_lines ---
+    date_only = ve.compute_date_only_number_lines(edition)
+    check(
+        "date_only_number_lines/正例: labelが日付・件数だけの行(L-01)だけが数えられる",
+        (date_only["count"], date_only["line_ids"]), (1, ["L-01"]),
+    )
+
+    # --- self_declared_unverified ---
+    self_declared = ve.compute_self_declared_unverified(edition)
+    check(
+        "self_declared_unverified/正例: claimed_mark='unverified'のL-04だけが数えられる",
+        (self_declared["count"], self_declared["line_ids"]), (1, ["L-04"]),
+    )
+
+    # --- banned_word_hits(紙面側) ---
+    banned_hits = ve.compute_banned_word_hits_edition(edition)
+    check(
+        "banned_word_hits/正例: 見出しの禁止語(注目)が場所headlineで記録される",
+        {"word": "注目", "location": "headline", "id": "A-1"} in banned_hits, True,
+    )
+    check(
+        "banned_word_hits/正例: 推論欄の禁止語(主要)が場所inference_textで記録される",
+        {"word": "主要", "location": "inference_text", "id": "A-1"} in banned_hits, True,
+    )
+    check(
+        "banned_word_hits/負例: 禁止語を含まない見出し・行からは何も記録されない",
+        any(h["id"] == "A-2" for h in banned_hits), False,
+    )
+
+    # --- change_verified_lines_by_section(mark='source_number_match'の行だけ数える) ---
+    verified_by_section = ve.compute_change_verified_lines_by_section(edition)
+    check(
+        "change_verified_lines_by_section/正例: change枠はL-02の1件だけがsource_number_match",
+        verified_by_section.get("change"), 1,
+    )
+    check(
+        "change_verified_lines_by_section/正例: big枠はL-05の1件",
+        verified_by_section.get("big"), 1,
+    )
+
+    # 会社・行そのものは消えていないことの確認(記録専用)。
+    check(
+        "改修27-1(4-12)/正例: 記録関数を呼んだだけでは行は1つも消えない",
+        sum(len(a["lines"]) for s in edition["sections"] for a in s["articles"]), 5,
+    )
+
+
+def test_record_only_keys_hyp_level():
+    """改修27-1(4-12): speculative_word_counts・banned_word_hits(仮説側)の正例・負例。"""
+    hyps = [
+        {
+            "hypothesis_id": "H-1", "relation_text": "業績への恩恵が見込まれる展開",
+            "impact_reason": "取引拡大が意識される",
+        },
+        {
+            "hypothesis_id": "H-2", "relation_text": "有望な有力企業として代表的",
+            "impact_reason": "価格が示されている",
+        },
+    ]
+
+    speculative = ve.compute_speculative_word_counts(hyps)
+    check(
+        "speculative_word_counts/正例: relation_textの「恩恵」「見込まれる」が数えられる",
+        (speculative["relation_text"]["恩恵"], speculative["relation_text"]["見込まれる"]), (1, 1),
+    )
+    check(
+        "speculative_word_counts/正例: impact_reasonの「意識される」が数えられる",
+        speculative["impact_reason"]["意識される"], 1,
+    )
+    check(
+        "speculative_word_counts/負例: 出てこない語(なりやすい)は0のまま",
+        speculative["relation_text"]["なりやすい"], 0,
+    )
+
+    banned_hyp_hits = ve.compute_banned_word_hits_hyps(hyps)
+    check(
+        "banned_word_hits(仮説)/正例: relation_textの禁止語(有望・有力・代表)がすべて記録される",
+        sum(1 for h in banned_hyp_hits if h["id"] == "H-2" and h["location"] == "hypothesis_relation_text"),
+        3,
+    )
+    check(
+        "banned_word_hits(仮説)/負例: 禁止語の無いH-1のimpact_reasonからは記録されない",
+        any(h["id"] == "H-1" and h["location"] == "hypothesis_impact_reason" for h in banned_hyp_hits),
+        False,
+    )
+
+    check(
+        "改修27-1(4-12)/正例: 記録関数を呼んだだけでは仮説は1つも消えない(2件のまま)",
+        len(hyps), 2,
+    )
+
+
+def test_check_recent_headlines_status():
+    """改修27-1(4-11): scripts/recent_headlines.pyの実行結果(印のファイル)を読み、
+    失敗したかどうかを判定する。ファイルが無い・status不正・日付/slotの不一致は
+    すべて失敗として扱う。"""
+    with tempfile.TemporaryDirectory() as d:
+        cache_dir = Path(d)
+
+        check(
+            "check_recent_headlines_status/負例: ファイルが無ければ失敗(True)",
+            ve.check_recent_headlines_status(str(cache_dir), "2026-09-28", "evening"), True,
+        )
+
+        (cache_dir / "RECENT-HEADLINES.json").write_text(
+            json.dumps({"status": "ok", "date": "2026-09-28", "slot": "evening"}), encoding="utf-8",
+        )
+        check(
+            "check_recent_headlines_status/正例: status:okで日付・slotが一致すれば成功(False)",
+            ve.check_recent_headlines_status(str(cache_dir), "2026-09-28", "evening"), False,
+        )
+        check(
+            "check_recent_headlines_status/負例: 日付が違う号には使えない(True)",
+            ve.check_recent_headlines_status(str(cache_dir), "2026-09-29", "evening"), True,
+        )
+
+        (cache_dir / "RECENT-HEADLINES.json").write_text(
+            json.dumps({"status": "error", "date": "2026-09-28", "slot": "evening", "error": "x"}),
+            encoding="utf-8",
+        )
+        check(
+            "check_recent_headlines_status/負例: status:errorなら失敗(True)",
+            ve.check_recent_headlines_status(str(cache_dir), "2026-09-28", "evening"), True,
+        )
+
+        (cache_dir / "RECENT-HEADLINES.json").write_text("{ 壊れたJSON", encoding="utf-8")
+        check(
+            "check_recent_headlines_status/負例: ファイルが壊れていれば失敗(True)",
+            ve.check_recent_headlines_status(str(cache_dir), "2026-09-28", "evening"), True,
+        )
+
+
+def test_recent_headlines_is_before_and_select():
+    """改修27-1(4-11、Q5の回答): is_before()・select_recent_index_entries()の
+    正例・負例(日付が違えばその前後、同じ日なら時間帯の順、対象窓に無い日付は除く)。"""
+    check("recent_headlines.is_before/正例: 日付が前なら真", rh.is_before("2026-09-24", "evening", "2026-09-28", "morning"), True)
+    check("recent_headlines.is_before/負例: 日付が後なら偽", rh.is_before("2026-09-29", "morning", "2026-09-28", "evening"), False)
+    check(
+        "recent_headlines.is_before/正例: 同じ日でも前の時間帯(morning<evening)なら真",
+        rh.is_before("2026-09-28", "morning", "2026-09-28", "evening"), True,
+    )
+    check(
+        "recent_headlines.is_before/負例: 同じ日で同じ時間帯・後の時間帯は偽",
+        (rh.is_before("2026-09-28", "evening", "2026-09-28", "evening"), rh.is_before("2026-09-28", "evening", "2026-09-28", "morning")),
+        (False, False),
+    )
+
+    index_entries = [
+        {"date": "2026-09-24", "slot": "evening", "edition_id": "A"},
+        {"date": "2026-09-28", "slot": "morning", "edition_id": "B"},
+        {"date": "2026-09-28", "slot": "evening", "edition_id": "C"},  # target自身より後なので除外
+        {"date": "2026-09-01", "slot": "evening", "edition_id": "D"},  # 窓の外なので除外
+    ]
+    window_dates = ["2026-09-18", "2026-09-24", "2026-09-28"]
+    selected = rh.select_recent_index_entries(index_entries, window_dates, "2026-09-28", "evening")
+    check(
+        "recent_headlines.select_recent_index_entries/正例: 窓の中・targetより前の号だけ選ばれ、日付昇順になる",
+        [e["edition_id"] for e in selected], ["A", "B"],
+    )
+
+
+def test_recent_headlines_script_end_to_end():
+    """改修27-1(4-11)をCLI全体で確かめる統合テスト。直近3営業日分の見出し・出典URLが
+    出ること、失敗しても(号を止めず)印のファイルにstatus:'error'が書かれ、
+    check_recent_headlines_status()がそれを失敗として読めることを確かめる。"""
+    with tempfile.TemporaryDirectory() as d:
+        work_dir = Path(d)
+        # 全日を営業日として並べる一時カレンダーでは、直近3営業日の窓は
+        # target(2026-09-28)を含めた直前3日(26・27・28)になる。過去の号の日付は
+        # その中に入る2026-09-26にする。
+        calendar_dir = _write_temp_calendar(work_dir, dt.date(2026, 9, 20), 15)
+
+        edition_dir = work_dir / "editions" / "2026-09-26"
+        edition_dir.mkdir(parents=True)
+        past_edition = {
+            "sections": [{
+                "section_id": "change",
+                "articles": [{
+                    "article_id": "A-1", "headline": "過去の号の見出し",
+                    "lines": [{"line_id": "L-1", "source_ref": "SRC-1"}],
+                }],
+            }],
+            "sources": [{"source_id": "SRC-1", "url": "https://example.test/past-article"}],
+        }
+        (edition_dir / "evening.json").write_text(json.dumps(past_edition, ensure_ascii=False), encoding="utf-8")
+
+        index_doc = {
+            "generated_at": "2026-09-26T18:00:00+09:00",
+            "editions": [{
+                "date": "2026-09-26", "slot": "evening", "edition_id": "2026-09-26-evening",
+                "edition_path": "editions/2026-09-26/evening.json",
+            }],
+        }
+        (work_dir / "editions" / "index.json").write_text(json.dumps(index_doc, ensure_ascii=False), encoding="utf-8")
+
+        out_path = work_dir / "cache" / "RECENT-HEADLINES.json"
+        result = subprocess.run(
+            [
+                sys.executable, str(REPO_ROOT / "scripts" / "recent_headlines.py"),
+                "--date", "2026-09-28", "--slot", "morning",
+                "--calendar", str(calendar_dir), "--editions-index", str(work_dir / "editions" / "index.json"),
+                "--out", str(out_path),
+            ],
+            capture_output=True, text=True, cwd=str(work_dir),
+        )
+        check("recent_headlines.py/正例: 正常終了する(終了コード0)", result.returncode, 0)
+        check("recent_headlines.py/正例: 見出しが標準出力に出る", "過去の号の見出し" in result.stdout, True)
+        check("recent_headlines.py/正例: 出典URLが標準出力に出る", "https://example.test/past-article" in result.stdout, True)
+
+        record = json.loads(out_path.read_text(encoding="utf-8"))
+        check("recent_headlines.py/正例: 出力ファイルのstatusはok", record.get("status"), "ok")
+        check(
+            "recent_headlines.py/正例: 出力ファイルに記事の見出し・出典URLが入っている",
+            (record["articles"][0]["headline"], record["articles"][0]["source_urls"]),
+            ("過去の号の見出し", ["https://example.test/past-article"]),
+        )
+
+        check(
+            "改修27-1(4-11)/正例: 成功した実行はcheck_recent_headlines_status()で失敗と判定されない",
+            ve.check_recent_headlines_status(str(work_dir / "cache"), "2026-09-28", "morning"), False,
+        )
+
+        # --- 負例: editions/index.jsonが無い場合、失敗しても印のファイルにstatus:errorが書かれる ---
+        out_path2 = work_dir / "cache2" / "RECENT-HEADLINES.json"
+        result2 = subprocess.run(
+            [
+                sys.executable, str(REPO_ROOT / "scripts" / "recent_headlines.py"),
+                "--date", "2026-09-28", "--slot", "morning",
+                "--calendar", str(calendar_dir), "--editions-index", str(work_dir / "does-not-exist.json"),
+                "--out", str(out_path2),
+            ],
+            capture_output=True, text=True, cwd=str(work_dir),
+        )
+        check("recent_headlines.py/負例: 一覧が無ければ終了コード1(号は止めない設計、失敗を伝えるだけ)", result2.returncode, 1)
+        record2 = json.loads(out_path2.read_text(encoding="utf-8"))
+        check("recent_headlines.py/負例: 失敗してもstatus:errorのファイルが書かれる", record2.get("status"), "error")
+        check(
+            "改修27-1(4-11)/負例: 失敗した実行はcheck_recent_headlines_status()で失敗と判定される",
+            ve.check_recent_headlines_status(str(work_dir / "cache2"), "2026-09-28", "morning"), True,
+        )
+
+
+def test_build_index_skips_editions_without_verification():
+    """改修27-1(4-13): build_entry()は、verification(照合結果)の無い号を一覧に
+    入れない。既にverificationがある号は今までどおり一覧に入る。"""
+    with tempfile.TemporaryDirectory() as d:
+        fake_root = Path(d)
+        (fake_root / "editions" / "2026-09-24").mkdir(parents=True)
+        (fake_root / "hypotheses").mkdir(parents=True)
+
+        with_verification = {
+            "edition_id": "2026-09-24-morning", "generated_at": "2026-09-24T08:00:00+09:00",
+            "market_open": True, "verification": {"script_version": "2.0.0"},
+        }
+        without_verification = {
+            "edition_id": "2026-09-24-noon", "generated_at": None, "market_open": None,
+        }
+        (fake_root / "editions" / "2026-09-24" / "morning.json").write_text(
+            json.dumps(with_verification, ensure_ascii=False), encoding="utf-8",
+        )
+        (fake_root / "editions" / "2026-09-24" / "noon.json").write_text(
+            json.dumps(without_verification, ensure_ascii=False), encoding="utf-8",
+        )
+
+        original_root = build_index.REPO_ROOT
+        original_editions_dir = build_index.EDITIONS_DIR
+        original_hypotheses_dir = build_index.HYPOTHESES_DIR
+        build_index.REPO_ROOT = fake_root
+        build_index.EDITIONS_DIR = fake_root / "editions"
+        build_index.HYPOTHESES_DIR = fake_root / "hypotheses"
+        try:
+            entry_with = build_index.build_entry(
+                "2026-09-24", "morning", build_index.EDITIONS_DIR / "2026-09-24" / "morning.json",
+            )
+            entry_without = build_index.build_entry(
+                "2026-09-24", "noon", build_index.EDITIONS_DIR / "2026-09-24" / "noon.json",
+            )
+        finally:
+            build_index.REPO_ROOT = original_root
+            build_index.EDITIONS_DIR = original_editions_dir
+            build_index.HYPOTHESES_DIR = original_hypotheses_dir
+
+        check(
+            "build_index/正例(4-13): verificationがある号は一覧に入る",
+            entry_with is not None, True,
+        )
+        check(
+            "build_index/負例(4-13): verificationが無い号は一覧に入らない(None)",
+            entry_without, None,
+        )
+
+
+def test_canary_edition():
+    """改修27-1(4-15): 見本の号(scripts/testdata/canary/)を、実際にverify_edition.pyの
+    CLI全体に通して確かめる。第7.1版どおり10個の値(generated_at・baseline_late・
+    attribution・processing_note・impact_kind・evidence_filer_name・evidence_doc_type・
+    horizon_business_days・deadline_date・EDINETのpublished_at)がnullでも、上段の
+    会社4社・本文の行が消えないこと、記録専用のキーが期待どおりの値になることを
+    確かめる。
+
+    期待値は、この見本の号を実際に1回実行して出た値をそのまま使っている(手計算の
+    値ではない。以前の版で「出典8」と手計算して9との食い違いに気づけなかった
+    反省から、必ず実行して確かめた値を使う)。日付そのもの(deadline_dateの絶対値等)
+    は実行日によって変わるため、その場でcompute_deadline()を使って求め直す。"""
+    with tempfile.TemporaryDirectory() as d:
+        work_dir = Path(d)
+        edition_path, hyp_path, cache_dir, today_str, prev_str = _rebuild_canary_as_today(work_dir)
+        calendar_dir = _write_temp_calendar(
+            work_dir, dt.datetime.strptime(prev_str, "%Y-%m-%d").date() - dt.timedelta(days=3), 60,
+        )
+
+        result = _run_verify_cli(work_dir, edition_path, hyp_path, cache_dir, calendar_dir)
+        check("見本の号/正例: 正常終了する(終了コード0)", result.returncode, 0)
+
+        after_edition = json.loads(edition_path.read_text(encoding="utf-8"))
+        after_hyp = json.loads(hyp_path.read_text(encoding="utf-8"))
+        v = after_edition.get("verification") or {}
+        business_days = ve.load_business_days(str(calendar_dir))
+
+        # --- 出典の数(第5回で必ず直すこと1: 9つに揃える) ---
+        check("見本の号/正例: 出典は9つ(書類一覧2+C01〜C07)", len(after_edition.get("sources") or []), 9)
+
+        # --- 会社・行が消えないこと ---
+        check("見本の号/正例: 上段の会社は4社とも残る", len(after_hyp.get("hypotheses") or []), 4)
+        check(
+            "見本の号/正例: hypothesis_violationsは0(検査で削除された会社は無い)",
+            v.get("hypothesis_violations"), 0,
+        )
+        check("見本の号/正例: 本文の行は8行とも残る(消えない)", v.get("lines_total"), 8)
+        check("見本の号/正例: 出典と数字が一致した行は4件", v.get("passed"), 4)
+
+        # --- 10個のnullが機械で埋まること ---
+        check("見本の号/正例: 紙面のgenerated_atがnullから実行時刻に上書きされる", after_edition.get("generated_at") is not None, True)
+        check("見本の号/正例: baseline_lateがnullから真偽値に上書きされる", after_edition.get("baseline_late"), False)
+        by_source = {s["source_id"]: s for s in after_edition["sources"]}
+        check(
+            "見本の号/正例: EDINETの出典(C01)のattribution・processing_noteがnullから機械の値に埋まる",
+            (by_source["C01"].get("attribution") is not None, by_source["C01"].get("processing_note") is not None),
+            (True, True),
+        )
+        check(
+            "見本の号/正例: EDINETの個々の書類(C01)のpublished_atがnullからsubmitDateTimeの値に埋まる",
+            by_source["C01"].get("published_at") is not None, True,
+        )
+        by_hyp = {h["hypothesis_id"]: h for h in after_hyp["hypotheses"]}
+        check(
+            "見本の号/正例: H-1のimpact_kind・evidence_filer_name・evidence_doc_typeがnullから機械の値に埋まる",
+            (by_hyp["H-1"].get("impact_kind"), by_hyp["H-1"].get("evidence_filer_name") is not None, by_hyp["H-1"].get("evidence_doc_type") is not None),
+            ("price_stated", True, True),
+        )
+        expected_deadline_h1 = ve.compute_deadline(business_days, today_str, 5)
+        check(
+            "見本の号/正例: H-1(price_stated)のhorizon_business_days・deadline_dateがnullから5営業日後に埋まる",
+            (by_hyp["H-1"].get("horizon_business_days"), by_hyp["H-1"].get("deadline_date")),
+            (5, expected_deadline_h1),
+        )
+        expected_deadline_h2 = ve.compute_deadline(business_days, today_str, 20)
+        check(
+            "見本の号/正例: H-2(amount_stated)のhorizon_business_days・deadline_dateがnullから20営業日後に埋まる",
+            (by_hyp["H-2"].get("horizon_business_days"), by_hyp["H-2"].get("deadline_date")),
+            (20, expected_deadline_h2),
+        )
+
+        # --- falsifierの扱い: 上段には書かない、推論欄には書く ---
+        check(
+            "見本の号/正例: 上段の会社にfalsifierキーが無くても4社とも残る(決定1)",
+            all("falsifier" not in h for h in after_hyp["hypotheses"]), True,
+        )
+        check(
+            "見本の号/正例: falsifierを書いた推論は残り、書かなかった推論は削除される(1件)",
+            v.get("inference_dropped"), 1,
+        )
+        kept_inferences = after_edition["sections"][0]["articles"][0]["inferences"]
+        check(
+            "見本の号/正例: 残った推論にはfalsifierが入っている",
+            (len(kept_inferences), kept_inferences[0].get("falsifier") is not None),
+            (1, True),
+        )
+
+        # --- 4-4: 前日の一覧にしか無い会社(H-3)が引き当てられる ---
+        check("見本の号/正例: 前日の一覧にしかいないH-3も見つかる(edinet_doclist_partialは空)", v.get("edinet_doclist_partial"), [])
+        check("見本の号/正例: H-3のevidence_filer_nameが前日の一覧から埋まる", by_hyp["H-3"].get("evidence_filer_name"), "カナリア化学株式会社")
+
+        # --- 4-10: 提出者本人の公開買付届出書(H-1)はbidder ---
+        check("見本の号/正例: H-1のtob_sideはbidder", by_hyp["H-1"].get("tob_side"), "bidder")
+
+        # --- 4-9: タグ入りのEDINET本文でも検査1(数字・抜き出し)が通る ---
+        lines_by_id = {
+            l["line_id"]: l
+            for s in after_edition["sections"] for a in s["articles"] for l in a["lines"]
+        }
+        check(
+            "見本の号/正例: EDINETのタグ入り本文を参照する行(L-01・L-03・L-07・L-08)は4件ともsource_number_match",
+            [lines_by_id[lid]["mark"] for lid in ("L-01", "L-03", "L-07", "L-08")],
+            ["source_number_match"] * 4,
+        )
+
+        # --- 4-8: どのファイルを本文に選んだかが記録される ---
+        check(
+            "見本の号/正例: edinet_doc_filesにC01〜C04の4件が記録される",
+            sorted((v.get("edinet_doc_files") or {}).keys()), ["C01", "C02", "C03", "C04"],
+        )
+
+        # --- 4-6: attribution_overwritten(第5回で必ず直すこと2: 出典・行の両方を
+        #     合わせた第4回の数え方で計算し直した値) ---
+        check(
+            "見本の号/正例: attribution_overwrittenは16(出典9件+source_refを持つ行7件、すべてnullから値に変わった)",
+            v.get("attribution_overwritten"), 16,
+        )
+        check("見本の号/正例: attribution_generation_skippedは0(publisher・title・urlがすべて揃っている)", v.get("attribution_generation_skipped"), 0)
+
+        # --- 4-12: 記録専用のキー ---
+        check(
+            "見本の号/正例: date_only_number_linesはL-02の1件",
+            v.get("date_only_number_lines"), {"count": 1, "line_ids": ["L-02"]},
+        )
+        check(
+            "見本の号/正例: self_declared_unverifiedはL-04の1件",
+            v.get("self_declared_unverified"), {"count": 1, "line_ids": ["L-04"]},
+        )
+        banned_hits = v.get("banned_word_hits") or []
+        check(
+            "見本の号/正例: banned_word_hitsに見出し以外(行・推論欄・仮説)の3件が入る",
+            sorted((h["word"], h["location"], h["id"]) for h in banned_hits),
+            sorted([("注目", "line_text", "L-04"), ("主要", "line_text", "L-06"), ("有力", "hypothesis_relation_text", "H-4")]),
+        )
+        check(
+            "見本の号/正例: speculative_word_countsにH-4の「見込まれる」「意識される」が数えられる",
+            (v["speculative_word_counts"]["relation_text"]["見込まれる"], v["speculative_word_counts"]["impact_reason"]["意識される"]),
+            (1, 1),
+        )
+        check(
+            "見本の号/正例: change_verified_lines_by_sectionはchange枠2件・big枠2件",
+            v.get("change_verified_lines_by_section"), {"change": 2, "big": 2},
+        )
+
+        # --- 4-11: RECENT-HEADLINES.jsonを置いていないので失敗として記録される(号は止まらない) ---
+        check(
+            "見本の号/正例: recent_headlines_failedは真(印のファイルを置いていないため)。それでも号自体は保存される",
+            v.get("recent_headlines_failed"), True,
+        )
+
+    _assert_testdata_untouched("見本の号(canary)テスト")
+
+
 def _hyp_base(**kw):
     h = {"company_name": "テスト検証株式会社", "ticker": "9001", "ticker_source": "edinet_codelist"}
     h.update(kw)
@@ -5001,6 +5575,19 @@ def main():
     test_collect_edinet_doc_files()
     test_round3_end_to_end_html_tags_and_doc_files()
     test_round4_end_to_end_attribution()
+
+    # 改修27-1(第5回): 記録キー(4-12)・recent_headlines.py(4-11)・build_index.pyの
+    # verification無し除外(4-13)のテスト。
+    test_recent_business_days()
+    test_record_only_keys_edition_level()
+    test_record_only_keys_hyp_level()
+    test_check_recent_headlines_status()
+    test_recent_headlines_is_before_and_select()
+    test_recent_headlines_script_end_to_end()
+    test_build_index_skips_editions_without_verification()
+
+    # 改修27-1(4-15): 見本の号(Canary)。
+    test_canary_edition()
 
     total = len(results)
     passed = sum(1 for _, ok, _, _ in results if ok)

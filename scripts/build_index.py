@@ -48,7 +48,13 @@ def build_entry(date, slot, edition_path):
         print(f"skip (紙面JSONを読めません): {edition_path.relative_to(REPO_ROOT)} ({e})")
         return None
 
-    verification = data.get("verification") or {}
+    verification = data.get("verification")
+    if verification is None:
+        # 改修27-1(4-13): 照合結果(verification)の無い号は一覧に入れない
+        # (照合スクリプトを1度も通っていない号を、完成した号として画面や
+        # scripts/recent_headlines.pyに見せないため)。
+        print(f"skip (verificationがありません): {edition_path.relative_to(REPO_ROOT)}")
+        return None
 
     return {
         "date": date,

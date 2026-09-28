@@ -1,0 +1,72 @@
+{
+ "schema_version": 1,
+ "edition_id": "2026-09-24-evening",
+ "generated_at": null,
+ "market_open": null,
+ "baseline_late": null,
+ "hypotheses": [
+  {
+   "hypothesis_id": "H-1",
+   "company_name": "カナリア物産株式会社",
+   "relation_text": "この公開買付は買付価格の水準に影響しうる関係にある",
+   "evidence_grade": "reported",
+   "evidence_source_ref": "C01",
+   "impact_reason": "買付価格が示されているため",
+   "ticker": "1111",
+   "ticker_source": "edinet_codelist",
+   "baseline_date": "2026-09-24",
+   "baseline_price_type": "close",
+   "added_by": "manual",
+   "line_ids": [
+    "L-07"
+   ]
+  },
+  {
+   "hypothesis_id": "H-2",
+   "company_name": "カナリア電機株式会社",
+   "relation_text": "自己株式の取得は株主還元の姿勢を示す関係にある",
+   "evidence_grade": "reported",
+   "evidence_source_ref": "C02",
+   "impact_reason": "取得価額が示されているため",
+   "ticker": "2222",
+   "ticker_source": "edinet_codelist",
+   "baseline_date": "2026-09-24",
+   "baseline_price_type": "close",
+   "added_by": "manual",
+   "line_ids": [
+    "L-01"
+   ]
+  },
+  {
+   "hypothesis_id": "H-3",
+   "company_name": "カナリア化学株式会社",
+   "relation_text": "特別損失の計上は業績見通しに影響しうる関係にある",
+   "evidence_grade": "reported",
+   "evidence_source_ref": "C03",
+   "ticker": "5678",
+   "ticker_source": "edinet_seccode",
+   "baseline_date": "2026-09-24",
+   "baseline_price_type": "close",
+   "added_by": "manual",
+   "line_ids": [
+    "L-03"
+   ]
+  },
+  {
+   "hypothesis_id": "H-4",
+   "company_name": "カナリア物流株式会社",
+   "relation_text": "有力な取引先との契約は業績が伸びると見込まれる関係にある",
+   "evidence_grade": "reported",
+   "evidence_source_ref": "C04",
+   "impact_reason": "契約金額の規模が意識される内容のため",
+   "ticker": "4444",
+   "ticker_source": "edinet_codelist",
+   "baseline_date": "2026-09-24",
+   "baseline_price_type": "close",
+   "added_by": "manual",
+   "line_ids": [
+    "L-08"
+   ]
+  }
+ ]
+}

@@ -975,6 +975,149 @@ def count_sources_published_at_null(edition):
     return {"count": count, "source_ids": source_ids}
 
 
+# 改修27-1(4-12): 記録専用のキー(会社も行も消さない)で使う語のリスト。
+SPECULATIVE_WORDS = ("恩恵", "見込まれる", "意識される", "なりやすい")
+BANNED_WORDS = ("注目", "おすすめ", "有望", "代表", "主要", "有力")
+
+
+def _is_date_or_count_label(label):
+    """numbers[].labelが「日付」または「件数」で始まるかどうかを見る。"""
+    return isinstance(label, str) and (label.startswith("日付") or label.startswith("件数"))
+
+
+def compute_date_only_number_lines(edition):
+    """改修27-1(4-12): 登録した数字(numbers)がすべて「日付」か「件数」で始まる
+    labelだけの行を数える(記録専用。行は消さない)。numbersが空の行は対象外
+    (「すべて日付・件数」ではなく「そもそも数字が無い」ため)。
+    行を消す前(停止語・出典の鮮度の検査より前)に数えること。
+    戻り値: {"count": 件数, "line_ids": [...]}。"""
+    line_ids = []
+    for _section, _article, line in iter_lines(edition):
+        numbers = line.get("numbers") or []
+        if not numbers:
+            continue
+        if all(_is_date_or_count_label(n.get("label")) for n in numbers):
+            line_ids.append(line.get("line_id"))
+    return {"count": len(line_ids), "line_ids": line_ids}
+
+
+def compute_self_declared_unverified(edition):
+    """改修27-1(4-12): AIが最初からclaimed_mark='unverified'と自己申告していた行を
+    数える(記録専用。行は消さない。機械が後から'unverified'と判定したmarkとは別物)。
+    行を消す前に数えること。
+    戻り値: {"count": 件数, "line_ids": [...]}。"""
+    line_ids = [
+        line.get("line_id") for _section, _article, line in iter_lines(edition)
+        if line.get("claimed_mark") == "unverified"
+    ]
+    return {"count": len(line_ids), "line_ids": line_ids}
+
+
+def compute_banned_word_hits_edition(edition):
+    """改修27-1(4-12、Q9の回答): 禁止語(BANNED_WORDS)が、紙面側でAIが書いた
+    表示用の文(見出し・本文の行・推論欄)のどこかに出た件数と場所を記録する
+    (記録専用。会社も行も消さない)。出典からの抜き出し文(excerpt)・出典の
+    題名(title)は対象にしない。仮説(hypotheses)側の分は
+    compute_banned_word_hits_hyps()が別に返す(呼び出し側でこのリストに追加する)。
+    行を消す前に数えること。"""
+    hits = []
+    for section in edition.get("sections") or []:
+        for article in section.get("articles") or []:
+            headline = article.get("headline") or ""
+            for word in BANNED_WORDS:
+                if word in headline:
+                    hits.append({"word": word, "location": "headline", "id": article.get("article_id")})
+            for line in article.get("lines") or []:
+                text = line.get("text") or ""
+                for word in BANNED_WORDS:
+                    if word in text:
+                        hits.append({"word": word, "location": "line_text", "id": line.get("line_id")})
+            for inf in article.get("inferences") or []:
+                if not isinstance(inf, dict):
+                    continue
+                inf_text = inf.get("text") or ""
+                for word in BANNED_WORDS:
+                    if word in inf_text:
+                        hits.append({"word": word, "location": "inference_text", "id": article.get("article_id")})
+    return hits
+
+
+def compute_banned_word_hits_hyps(hyps):
+    """改修27-1(4-12、Q9の回答): 禁止語が、上段の仮説のrelation_text(上段の説明文)・
+    impact_reasonのどこかに出た件数と場所を記録する(記録専用。会社は消さない)。
+    仮説が検査で消される前の全件を対象にする。"""
+    hits = []
+    for hyp in hyps:
+        for field, location in (
+            ("relation_text", "hypothesis_relation_text"),
+            ("impact_reason", "hypothesis_impact_reason"),
+        ):
+            text = hyp.get(field) or ""
+            for word in BANNED_WORDS:
+                if word in text:
+                    hits.append({"word": word, "location": location, "id": hyp.get("hypothesis_id")})
+    return hits
+
+
+def compute_speculative_word_counts(hyps):
+    """改修27-1(4-12): 「恩恵」「見込まれる」「意識される」「なりやすい」が、
+    上段の仮説のrelation_text・impact_reasonにそれぞれ何回出てきたかを数える
+    (記録専用。会社は消さない)。仮説が検査で消される前の全件を対象にする。
+    戻り値: {"relation_text": {語: 件数, ...}, "impact_reason": {語: 件数, ...}}。"""
+    counts = {
+        "relation_text": {w: 0 for w in SPECULATIVE_WORDS},
+        "impact_reason": {w: 0 for w in SPECULATIVE_WORDS},
+    }
+    for hyp in hyps:
+        for field in ("relation_text", "impact_reason"):
+            text = hyp.get(field) or ""
+            for word in SPECULATIVE_WORDS:
+                counts[field][word] += text.count(word)
+    return counts
+
+
+def compute_change_verified_lines_by_section(edition):
+    """改修27-1(4-12): 枠(section_id)ごとに、出典で裏の取れた行
+    (mark=='source_number_match')の数を数える(記録専用)。停止語・出典の鮮度等で
+    消えた行より後、最終的に号に残っている行で数えること。
+    戻り値: {section_id: 件数, ...}。"""
+    counts = {}
+    for section in edition.get("sections") or []:
+        section_id = section.get("section_id")
+        verified = sum(
+            1
+            for article in section.get("articles") or []
+            for line in article.get("lines") or []
+            if line.get("mark") == "source_number_match"
+        )
+        counts[section_id] = verified
+    return counts
+
+
+RECENT_HEADLINES_FILENAME = "RECENT-HEADLINES.json"
+
+
+def check_recent_headlines_status(cache_dir, edition_date, edition_slot):
+    """改修27-1(4-11): scripts/recent_headlines.pyの実行結果を読み、失敗したかどうかを
+    判定する。recent_headlines.pyは実行のたびに必ず--outへファイルを書く
+    (成功時はstatus:'ok'、失敗時はstatus:'error')ため、この1つのファイルを読む
+    だけで失敗を知れる(印のファイル方式。失敗しても号の作成は止めない。
+    このファイル自体が無い・読めない場合も「失敗」として扱う)。
+    戻り値: 失敗していればTrue、正常に(この号のために)実行されていればFalse。"""
+    path = Path(cache_dir) / RECENT_HEADLINES_FILENAME
+    if not path.is_file():
+        return True
+    try:
+        record = load_json(path)
+    except (json.JSONDecodeError, OSError):
+        return True
+    if record.get("status") != "ok":
+        return True
+    if record.get("date") != edition_date or record.get("slot") != edition_slot:
+        return True
+    return False
+
+
 def compute_rerun_detected(existing_verification):
     """修正8: この号が既にverification(照合結果)を持っていたか、つまり今回が
     2回目以降の照合かどうかを返す。実行時刻には一切依存しない、号のデータ
@@ -1041,6 +1184,18 @@ def load_business_days(calendar_dir):
         days.extend(obj.get("business_days", []))
     days.sort()
     return days
+
+
+def recent_business_days(business_days, date_str, count):
+    """改修27-1(4-11): business_days(昇順)の中から、date_str以前(date_str自身を
+    含む)で直近count日分の営業日を昇順で返す。date_str自身が営業日でなくても、
+    date_str以前の営業日から数える。「3営業日」の数え方をここに1か所にまとめ、
+    scripts/recent_headlines.pyと、27-2で作る続報の判定の両方から使う。
+    business_daysが空、または直近count日分に満たない場合は、あるだけ返す。"""
+    upto = [d for d in business_days if d <= date_str]
+    if not upto:
+        return []
+    return upto[-count:]
 
 
 def compute_deadline(business_days, baseline_date, horizon):
@@ -2457,6 +2612,20 @@ def main():
         # (そうしないと、AIがnullを置いた行が検査3で丸ごとmissing_fieldになる)。
         source_attribution_result = apply_source_attribution(edition, source_policy_path)
 
+        # 改修27-1(4-12): AIの書きぶりを測る記録専用のキーは、行が消される前
+        # (停止語・出典の鮮度の検査より前)の全件を対象に数える。仮説(hypotheses)側の
+        # 分(speculative_word_counts・banned_word_hitsの残り)は、仮説ファイルを
+        # 読み込んだ後で別に数える。
+        date_only_number_lines = compute_date_only_number_lines(edition)
+        self_declared_unverified = compute_self_declared_unverified(edition)
+        banned_word_hits = compute_banned_word_hits_edition(edition)
+
+        # 改修27-1(4-11): scripts/recent_headlines.pyの実行結果(印のファイル)を読み、
+        # 失敗したかどうかを記録する(号は止めない)。
+        recent_headlines_failed = check_recent_headlines_status(
+            args.cache, edition.get("date"), edition.get("slot")
+        )
+
         ng_words = load_ng_words(ng_words_path)
         ng_words_exclude = load_ng_words(ng_words_exclude_path)
 
@@ -2513,6 +2682,11 @@ def main():
         hypotheses_doc = None
         hypotheses_generated_at_raw = None
         industry_report = None
+        # 改修27-1(4-12): --hypotheses未指定でもキーがそろうよう、既定値(0件)にしておく。
+        speculative_word_counts = {
+            "relation_text": {w: 0 for w in SPECULATIVE_WORDS},
+            "impact_reason": {w: 0 for w in SPECULATIVE_WORDS},
+        }
         if args.hypotheses:
             hypotheses_doc = load_json(args.hypotheses)
             # 改修27-1(4-1): 仮説ファイルのgenerated_atも、紙面と同じく実行時刻で上書きする。
@@ -2523,6 +2697,13 @@ def main():
             # 検査(21・31)で使うため、ここで1回だけ読み込み、両方に同じ結果を渡す
             # (同じファイルを2回読む作りにしない)。
             codelist_rows, _codelist_date = edinet_codelist.load_codelist()
+
+            # 改修27-1(4-12): 仮説(hypotheses)側の記録専用キーは、検査で仮説が
+            # 消される前の全件を対象に数える(run_hypothesis_checks()がhypotheses配列を
+            # 絞り込む前に計算すること)。
+            speculative_word_counts = compute_speculative_word_counts(hypotheses_doc.get("hypotheses") or [])
+            banned_word_hits.extend(compute_banned_word_hits_hyps(hypotheses_doc.get("hypotheses") or []))
+
             hypothesis_violations, hypothesis_reasons, hypothesis_extra = run_hypothesis_checks(
                 hypotheses_doc, edition, business_days, ng_words, args.cache, edinet_companies, codelist_rows
             )
@@ -2613,6 +2794,9 @@ def main():
 
         # 修正4: 号に残っている行(停止語・出典の鮮度の検査が終わった後)で数える。
         number_coverage = compute_number_coverage(edition)
+        # 改修27-1(4-12): change_verified_lines_by_sectionも、最終的に号に残っている
+        # 行(停止語・出典の鮮度の検査が終わった後)で数える。
+        change_verified_lines_by_section = compute_change_verified_lines_by_section(edition)
 
         edition["verification"] = {
             "script_version": "2.0.0",
@@ -2699,6 +2883,15 @@ def main():
             "number_coverage": number_coverage,
             # 修正8: 記録専用(判定には使わない)。
             "rerun_detected": rerun_detected,
+            # 改修27-1(4-12): AIの書きぶりを測る記録専用のキー(会社も行も消さない)。
+            "date_only_number_lines": date_only_number_lines,
+            "self_declared_unverified": self_declared_unverified,
+            "banned_word_hits": banned_word_hits,
+            "speculative_word_counts": speculative_word_counts,
+            "change_verified_lines_by_section": change_verified_lines_by_section,
+            # 改修27-1(4-11): scripts/recent_headlines.pyがこの号のために正しく
+            # 実行されたか(記録専用。号は止めない)。
+            "recent_headlines_failed": recent_headlines_failed,
         }
         if industry_report is not None:
             edition["verification"].update(industry_report)

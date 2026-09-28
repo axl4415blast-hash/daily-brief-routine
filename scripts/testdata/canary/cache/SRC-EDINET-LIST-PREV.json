@@ -1,0 +1,21 @@
+{
+ "metadata": {
+  "status": "200",
+  "parameter": {
+   "date": "2026-09-18",
+   "type": "2"
+  }
+ },
+ "results": [
+  {
+   "docID": "S-CANARY-03",
+   "edinetCode": "E-S-CANARY-03",
+   "filerName": "カナリア化学株式会社",
+   "docTypeCode": "180",
+   "docDescription": "架空の書類",
+   "secCode": "56780",
+   "submitDateTime": "2026-09-18 17:00",
+   "subjectEdinetCode": null
+  }
+ ]
+}

@@ -1,0 +1,41 @@
+{
+ "metadata": {
+  "status": "200",
+  "parameter": {
+   "date": "2026-09-24",
+   "type": "2"
+  }
+ },
+ "results": [
+  {
+   "docID": "S-CANARY-01",
+   "edinetCode": "E-S-CANARY-01",
+   "filerName": "カナリア物産株式会社",
+   "docTypeCode": "240",
+   "docDescription": "架空の書類",
+   "secCode": null,
+   "submitDateTime": "2026-09-24 17:00",
+   "subjectEdinetCode": "E-CANARY-TARGET"
+  },
+  {
+   "docID": "S-CANARY-02",
+   "edinetCode": "E-S-CANARY-02",
+   "filerName": "カナリア電機株式会社",
+   "docTypeCode": "220",
+   "docDescription": "架空の書類",
+   "secCode": null,
+   "submitDateTime": "2026-09-24 17:00",
+   "subjectEdinetCode": null
+  },
+  {
+   "docID": "S-CANARY-04",
+   "edinetCode": "E-S-CANARY-04",
+   "filerName": "カナリア物流株式会社",
+   "docTypeCode": "120",
+   "docDescription": "架空の書類",
+   "secCode": null,
+   "submitDateTime": "2026-09-24 17:00",
+   "subjectEdinetCode": null
+  }
+ ]
+}
