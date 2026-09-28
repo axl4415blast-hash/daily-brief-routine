@@ -107,6 +107,29 @@
    "attribution": null,
    "processing_note": null,
    "published_at": "2026-09-24T17:00:00+09:00"
+  },
+  {
+   "source_id": "C08",
+   "publisher": "架空通信社",
+   "title": "架空商事、別件を発表",
+   "url": "https://www.example-canary-news.test/article/2",
+   "usage": null,
+   "publisher_type": null,
+   "attribution": null,
+   "processing_note": null,
+   "published_at": "2026-09-18",
+   "published_date_only": false
+  },
+  {
+   "source_id": "C09",
+   "publisher": "架空通信社",
+   "title": "  ",
+   "url": "https://www.example-canary-news.test/article/3",
+   "usage": null,
+   "publisher_type": null,
+   "attribution": null,
+   "processing_note": null,
+   "published_at": "2026-09-24T17:00:00+09:00"
   }
  ],
  "sections": [
@@ -237,6 +260,24 @@
        ],
        "source_ref": "C04",
        "excerpt": "有力な取引先との契約金額は150百万円である",
+       "attribution": null,
+       "processing_note": null
+      },
+      {
+       "line_id": "L-09",
+       "text": "架空商事は別の件も発表した",
+       "claimed_mark": "reported_unverified",
+       "numbers": [],
+       "source_ref": "C08",
+       "attribution": null,
+       "processing_note": null
+      },
+      {
+       "line_id": "L-10",
+       "text": "題名の空の出典を参照した行",
+       "claimed_mark": "reported_unverified",
+       "numbers": [],
+       "source_ref": "C09",
        "attribution": null,
        "processing_note": null
       }

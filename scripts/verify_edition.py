@@ -19,11 +19,9 @@
       "ticker": "1234",
       "ticker_source": "edinet" | "...",
       "relation_text": "...",
-      "direction": "plus" | "minus",
       "evidence_grade": "primary" | "reported" | "inferred",
       "evidence_source_ref": "SRC-001" | null,
       "evidence_filer_name": "..." | null,
-      "evidence_excerpt": "..." | null,
       "baseline_date": "2026-09-24",
       "baseline_price_type": "close" | "open" | ...,
       "line_ids": ["L-003-02"],
@@ -32,8 +30,11 @@
   ]
 }
 
-evidence_excerpt は検査12(directionがminusの仮説の3条件)、ticker_source / links.price_history は
-検査13(証券コードの確認)で使う。evidence_filer_name / evidence_doc_type / evidence_role /
+ticker_source / links.price_history は検査13(証券コードの確認)で使う。
+改修27-2: direction・evidence_excerptは廃止した項目(新しい号には書かれない。過去の号の
+ファイルには残っているが読まない・書き換えない)。それを読んでいた検査12は廃止し、
+検査番号12は欠番のままにする(他の検査の番号はずらさない)。
+evidence_filer_name / evidence_doc_type / evidence_role /
 impact_kind / impact_kind_source / auto_check_target はAIには書かせず、出典URLの書類管理番号
 からEDINET書類一覧を引いてapply_edinet_evidence()が機械で確定する(check_hypothesis()の
 ループより先に実行する)。どちらも今回追加した項目のため、依頼文には例示が無い
@@ -298,8 +299,7 @@ def strip_html_tags(html_text):
 
 def read_source_body_for_checks(cache_path, source):
     """改修27-1(4-9): 検査1(excerpt・数字の一致)・検査11(一次情報の会社名)・
-    検査12(directionがminusの仮説のevidence_excerpt)・検査36(published_atの検算)で
-    使う出典本文を読む。read_source_text()で読んだ生のテキストのうち、出典が
+    検査36(published_atの検算)で使う出典本文を読む。read_source_text()で読んだ生のテキストのうち、出典が
     EDINET(is_edinet_domain)のものだけ、タグを取り除いてから返す(4-9で処理する
     のはEDINETの書類の本文がタグ入りのHTMLのため。EDINET以外の出典はタグを
     含まない普通の本文のため、そのまま返す)。
@@ -747,8 +747,24 @@ def verify_line(line, sources_by_id, cache_dir):
     return "unverified", None, None
 
 
+def _is_blank(value):
+    """文字列でない・空・空白のみ(全角空白を含む)なら真。"""
+    return not isinstance(value, str) or not value.strip()
+
+
+def find_empty_title_or_url_sources(edition):
+    """改修27-2(S12): titleかurlが空(null・空文字・空白のみ)の出典のsource_idの集合。
+    読者が「何の資料か」「どこで開けるか」を確かめられない出典のため、この出典を
+    参照する行は確定した印をunverifiedにする(run_line_verification()が使う)。"""
+    return {
+        s.get("source_id") for s in edition.get("sources", [])
+        if _is_blank(s.get("title")) or _is_blank(s.get("url"))
+    }
+
+
 def run_line_verification(edition, cache_dir):
     sources_by_id = {s.get("source_id"): s for s in edition.get("sources", [])}
+    empty_sources = find_empty_title_or_url_sources(edition)
     stats = {
         "lines_total": 0,
         "passed": 0,
@@ -756,12 +772,22 @@ def run_line_verification(edition, cache_dir):
         "reported_unverified": 0,
         "explainer": 0,
         "unverified_reasons": {},
+        # 改修27-2(S12): titleかurlが空の出典を参照していた行のline_id(記録専用のキー
+        # empty_title_or_url_refsの元)。
+        "empty_title_or_url_line_ids": [],
     }
     number_failure_details = []
 
     for section, article, line in iter_lines(edition):
         stats["lines_total"] += 1
         mark, reason, missing_numbers = verify_line(line, sources_by_id, cache_dir)
+        # 改修27-2(S12): titleかurlが空の出典を参照する行は、claimed_markの種類を問わず
+        # 確定した印をunverifiedにする(他の理由で既にunverifiedでも、理由はこちらに
+        # 揃える)。verify_line()の中の副作用(検査16のexcerpt削除など)は残る。
+        ref = line.get("source_ref")
+        if ref and ref in empty_sources:
+            mark, reason, missing_numbers = "unverified", "empty_title_or_url", None
+            stats["empty_title_or_url_line_ids"].append(line.get("line_id"))
         line["mark"] = mark
         line["mark_reason"] = reason
 
@@ -783,6 +809,24 @@ def run_line_verification(edition, cache_dir):
             })
 
     return stats, number_failure_details
+
+
+# 改修27-2(S13): 根拠がreported(検索結果の断片に社名があっただけ)の上段の会社の
+# relation_textの定型文。定数はここ1か所に置く。
+REPORTED_RELATION_TEXT = "検索結果の断片に社名あり（本文は未確認）"
+
+
+def compute_reported_relation_text_mismatch(hyps):
+    """改修27-2(S13): evidence_gradeがreportedの上段の会社のrelation_textが、定型文
+    (REPORTED_RELATION_TEXT)と完全一致しない仮説を数える(記録専用。会社は消さない)。
+    仮説が検査で消される前の全件を対象にし、evidence_gradeはAIが書いた値で見る。
+    戻り値: {"count": 件数, "hypothesis_ids": [...]}。"""
+    ids = [
+        h.get("hypothesis_id") for h in hyps
+        if h.get("evidence_grade") == "reported"
+        and h.get("relation_text") != REPORTED_RELATION_TEXT
+    ]
+    return {"count": len(ids), "hypothesis_ids": ids}
 
 
 def run_check_d_inferences(edition):
@@ -890,9 +934,12 @@ def run_check_published_at(edition, cache_dir):
     入れない)。判定は出典ごとに1回だけ行う(同じ出典を参照する行が複数あっても、
     本文の読み込みと照合は1回)。
 
-    改修27-1(4-3): published_date_onlyが真の出典(書類一覧そのものの出典。published_atは
-    一覧の取得条件から来る日付だけで、本文の日付表記と比べる意味が無い)は、この検査の
-    対象から外す(件数にも入れない)。
+    改修27-1(4-3): 書類一覧そのものの出典(published_date_onlyが真で、source_idが
+    EDINET_DOCLIST_SOURCE_IDSのどちらか。published_atは一覧の取得条件から来る日付だけで、
+    本文の日付表記と比べる意味が無い)は、この検査の対象から外す(件数にも入れない)。
+    改修27-2第1回: published_date_onlyは機械が全出典に書くようになったため、除外の条件を
+    書類一覧の2つに限った(AIが日付だけを書いた出典は今までどおりこの検査にかかる。
+    必須にするのは27-2第4回)。
 
     戻り値: (確認できなかった出典を参照する本文の行の数, 確認できなかった出典IDの一覧)。"""
     line_counts_by_source = {}
@@ -904,7 +951,7 @@ def run_check_published_at(edition, cache_dir):
     unverified_hits = 0
     unverified_sources = []
     for source in edition.get("sources", []):
-        if source.get("published_date_only"):
+        if source.get("published_date_only") and source.get("source_id") in EDINET_DOCLIST_SOURCE_IDS:
             continue
         source_id = source.get("source_id")
         published_dt = parse_datetime_assume_jst(source.get("published_at"))
@@ -1344,43 +1391,6 @@ def check_evidence_source_ref(hyp, sources_by_id, cache_dir):
     return None
 
 
-def check_minus_direction(hyp, sources_by_id, cache_dir):
-    """検査12: direction が minus の仮説は、次の3条件をすべて満たすときだけ残す。
-      1. evidence_grade が primary
-      2. evidence_role が filer_self(出典の書類の提出者がcompany_name自身であることを、
-         apply_edinet_evidence()が機械で確定した値。呼び出し側で、この検査より先に
-         apply_edinet_evidence()を実行しておくこと)
-      3. evidence_excerpt が evidence_source_ref の出典本文にそのまま存在する
-         (検査1と同じ照合の仕方)
-    direction が plus の仮説はこの検査の対象外(常に合格)。evidence_excerptが
-    nullでも問題ない。"""
-    if hyp.get("direction") != "minus":
-        return True
-
-    if hyp.get("evidence_grade") != "primary":
-        return False
-
-    if hyp.get("evidence_role") != "filer_self":
-        return False
-
-    excerpt = hyp.get("evidence_excerpt")
-    if not excerpt:
-        return False
-    ref = hyp.get("evidence_source_ref")
-    source = sources_by_id.get(ref) if ref else None
-    if source is None:
-        return False
-    cache_path = Path(cache_dir) / f"{ref}.txt"
-    # 改修27-1(4-9): EDINETの出典はHTMLタグを取り除いた本文で照合する。
-    body_text = read_source_body_for_checks(cache_path, source)
-    if body_text is None:
-        return False
-    if normalize_text(excerpt) not in normalize_text(body_text):
-        return False
-
-    return True
-
-
 EDINET_DOCLIST_FILENAMES = {"today": "SRC-EDINET-LIST.json", "prev": "SRC-EDINET-LIST-PREV.json"}
 
 
@@ -1520,6 +1530,39 @@ def apply_edinet_source_published_at(edition, cache_dir, edinet_companies):
         source["published_date_only"] = new_published_date_only
 
     return overwritten, edinet_other_url_hits
+
+
+_DATE_ONLY_RE = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$")
+
+
+def is_date_only_string(value):
+    """改修27-2(S1): published_atが「YYYY-MM-DD」の形(時刻が無い)で、実在する日付かどうか。
+    時刻付き(2026-09-18T16:03:00+09:00など)・null・文字列でないもの・実在しない日付
+    (2026-13-45など)は偽。前後の空白は許さない(そのままの形だけを日付だけとみなす)。"""
+    if not isinstance(value, str) or not _DATE_ONLY_RE.match(value):
+        return False
+    try:
+        dt.date.fromisoformat(value)
+    except ValueError:
+        return False
+    return True
+
+
+def apply_published_date_only(edition):
+    """改修27-2(S1): すべての出典のpublished_date_onlyを、AIの自己申告ではなく
+    published_atの形から機械で書き込む(AIが書いてきても必ず上書きする)。
+    「YYYY-MM-DD」の形なら真、時刻付き・nullなら偽(キーは必ず書く)。
+    書類一覧の2つ(apply_edinet_source_published_at()が日付だけを書いたもの)も、
+    この規則でそのまま真になる(一覧が読めずpublished_atがnullのときは偽)。
+    apply_edinet_source_published_at()より後、検査10・検査36より前に呼ぶこと。
+    戻り値: {"count": 真にした出典の数, "source_ids": [...]}。"""
+    source_ids = []
+    for source in edition.get("sources", []):
+        is_date_only = is_date_only_string(source.get("published_at"))
+        source["published_date_only"] = is_date_only
+        if is_date_only:
+            source_ids.append(source.get("source_id"))
+    return {"count": len(source_ids), "source_ids": source_ids}
 
 
 def collect_edinet_doc_files(edition, cache_dir):
@@ -1801,8 +1844,6 @@ def check_ticker_fields(hyp, edinet_companies):
 def run_check_hypothesis_evidence(hyps, sources_by_id, cache_dir):
     """evidence_grade が primary の仮説だけを検査11にかけ、不合格なら reported へ格下げする。
     inferredは下段(industry_examples)専用の値のため、上段(仮説)の格下げ先には使わない。
-    direction が minus の仮説は、この後で走る検査12(check_minus_direction)が
-    evidence_gradeがprimaryでなくなったことを検知して該当仮説を削除する。
     不合格の原因が出典ファイルの文字コード問題(evidence_source_unreadable)だった件数は、
     それ以外の原因と分けて返す(原因が違うため)。"""
     downgraded = 0
@@ -1930,9 +1971,6 @@ def check_hypothesis_evidence_source_ref(hyp, sources_by_id):
 
 def check_hypothesis(hyp, edition, line_ids, business_days, ng_words, sources_by_id, cache_dir,
                       edinet_companies, codelist_rows, extra_counts):
-    if not check_minus_direction(hyp, sources_by_id, cache_dir):
-        return "minus_condition_failed"
-
     ticker_reason = check_ticker_fields(hyp, edinet_companies)
     if ticker_reason:
         return ticker_reason
@@ -2074,7 +2112,7 @@ def run_hypothesis_checks(hypotheses_doc, edition, business_days, ng_words, cach
     # 修正2・3(要件定義書v12 3.4(2)・5.4)、および2026年9月21日の追加指示: evidence_filer_name/
     # evidence_doc_type/evidence_role/impact_kind/impact_kind_source/auto_check_targetはAIには
     # 書かせず、出典URLの書類管理番号からEDINET書類一覧を引いてスクリプトが確定する。
-    # 検査12(evidence_role)・検査23(impact_kind)がこの結果を見るため、check_hypothesis()の
+    # 検査23(impact_kind)などがこの結果を見るため、check_hypothesis()の
     # ループより必ず先に実行すること。
     evidence_counts = apply_edinet_evidence(hyps, sources_by_id, edinet_companies, codelist_rows)
     extra_counts["evidence_filer_name_overridden"] = evidence_counts["evidence_filer_name_overridden"]
@@ -2397,6 +2435,7 @@ def print_report(edition_path, stats, stop_hits, watch_hits, dropped_inferences,
             "source_unreadable": "出典ファイルが文字コードの問題で読めなかった",
             "numbers_empty": "数字を1つも書かずに「出典と数字が一致」と申告していた",
             "excerpt_not_allowed": "本文を取得していない出典(quotable以外)からの抜き出しだった(excerptは削除した)",
+            "empty_title_or_url": "参照している出典の題名かURLが空だった",
         }
         for reason, count in stats["unverified_reasons"].items():
             print(f"  ・{reason_text.get(reason, reason)}: {count}件")
@@ -2453,9 +2492,8 @@ def print_report(edition_path, stats, stop_hits, watch_hits, dropped_inferences,
             "market_closed": "市場が休みの号に仮説が入っていた(削除)",
             "baseline_late": "号が遅延していた(baseline_late)ため仮説が入っていた(削除)",
             "too_many_hypotheses": "仮説が上限(5件)を超えていた(削除)",
-            "primary_evidence_unverified": "根拠が最上位(primary)の自己申告なのに、出典本文に会社名を確認できなかった(inferredへ格下げ。方向がminusならこの後さらに削除される)",
-            "evidence_source_unreadable": "根拠の出典ファイルが文字コードの問題で読めなかった(inferredへ格下げ)",
-            "minus_condition_failed": "下振れ方向(minus)の3条件(根拠primary・提出者名の一致・抜き出しの実在)のいずれかを満たさなかった(削除)",
+            "primary_evidence_unverified": "根拠が最上位(primary)の自己申告なのに、出典本文に会社名を確認できなかった(reportedへ格下げ)",
+            "evidence_source_unreadable": "根拠の出典ファイルが文字コードの問題で読めなかった(reportedへ格下げ)",
             "ticker_missing": "証券コードが無い、または証券コードの形に合わなかった(削除)",
             "ticker_source_missing": "証券コードの出典(ticker_source)が空だった(削除)",
             "ticker_mismatch": "証券コードがEDINET書類一覧の記録と一致しなかった(削除)",
@@ -2656,6 +2694,10 @@ def main():
             edition, args.cache, edinet_companies
         )
 
+        # 改修27-2(S1): 全出典のpublished_date_onlyを、published_atの形から機械で書く
+        # (AIの自己申告は上書き)。EDINETのpublished_atが確定した後、検査10・検査36より前。
+        published_date_only_sources = apply_published_date_only(edition)
+
         # 改修27-1(4-8): EDINETの個々の書類について、edinet_fetch.pyがどのファイルを
         # 本文に選んだかを記録する(選んだ本文自体はキャッシュに既にある。ここでは
         # 記録を写すだけ)。
@@ -2694,6 +2736,11 @@ def main():
         watch_hits = check_watch_proximity(edition, ng_words_exclude)
 
         stats, number_failure_details = run_line_verification(edition, args.cache)
+        # 改修27-2(S12): titleかurlが空の出典を参照していた行(印はunverifiedにした)。
+        empty_title_or_url_refs = {
+            "count": len(stats["empty_title_or_url_line_ids"]),
+            "line_ids": stats["empty_title_or_url_line_ids"],
+        }
         source_usage_invalid_hits = count_invalid_source_usages(edition)
         dropped_inferences = run_check_d_inferences(edition)
         stale_hits, unknown_published_at_hits = run_check_e_stale_sources(edition, run_at_dt)
@@ -2746,6 +2793,8 @@ def main():
             "relation_text": {w: 0 for w in SPECULATIVE_WORDS},
             "impact_reason": {w: 0 for w in SPECULATIVE_WORDS},
         }
+        # 改修27-2(S13): --hypotheses未指定でもキーがそろうよう、既定値(0件)にしておく。
+        reported_relation_text_mismatch = {"count": 0, "hypothesis_ids": []}
         if args.hypotheses:
             hypotheses_doc = load_json(args.hypotheses)
             # 改修27-1(4-1): 仮説ファイルのgenerated_atも、紙面と同じく実行時刻で上書きする。
@@ -2762,6 +2811,9 @@ def main():
             # 絞り込む前に計算すること)。
             speculative_word_counts = compute_speculative_word_counts(hypotheses_doc.get("hypotheses") or [])
             banned_word_hits.extend(compute_banned_word_hits_hyps(hypotheses_doc.get("hypotheses") or []))
+            reported_relation_text_mismatch = compute_reported_relation_text_mismatch(
+                hypotheses_doc.get("hypotheses") or []
+            )
 
             hypothesis_violations, hypothesis_reasons, hypothesis_extra = run_hypothesis_checks(
                 hypotheses_doc, edition, business_days, ng_words, args.cache, edinet_companies, codelist_rows
@@ -2953,6 +3005,13 @@ def main():
             # 改修27-1(4-11): scripts/recent_headlines.pyがこの号のために正しく
             # 実行されたか(記録専用。号は止めない)。
             "recent_headlines_failed": recent_headlines_failed,
+            # 改修27-2(S1): published_atが日付だけ(時刻なし)の出典(機械が判定)。
+            "published_date_only_sources": published_date_only_sources,
+            # 改修27-2(S12): titleかurlが空の出典を参照していたため印をunverifiedにした行。
+            "empty_title_or_url_refs": empty_title_or_url_refs,
+            # 改修27-2(S13): reportedの上段の会社のうち、relation_textが定型文と違うもの
+            # (記録専用。会社は消さない)。
+            "reported_relation_text_mismatch": reported_relation_text_mismatch,
         }
         if industry_report is not None:
             edition["verification"].update(industry_report)

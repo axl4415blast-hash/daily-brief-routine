@@ -1,7 +1,7 @@
 """verify_edition.py の主要な判定が今まで通り動くことを固定するためのテスト。
 
 既存の挙動(検査9・検査11・停止/注意のキー分割・出典本文の文字コード対応)に加え、
-今回追加した検査12・13・15・16・20についても、正例(反応してほしい例)と
+今回追加した検査13・15・16・20(検査12は改修27-2で廃止)についても、正例(反応してほしい例)と
 負例(反応してほしくない例)の両方を確かめる。その場で一時ファイルを作って確かめ、
 テスト中に作った一時ファイル・一時フォルダはテストの終わりに消し、リポジトリには
 残さない。
@@ -399,96 +399,6 @@ def test_stop_and_watch_split():
     }
     hits = ve.check_watch_proximity(watch_edition_excluded, ["株式会社", "売上高"])
     check("注意/負例: 除外語(株式会社・売上高)は近接ルールに引っかけない", len(hits), 0)
-
-
-def test_check_minus_direction():
-    """検査12(directionがminusの仮説の3条件)の正例・負例。
-    出典はEDINET風の文書(提出者自身の開示)を想定し、会社名は架空名(テスト物産)。
-
-    2026年9月21日の追加指示により、条件2は「evidence_filer_nameがcompany_nameと一致するか」
-    ではなく「evidence_role(apply_edinet_evidence()が出典URLの書類管理番号から機械で
-    確定した値)がfiler_selfかどうか」に変わった。この関数(check_minus_direction単体)は
-    evidence_roleが既に確定している前提で判定するだけなので、ここではevidence_roleを
-    直接設定して確かめる(apply_edinet_evidence自体の正例・負例はtest_apply_edinet_evidenceで
-    確かめる)。"""
-    with tempfile.TemporaryDirectory() as d:
-        ok_body = "テスト物産株式会社は有価証券報告書を提出した。売上高は前期比で減少した。"
-        write(d, "SRC-OK.txt", ok_body.encode("utf-8"))
-        write(d, "SRC-OTHER.txt", "テスト電機株式会社の開示資料。".encode("utf-8"))
-
-        sources = {
-            "SRC-OK": {"source_id": "SRC-OK", "usage": "quotable"},
-            "SRC-OTHER": {"source_id": "SRC-OTHER", "usage": "quotable"},
-        }
-
-        def base_minus(**overrides):
-            hyp = {
-                "company_name": "テスト物産",
-                "direction": "minus",
-                "evidence_grade": "primary",
-                "evidence_role": "filer_self",
-                "evidence_excerpt": "売上高は前期比で減少した",
-                "evidence_source_ref": "SRC-OK",
-            }
-            hyp.update(overrides)
-            return hyp
-
-        # --- 正例(反応してほしい: Falseが返り、仮説が削除される) ---
-        check(
-            "検査12/正例: evidence_gradeがprimaryでなければ不合格",
-            ve.check_minus_direction(base_minus(evidence_grade="inferred"), sources, d),
-            False,
-        )
-        check(
-            "検査12/正例(★今回の変更点): evidence_roleがfiler_selfでなければ不合格(mentioned)",
-            ve.check_minus_direction(base_minus(evidence_role="mentioned"), sources, d),
-            False,
-        )
-        check(
-            "検査12/正例: evidence_roleがnullでも不合格",
-            ve.check_minus_direction(base_minus(evidence_role=None), sources, d),
-            False,
-        )
-        check(
-            "検査12/正例: evidence_excerptがnullなら不合格",
-            ve.check_minus_direction(base_minus(evidence_excerpt=None), sources, d),
-            False,
-        )
-        check(
-            "検査12/正例: evidence_excerptが出典本文に存在しなければ不合格",
-            ve.check_minus_direction(base_minus(evidence_excerpt="存在しない文言です"), sources, d),
-            False,
-        )
-        check(
-            "検査12/正例: evidence_source_refが別会社の出典を指していれば不合格",
-            ve.check_minus_direction(base_minus(evidence_source_ref="SRC-OTHER"), sources, d),
-            False,
-        )
-
-        # --- 負例(反応してほしくない: Trueが返り、仮説は残る) ---
-        check(
-            "検査12/負例: directionがplusならevidence_excerptがnullでも合格",
-            ve.check_minus_direction(
-                {"company_name": "テスト物産", "direction": "plus", "evidence_grade": "inferred",
-                 "evidence_excerpt": None},
-                sources, d,
-            ),
-            True,
-        )
-        check(
-            "検査12/負例: 3条件をすべて満たすminusの仮説は合格",
-            ve.check_minus_direction(base_minus(), sources, d),
-            True,
-        )
-        check(
-            "検査12/負例: directionがplusでevidence_gradeがinferredでも合格(minus専用の検査のため)",
-            ve.check_minus_direction(
-                {"company_name": "テスト物産", "direction": "plus", "evidence_grade": "inferred",
-                 "evidence_excerpt": None, "evidence_role": None, "evidence_source_ref": None},
-                sources, d,
-            ),
-            True,
-        )
 
 
 def test_check_ticker_fields():
@@ -5199,6 +5109,234 @@ def test_build_index_skips_editions_without_verification():
         )
 
 
+def test_check12_removed_direction_not_read():
+    """改修27-2(S6): 検査12を廃止した。directionがminusでも、evidence_excerptが無くても、
+    evidence_roleがfiler_selfでなくても、上段の会社は消えない(directionとevidence_excerptを
+    読まない)。検査番号12は欠番のまま(他の検査の番号はずらさない)。"""
+    check("検査12廃止/正例: check_minus_directionはもう存在しない", hasattr(ve, "check_minus_direction"), False)
+
+    business_days = ve.load_business_days(str(CALENDAR_DIR))
+    deadline = ve.compute_deadline(business_days, "2026-09-24", 5)
+    line_ids = {"L-1": "source_number_match"}
+
+    def base(**kw):
+        h = {
+            "company_name": "テスト物産", "relation_text": "業績に影響しうる",
+            "baseline_price_type": "close", "baseline_date": "2026-09-24",
+            "evidence_grade": "reported", "ticker": "8801", "ticker_source": "edinet_codelist",
+            "line_ids": ["L-1"], "added_by": "manual",
+            "horizon_business_days": 5, "deadline_date": deadline,
+        }
+        h.update(kw)
+        return h
+
+    def reason_for(hyp):
+        extra = {"codelist_unavailable": True, "baseline_date_check_skipped": 0}
+        return ve.check_hypothesis(hyp, {}, line_ids, business_days, [], {}, ".", None, None, extra)
+
+    check(
+        "検査12廃止/反応してほしくない例1: directionがminusでもevidence_excerptが無くても、会社は消えない",
+        reason_for(base(direction="minus", evidence_excerpt=None)), None,
+    )
+    check(
+        "検査12廃止/反応してほしくない例2: directionがminusでevidence_roleがmentioned・evidence_gradeがreportedでも消えない",
+        reason_for(base(direction="minus", evidence_role="mentioned", evidence_grade="reported")), None,
+    )
+    check(
+        "検査12廃止/反応してほしくない例3: 過去の号のようにdirection・evidence_excerptが残っていても、値は書き換えない",
+        (lambda h: (reason_for(h), h.get("direction"), h.get("evidence_excerpt")))(
+            base(direction="minus", evidence_excerpt="抜き出し")),
+        (None, "minus", "抜き出し"),
+    )
+    check(
+        "検査12廃止/参考: 廃止した理由名minus_condition_failedは検査の理由として返らない",
+        reason_for(base(direction="minus", evidence_grade="inferred")) != "minus_condition_failed", True,
+    )
+
+
+def test_is_date_only_string():
+    """改修27-2(S1): 「YYYY-MM-DD」の形で実在する日付のときだけ真。"""
+    cases = [
+        ("2026-09-18", True, "日付だけ"),
+        ("2026-09-18T16:03:00+09:00", False, "時刻付き(タイムゾーンあり)"),
+        ("2026-09-18T16:03:00", False, "時刻付き(タイムゾーンなし)"),
+        ("2026-09-18 16:03", False, "時刻付き(空白区切り)"),
+        (None, False, "null"),
+        ("", False, "空文字"),
+        (20260918, False, "数値(文字列でない)"),
+        ("2026-13-45", False, "実在しない日付"),
+        ("2026-02-30", False, "実在しない日付(2月30日)"),
+        (" 2026-09-18", False, "前に空白"),
+        ("2026-09-18 ", False, "後ろに空白"),
+        ("2026/09/18", False, "スラッシュ区切り(この形は日付だけと扱わない)"),
+        ("2026-9-8", False, "ゼロ埋めなし"),
+        ("２０２６-０９-１８", False, "全角数字"),
+    ]
+    for value, expected, label in cases:
+        check(f"published_date_only/S1判定: {label}({value!r})は{expected}", ve.is_date_only_string(value), expected)
+
+
+def test_apply_published_date_only():
+    """改修27-2(S1): 全出典のpublished_date_onlyを、AIの自己申告ではなくpublished_atの
+    形から機械で書く。AIの値は一致・不一致にかかわらず上書きし、キーは必ず書く。"""
+    edition = {"sources": [
+        {"source_id": "A", "published_at": "2026-09-18"},
+        {"source_id": "B", "published_at": "2026-09-18T16:03:00+09:00", "published_date_only": True},
+        {"source_id": "C", "published_at": None},
+        {"source_id": "D", "published_at": "2026-09-19", "published_date_only": False},
+        {"source_id": "SRC-EDINET-LIST", "published_at": "2026-09-24", "published_date_only": True},
+        {"source_id": "SRC-EDINET-LIST-PREV", "published_at": None, "published_date_only": False},
+        {"source_id": "F"},
+    ]}
+    result = ve.apply_published_date_only(edition)
+    flags = {s["source_id"]: s["published_date_only"] for s in edition["sources"]}
+    check("published_date_only/正例: 日付だけの出典(A)は、AIが書いていなくても真になる", flags["A"], True)
+    check("published_date_only/正例: AIが偽と書いた日付だけの出典(D)も真に上書きする", flags["D"], True)
+    check("published_date_only/正例: AIが真と書いた時刻付きの出典(B)は偽に上書きする", flags["B"], False)
+    check("published_date_only/正例: published_atがnullの出典(C)は偽になり、キーは必ず書かれる", flags["C"], False)
+    check("published_date_only/正例: published_atのキー自体が無い出典(F)も偽で、キーが書かれる", flags["F"], False)
+    check(
+        "published_date_only/正例: 書類一覧の2つは、日付があれば真・一覧が読めずnullなら偽",
+        (flags["SRC-EDINET-LIST"], flags["SRC-EDINET-LIST-PREV"]), (True, False),
+    )
+    check(
+        "published_date_only/正例: 戻り値は真にした出典の件数とIDを、出典の並び順で返す",
+        result, {"count": 3, "source_ids": ["A", "D", "SRC-EDINET-LIST"]},
+    )
+    check("published_date_only/負例: 出典が0件でも落ちず、0件を返す", ve.apply_published_date_only({"sources": []}), {"count": 0, "source_ids": []})
+    check("published_date_only/負例: sourcesのキーが無い号でも落ちない", ve.apply_published_date_only({}), {"count": 0, "source_ids": []})
+
+
+def test_check36_still_applies_to_ai_date_only_sources():
+    """改修27-2第1回: published_date_onlyを機械が全出典に書くようになったが、検査36の
+    除外は書類一覧の2つだけのまま(AIが日付だけを書いた出典は、今までどおり検査36にかかる。
+    必須にするのは第4回)。"""
+    with tempfile.TemporaryDirectory() as d:
+        write(d, "C08.txt", "この本文には日付が書かれていない。".encode("utf-8"))
+        write(d, "SRC-EDINET-LIST.txt", "この本文にも日付が書かれていない。".encode("utf-8"))
+        edition = {
+            "sections": [{"section_id": "big", "articles": [{"lines": [
+                {"line_id": "L-1", "source_ref": "C08"},
+                {"line_id": "L-2", "source_ref": "SRC-EDINET-LIST"},
+            ]}]}],
+            "sources": [
+                {"source_id": "C08", "url": "https://example.test/a", "published_at": "2026-09-18", "published_date_only": True},
+                {"source_id": "SRC-EDINET-LIST", "url": "https://api.edinet-fsa.go.jp/api/v2/documents.json?date=2026-09-18&type=2",
+                 "published_at": "2026-09-18", "published_date_only": True},
+            ],
+        }
+        hits, unverified_sources = ve.run_check_published_at(edition, d)
+    check(
+        "検査36/27-2第1回・反応してほしい例: AIが日付だけを書いた出典(C08)は本文に日付が無ければ記録される",
+        (hits, unverified_sources), (1, ["C08"]),
+    )
+    check(
+        "検査36/27-2第1回・反応してほしくない例: 書類一覧(SRC-EDINET-LIST)は日付だけでも対象から外れたまま",
+        "SRC-EDINET-LIST" in unverified_sources, False,
+    )
+
+
+def test_empty_title_or_url_refs():
+    """改修27-2(S12): titleかurlが空の出典を参照する行は、確定した印をunverifiedにし、
+    empty_title_or_url_refsの元(stats["empty_title_or_url_line_ids"])に記録する。"""
+    def make(sources, lines):
+        return {"sources": sources, "sections": [{"section_id": "big", "articles": [{"lines": lines}]}]}
+
+    def src(source_id, title="題名", url="https://example.test/x"):
+        return {"source_id": source_id, "title": title, "url": url, "usage": "snippet_only"}
+
+    def line(line_id, ref, claimed="reported_unverified", **kw):
+        l = {"line_id": line_id, "text": "本文", "claimed_mark": claimed, "numbers": [], "source_ref": ref}
+        l.update(kw)
+        return l
+
+    with tempfile.TemporaryDirectory() as d:
+        edition = make(
+            [src("S-OK"), src("S-NOTITLE", title=None), src("S-BLANKTITLE", title="   "),
+             src("S-FULLWIDTH", title="\u3000\u3000"), src("S-EMPTYURL", url=""), src("S-NOURL", url=None),
+             src("S-BLANKURL", url="  ")],
+            [
+                line("L-ok", "S-OK"),
+                line("L-notitle", "S-NOTITLE"),
+                line("L-blanktitle", "S-BLANKTITLE"),
+                line("L-fullwidth", "S-FULLWIDTH"),
+                line("L-emptyurl", "S-EMPTYURL"),
+                line("L-nourl", "S-NOURL"),
+                line("L-blankurl", "S-BLANKURL"),
+                line("L-noref", None, claimed="explainer"),
+                line("L-explainer-with-empty", "S-NOTITLE", claimed="explainer"),
+                line("L-number", "S-NOTITLE", claimed="source_number_match", numbers=[{"value": 1}], excerpt="1"),
+            ],
+        )
+        stats, _ = ve.run_line_verification(edition, d)
+    marks = {l["line_id"]: (l["mark"], l["mark_reason"]) for l in edition["sections"][0]["articles"][0]["lines"]}
+    empty_ids = ["L-notitle", "L-blanktitle", "L-fullwidth", "L-emptyurl", "L-nourl", "L-blankurl",
+                 "L-explainer-with-empty", "L-number"]
+    for lid in empty_ids:
+        check(f"S12/正例: {lid}は題名かURLが空の出典を参照するため、印はunverified(理由empty_title_or_url)",
+              marks[lid], ("unverified", "empty_title_or_url"))
+    check("S12/負例: 題名もURLも揃った出典を参照するL-okは、自己申告どおりreported_unverifiedのまま", marks["L-ok"], ("reported_unverified", None))
+    check("S12/負例: 出典を参照しない行(L-noref)は対象外", marks["L-noref"], ("explainer", None))
+    check("S12/記録: 記録される行IDは該当した8行だけで、並びは行の順", stats["empty_title_or_url_line_ids"], empty_ids)
+    check(
+        "S12/記録: 集計(合格・未確認など)が印の変更と食い違わない(未確認8・自己申告どおり1・解説1)",
+        (stats["unverified"], stats["reported_unverified"], stats["explainer"], stats["passed"]), (8, 1, 1, 0),
+    )
+    check("S12/記録: unverified_reasonsにempty_title_or_urlが8件と数えられる", stats["unverified_reasons"], {"empty_title_or_url": 8})
+
+    # 出典が0件・参照が無い号でも落ちず、記録は空。
+    with tempfile.TemporaryDirectory() as d:
+        stats2, _ = ve.run_line_verification(make([], [line("L-1", None, claimed="explainer")]), d)
+    check("S12/負例: 出典が無い号でも落ちず、記録は空", stats2["empty_title_or_url_line_ids"], [])
+
+
+def test_reported_relation_text_mismatch():
+    """改修27-2(S13): reportedの上段の会社のrelation_textが定型文と完全一致しなければ
+    記録する(記録専用。会社は消さない)。"""
+    fixed = ve.REPORTED_RELATION_TEXT
+    check("S13/定型文: 定数の値は依頼どおり", fixed, "検索結果の断片に社名あり（本文は未確認）")
+    hyps = [
+        {"hypothesis_id": "H-1", "evidence_grade": "reported", "relation_text": fixed},
+        {"hypothesis_id": "H-2", "evidence_grade": "reported", "relation_text": "親会社グループから株式を取得され、連結子会社となる立場にある。"},
+        {"hypothesis_id": "H-3", "evidence_grade": "primary", "relation_text": "primaryなので定型文でなくてよい"},
+        {"hypothesis_id": "H-4", "evidence_grade": "reported", "relation_text": fixed + " "},
+        {"hypothesis_id": "H-5", "evidence_grade": "reported", "relation_text": "検索結果の断片に社名あり(本文は未確認)"},
+        {"hypothesis_id": "H-6", "evidence_grade": "reported"},
+        {"hypothesis_id": "H-7", "evidence_grade": "reported", "relation_text": ""},
+        {"hypothesis_id": "H-8", "evidence_grade": "inferred", "relation_text": "x"},
+        {"hypothesis_id": "H-9", "evidence_grade": "reported", "relation_text": fixed},
+    ]
+    before = json.dumps(hyps, ensure_ascii=False)
+    result = ve.compute_reported_relation_text_mismatch(hyps)
+    check("S13/正例: 定型文と違うreportedを記録(H-2の別文・H-4の末尾空白・H-5の半角かっこ・H-6のキー無し・H-7の空文字)",
+          result, {"count": 5, "hypothesis_ids": ["H-2", "H-4", "H-5", "H-6", "H-7"]})
+    check("S13/負例: 定型文と完全一致するreported(H-1・H-9)、primary(H-3)、inferred(H-8)は記録しない",
+          any(i in result["hypothesis_ids"] for i in ("H-1", "H-9", "H-3", "H-8")), False)
+    check("S13/負例: 仮説の中身は書き換えない・消さない", json.dumps(hyps, ensure_ascii=False), before)
+    check("S13/負例: 仮説が0件なら0件", ve.compute_reported_relation_text_mismatch([]), {"count": 0, "hypothesis_ids": []})
+
+
+def test_round1_27_2_end_to_end_default_keys_without_hypotheses():
+    """改修27-2(S15): --hypothesesを渡さない実行でも、第1回で足した記録キーがそろう
+    (S13は0件・空で出る。S1・S12は紙面だけで決まるので値が入る)。"""
+    with tempfile.TemporaryDirectory() as d:
+        work_dir = Path(d)
+        edition_path, _hyp_path, cache_dir, today_str, prev_str = _rebuild_canary_as_today(work_dir)
+        calendar_dir = _write_temp_calendar(
+            work_dir, dt.datetime.strptime(prev_str, "%Y-%m-%d").date() - dt.timedelta(days=3), 60,
+        )
+        result = subprocess.run(
+            [sys.executable, str(REPO_ROOT / "scripts" / "verify_edition.py"),
+             "--edition", str(edition_path), "--cache", str(cache_dir), "--calendar", str(calendar_dir)],
+            capture_output=True, text=True, encoding="utf-8", cwd=str(work_dir),
+        )
+        check("27-2 S15/正例: --hypothesesなしでも正常終了する", result.returncode, 0)
+        v = json.loads(edition_path.read_text(encoding="utf-8")).get("verification") or {}
+    check("27-2 S15/正例: reported_relation_text_mismatchは0件・空で出る", v.get("reported_relation_text_mismatch"), {"count": 0, "hypothesis_ids": []})
+    check("27-2 S15/正例: published_date_only_sourcesは紙面だけで決まるので3件", (v.get("published_date_only_sources") or {}).get("count"), 3)
+    check("27-2 S15/正例: empty_title_or_url_refsは紙面だけで決まるのでL-10の1件", v.get("empty_title_or_url_refs"), {"count": 1, "line_ids": ["L-10"]})
+
+
 def test_canary_edition():
     """改修27-1(4-15): 見本の号(scripts/testdata/canary/)を、実際にverify_edition.pyの
     CLI全体に通して確かめる。第7.1版どおり10個の値(generated_at・baseline_late・
@@ -5227,7 +5365,7 @@ def test_canary_edition():
         business_days = ve.load_business_days(str(calendar_dir))
 
         # --- 出典の数(第5回で必ず直すこと1: 9つに揃える) ---
-        check("見本の号/正例: 出典は9つ(書類一覧2+C01〜C07)", len(after_edition.get("sources") or []), 9)
+        check("見本の号/正例: 出典は11(書類一覧2+C01〜C09。27-2第1回でC08・C09を足した)", len(after_edition.get("sources") or []), 11)
 
         # --- 会社・行が消えないこと ---
         check("見本の号/正例: 上段の会社は4社とも残る", len(after_hyp.get("hypotheses") or []), 4)
@@ -5235,7 +5373,7 @@ def test_canary_edition():
             "見本の号/正例: hypothesis_violationsは0(検査で削除された会社は無い)",
             v.get("hypothesis_violations"), 0,
         )
-        check("見本の号/正例: 本文の行は8行とも残る(消えない)", v.get("lines_total"), 8)
+        check("見本の号/正例: 本文の行は10行とも残る(消えない。27-2第1回でL-09・L-10を足した)", v.get("lines_total"), 10)
         check("見本の号/正例: 出典と数字が一致した行は4件", v.get("passed"), 4)
 
         # --- 10個のnullが機械で埋まること ---
@@ -5313,10 +5451,13 @@ def test_canary_edition():
         # --- 4-6: attribution_overwritten(第5回で必ず直すこと2: 出典・行の両方を
         #     合わせた第4回の数え方で計算し直した値) ---
         check(
-            "見本の号/正例: attribution_overwrittenは16(出典9件+source_refを持つ行7件、すべてnullから値に変わった)",
-            v.get("attribution_overwritten"), 16,
+            "見本の号/正例: attribution_overwrittenは18(出典10件+source_refを持つ行8件。題名が空のC09とL-10はひな形が作れず、nullのままなので数えない)",
+            v.get("attribution_overwritten"), 18,
         )
-        check("見本の号/正例: attribution_generation_skippedは0(publisher・title・urlがすべて揃っている)", v.get("attribution_generation_skipped"), 0)
+        check(
+            "見本の号/正例: attribution_generation_skippedは2(題名が空のC09と、それを参照するL-10)",
+            v.get("attribution_generation_skipped"), 2,
+        )
 
         # --- 4-12: 記録専用のキー ---
         check(
@@ -5341,6 +5482,35 @@ def test_canary_edition():
         check(
             "見本の号/正例: change_verified_lines_by_sectionはchange枠2件・big枠2件",
             v.get("change_verified_lines_by_section"), {"change": 2, "big": 2},
+        )
+
+        # --- 改修27-2第1回: S1・S12・S13 ---
+        check(
+            "見本の号/正例(27-2 S1): published_date_onlyの出典は書類一覧2つと、日付だけを書いたC08の3件",
+            v.get("published_date_only_sources"),
+            {"count": 3, "source_ids": ["SRC-EDINET-LIST", "SRC-EDINET-LIST-PREV", "C08"]},
+        )
+        check(
+            "見本の号/正例(27-2 S1): AIがpublished_date_only=falseと書いたC08(日付だけ)は機械が真に上書きする",
+            by_source["C08"].get("published_date_only"), True,
+        )
+        check(
+            "見本の号/負例(27-2 S1): 時刻付きのC05は偽になる",
+            by_source["C05"].get("published_date_only"), False,
+        )
+        check(
+            "見本の号/正例(27-2 S12): 題名が空のC09を参照するL-10だけが記録され、印はunverifiedになる",
+            (v.get("empty_title_or_url_refs"), lines_by_id["L-10"]["mark"], lines_by_id["L-10"]["mark_reason"]),
+            ({"count": 1, "line_ids": ["L-10"]}, "unverified", "empty_title_or_url"),
+        )
+        check(
+            "見本の号/負例(27-2 S1・S12): 日付だけの出典C08を参照するL-09は印を変えない(reported_unverifiedのまま)",
+            lines_by_id["L-09"]["mark"], "reported_unverified",
+        )
+        check(
+            "見本の号/正例(27-2 S13): reportedの上段4社は、いずれも定型文ではないため4件とも記録され、会社は消えない",
+            (v.get("reported_relation_text_mismatch"), len(after_hyp["hypotheses"])),
+            ({"count": 4, "hypothesis_ids": ["H-1", "H-2", "H-3", "H-4"]}, 4),
         )
 
         # --- 4-11: RECENT-HEADLINES.jsonを置いていないので失敗として記録される(号は止まらない) ---
@@ -5634,7 +5804,6 @@ def main():
     test_check_published_at()
     test_stale_sources()
     test_stop_and_watch_split()
-    test_check_minus_direction()
     test_derive_ticker_and_is_valid_ticker()
     test_check_ticker_fields()
     test_check_numbers_empty()
@@ -5734,6 +5903,16 @@ def main():
     test_recent_headlines_is_before_and_select()
     test_recent_headlines_script_end_to_end()
     test_build_index_skips_editions_without_verification()
+
+    # 改修27-2(第1回): 検査12の廃止(S6)・published_date_onlyの機械書き込み(S1)・
+    # titleかurlが空の出典(S12)・reportedの定型文(S13)のテスト。
+    test_check12_removed_direction_not_read()
+    test_is_date_only_string()
+    test_apply_published_date_only()
+    test_check36_still_applies_to_ai_date_only_sources()
+    test_empty_title_or_url_refs()
+    test_reported_relation_text_mismatch()
+    test_round1_27_2_end_to_end_default_keys_without_hypotheses()
 
     # 改修27-1(4-15): 見本の号(Canary)。
     test_canary_edition()
