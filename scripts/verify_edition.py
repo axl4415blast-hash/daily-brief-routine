@@ -24,11 +24,8 @@
       "evidence_source_ref": "SRC-001" | null,
       "evidence_filer_name": "..." | null,
       "evidence_excerpt": "..." | null,
-      "falsifier": "...",
       "baseline_date": "2026-09-24",
       "baseline_price_type": "close" | "open" | ...,
-      "horizon_business_days": 20,
-      "deadline_date": "2026-10-23",
       "line_ids": ["L-003-02"],
       "links": {"price_history": "https://..."}
     }
@@ -41,6 +38,12 @@ impact_kind / impact_kind_source / auto_check_target はAIには書かせず、�
 からEDINET書類一覧を引いてapply_edinet_evidence()が機械で確定する(check_hypothesis()の
 ループより先に実行する)。どちらも今回追加した項目のため、依頼文には例示が無い
 (本スクリプトが定める形)。
+
+改修27-1(決定1・4-5、紙面を書くAIへの指示第7.1版): horizon_business_days・deadline_dateは
+apply_observation_window()が、impact_kind(price_statedなら5営業日、それ以外は20営業日)から
+機械で必ず埋める(AIに書かせない。書いても必ず上書きする)。上段の仮説のfalsifierもAIに
+書かせなくなったため、REQUIRED_HYPOTHESIS_FIELDSから外した(推論欄のfalsifierは
+run_check_d_inferences()が今までどおり必須のまま扱う。取り違えないこと)。
 """
 import argparse
 import csv
@@ -69,9 +72,13 @@ REQUIRED_EDITION_KEYS = ["edition_id", "date", "slot", "generated_at", "market_o
 # "ticker" は以前ここに含まれていたが、検査13(ticker_missing/ticker_source_missing/
 # ticker_mismatch)が4桁形式のチェックまで含めて専用に判定するため、ここからは外した。
 REQUIRED_HYPOTHESIS_FIELDS = [
-    "company_name", "relation_text", "falsifier",
-    "baseline_date", "baseline_price_type", "horizon_business_days",
+    "company_name", "relation_text",
+    "baseline_date", "baseline_price_type",
 ]
+# 改修27-1(決定1): falsifierは上段の必須項目から外した(紙面を書くAIが書かなくなったため)。
+# run_check_d_inferences()が読む推論欄のfalsifierは別物で、そちらは今までどおり必須。
+# horizon_business_daysも改修27-1(4-5)でapply_observation_window()が機械で必ず埋めるため、
+# AIに書かせる必須項目からは外した(deadline_dateはもともとここに無い)。
 # links.price_history のURL(https://finance.yahoo.co.jp/quote/{証券コード}.T/history)から
 # /quote/ と .T の間の文字列を取り出す(検査13で使う)。
 PRICE_HISTORY_CODE_RE = re.compile(r"/quote/([^/]+)\.T(?:/|$)")
@@ -337,6 +344,26 @@ def check_edition_date(edition, run_at_dt):
             f"date '{actual_date}' が期待した日付 '{expected_date}' と一致しません"
             f"(実行時刻: {run_at_dt.isoformat()}, slot: {slot})。"
         )
+
+
+SLOT_EXPECTED_MORNING_START = dt.time(5, 0)
+SLOT_EXPECTED_NOON_START = dt.time(11, 0)
+SLOT_EXPECTED_EVENING_START = dt.time(16, 0)
+
+
+def compute_expected_slot(run_at_dt):
+    """改修27-1(決定4): 実行時刻(JST)から期待する時間帯(slot)を返す。
+      5:00〜10:59 → morning
+      11:00〜15:59 → noon
+      16:00〜23:59、0:00〜4:59 → evening
+    日付(前日か当日か)はcheck_edition_date()が別に判定するため、ここでは時刻だけから
+    時間帯を決める。27-1では記録するだけで、号を止める判定には使わない(27-2で決める)。"""
+    local_time = run_at_dt.astimezone(JST).time()
+    if SLOT_EXPECTED_MORNING_START <= local_time < SLOT_EXPECTED_NOON_START:
+        return "morning"
+    if SLOT_EXPECTED_NOON_START <= local_time < SLOT_EXPECTED_EVENING_START:
+        return "noon"
+    return "evening"
 
 
 def iter_lines(edition):
@@ -874,6 +901,89 @@ def first_business_day_on_or_after(business_days, date_str):
     return None
 
 
+OBSERVATION_WINDOW_PRICE_STATED_DAYS = 5
+OBSERVATION_WINDOW_DEFAULT_DAYS = 20
+
+
+def observation_window_horizon(impact_kind):
+    """改修27-1(4-5): impact_kindから観察の営業日数を機械で決める。price_statedは5営業日、
+    それ以外(amount_stated・fact_only・null)は20営業日。"""
+    if impact_kind == "price_stated":
+        return OBSERVATION_WINDOW_PRICE_STATED_DAYS
+    return OBSERVATION_WINDOW_DEFAULT_DAYS
+
+
+def compute_deadline_base_date(hyp, business_days):
+    """期限日を数え始める日(起算日)を返す。戻り値: (起算日 or None, Noneならその理由)。
+
+    検査17の例外(baseline_late_inputが真の場合、要件3.5(11)): 昼号の基準価格をその日の
+    うちに入力しなかった場合、期限日はbaseline_dateではなく、実際に株価を見た日
+    (baseline_observed_at)から数え直す。その日が営業日でなければ、その日より後の
+    最初の営業日を起点にする(元のcheck_hypothesis()の実装と同じ規則)。
+    apply_observation_window()と(検算のための)check_hypothesis()の両方から呼ぶため、
+    ここに1か所だけ書く。"""
+    if hyp.get("baseline_late_input"):
+        observed_dt = parse_datetime_assume_jst(hyp.get("baseline_observed_at"))
+        if observed_dt is None:
+            return None, "baseline_observed_at_unparseable"
+        observed_date = observed_dt.astimezone(JST).strftime("%Y-%m-%d")
+        base_date = first_business_day_on_or_after(business_days, observed_date)
+        if base_date is None:
+            return None, "baseline_observed_at_no_business_day"
+        return base_date, None
+
+    baseline_date = hyp.get("baseline_date")
+    if not baseline_date:
+        return None, "baseline_date_missing"
+    return baseline_date, None
+
+
+def recount_deadline_by_stepping(business_days, base_date, horizon):
+    """期限日を、compute_deadline()とは別の書き方(business_daysを先頭から1日ずつ数える)で
+    求め直す。検査17の検算(改修27-1・4-5)で、compute_deadline()自身のインデックス計算に
+    バグがあっても気づけるようにするため、あえて実装を分けている。
+    base_dateがbusiness_daysに無い、horizon分の営業日が足りない場合はNoneを返す。"""
+    if base_date not in business_days:
+        return None
+    remaining = horizon
+    for day in business_days:
+        if day <= base_date:
+            continue
+        remaining -= 1
+        if remaining == 0:
+            return day
+    return None
+
+
+def apply_observation_window(hyps, business_days):
+    """改修27-1(4-5): horizon_business_days・deadline_dateを、AIに書かせず
+    impact_kind(apply_edinet_evidence()が確定済みのもの)と営業日カレンダーから機械で
+    確定する。AIが書いた値は一致・不一致にかかわらず必ず上書きする。
+    呼び出し側で、apply_edinet_evidence()(impact_kindを確定する)より後、
+    check_hypothesis()のループより前に実行すること。
+
+    戻り値: {"horizon_overridden": 上書きで値が変わった件数,
+             "deadline_uncomputable": 期限日を計算できなかった件数
+             (この場合はdeadline_dateをnullにする。会社を消すのはこの場合だけ)}。"""
+    counts = {"horizon_overridden": 0, "deadline_uncomputable": 0}
+    for hyp in hyps:
+        old_horizon = hyp.get("horizon_business_days")
+        old_deadline = hyp.get("deadline_date")
+
+        horizon = observation_window_horizon(hyp.get("impact_kind"))
+        base_date, _reason = compute_deadline_base_date(hyp, business_days)
+        deadline = compute_deadline(business_days, base_date, horizon) if base_date is not None else None
+
+        hyp["horizon_business_days"] = horizon
+        hyp["deadline_date"] = deadline
+
+        if deadline is None:
+            counts["deadline_uncomputable"] += 1
+        if old_horizon != horizon or old_deadline != deadline:
+            counts["horizon_overridden"] += 1
+    return counts
+
+
 LINK_ONLY_USAGE = "link_only"
 
 
@@ -1286,28 +1396,22 @@ def check_hypothesis(hyp, edition, line_ids, business_days, ng_words, sources_by
             if line_ids.get(lid) == "unverified":
                 return "primary_requires_verified_line"
 
+    # 改修27-1(4-5): horizon_business_days・deadline_dateはapply_observation_window()が
+    # 機械で必ず埋めるため、ここでは値を作り直さない。会社を消すのはdeadline_dateが
+    # 計算できなかった場合(null)だけで、それ以外は検査17を「別の書き方
+    # (recount_deadline_by_stepping)で数え直し、ずれたら記録するだけ」の検算に変えた
+    # (会社は消さない)。
     horizon = hyp.get("horizon_business_days")
-    baseline_date = hyp.get("baseline_date")
-    if not isinstance(horizon, int) or not baseline_date:
+    if not isinstance(horizon, int) or hyp.get("deadline_date") is None:
         return "deadline_date_mismatch"
 
-    if hyp.get("baseline_late_input"):
-        # 検査17の例外(要件3.5(11)): 昼号の基準価格をその日のうちに入力しなかった場合、
-        # 期限日はbaseline_dateではなく、実際に株価を見た日(baseline_observed_at)から
-        # 数え直す。その日が営業日でなければ、その日より後の最初の営業日を起点にする。
-        observed_dt = parse_datetime_assume_jst(hyp.get("baseline_observed_at"))
-        if observed_dt is None:
-            return "deadline_date_mismatch"
-        observed_date = observed_dt.astimezone(JST).strftime("%Y-%m-%d")
-        deadline_base_date = first_business_day_on_or_after(business_days, observed_date)
-        if deadline_base_date is None:
-            return "deadline_date_mismatch"
+    deadline_base_date, _base_reason = compute_deadline_base_date(hyp, business_days)
+    if deadline_base_date is None:
+        extra_counts["baseline_date_check_skipped"] += 1
     else:
-        deadline_base_date = baseline_date
-
-    expected_deadline = compute_deadline(business_days, deadline_base_date, horizon)
-    if expected_deadline is None or expected_deadline != hyp.get("deadline_date"):
-        return "deadline_date_mismatch"
+        recount = recount_deadline_by_stepping(business_days, deadline_base_date, horizon)
+        if recount != hyp.get("deadline_date"):
+            extra_counts["horizon_recount_mismatch"] = extra_counts.get("horizon_recount_mismatch", 0) + 1
 
     relation_text = hyp.get("relation_text", "")
     for word in ng_words:
@@ -1368,6 +1472,11 @@ def run_hypothesis_checks(hypotheses_doc, edition, business_days, ng_words, cach
         "impact_kind_undetermined_by_doc_type": {},
         "edinet_url_unparsed": 0,
         "edinet_doclist_unavailable": edinet_companies is None,
+        # 改修27-1(4-5): horizon_business_days/deadline_dateを機械で埋めた件数・
+        # 検算(検査17)がずれた件数(記録専用)。
+        "horizon_overridden": 0,
+        "deadline_uncomputable": 0,
+        "horizon_recount_mismatch": 0,
     }
 
     market_open = edition.get("market_open", True)
@@ -1402,6 +1511,12 @@ def run_hypothesis_checks(hypotheses_doc, edition, business_days, ng_words, cach
     extra_counts["impact_kind_source_counts"] = evidence_counts["impact_kind_source_counts"]
     extra_counts["impact_kind_undetermined_by_doc_type"] = evidence_counts["impact_kind_undetermined_by_doc_type"]
     extra_counts["edinet_url_unparsed"] = evidence_counts["edinet_url_unparsed"]
+
+    # 改修27-1(4-5): horizon_business_days・deadline_dateも、impact_kindが確定した後で
+    # 機械が埋める(apply_edinet_evidence()の直後、check_hypothesis()のループより前)。
+    window_counts = apply_observation_window(hyps, business_days)
+    extra_counts["horizon_overridden"] = window_counts["horizon_overridden"]
+    extra_counts["deadline_uncomputable"] = window_counts["deadline_uncomputable"]
 
     for hyp in hyps:
         reason = check_hypothesis(
@@ -1844,18 +1959,34 @@ def should_abort_rerun(existing_verification, baseline_late):
     return bool(baseline_late)
 
 
+def override_generated_at(doc, run_at_iso):
+    """改修27-1(4-1): generated_atをAIの自己申告から照合スクリプトの実行時刻(run_at_iso、
+    日本時間・+09:00付き)へ上書きする。docは紙面JSON・仮説JSONのどちらにも使う共通処理。
+    戻り値: 上書きする前にdocに入っていた値(AIの自己申告。nullのこともある。記録専用)。"""
+    reported = doc.get("generated_at")
+    doc["generated_at"] = run_at_iso
+    return reported
+
+
 def build_first_run_record(run_at, run_at_dt, baseline_late, market_open_reported,
-                            source_policy_overwritten, generated_at_raw):
+                            source_policy_overwritten, generated_at_raw,
+                            hypotheses_generated_at_raw=None):
     """修正2: 初回の照合結果を1回だけ記録する(first_run)。2回目以降の照合では、
     main()がこの中身を一切書き換えない(呼び出さない)。
-    この記録は判定には使わない。AIが書けるファイルの中にあるため。"""
-    generated_dt = parse_datetime_assume_jst(generated_at_raw)
-    if generated_dt is not None:
-        generated_at_parsed = True
-        drift_minutes = int((run_at_dt - generated_dt).total_seconds() / 60)
-    else:
-        generated_at_parsed = False
-        drift_minutes = None
+    この記録は判定には使わない。AIが書けるファイルの中にあるため。
+
+    改修27-1(4-1): 紙面のgenerated_at(generated_at_raw)に加えて、仮説ファイルの
+    generated_at(hypotheses_generated_at_raw)も同じ形で記録する。--hypothesesを
+    指定しない実行ではhypotheses_generated_at_rawはNoneのまま(parsed=False、
+    drift_minutes=Noneになる)。"""
+    def _parsed_and_drift(raw):
+        parsed_dt = parse_datetime_assume_jst(raw)
+        if parsed_dt is None:
+            return False, None
+        return True, int((run_at_dt - parsed_dt).total_seconds() / 60)
+
+    generated_at_parsed, drift_minutes = _parsed_and_drift(generated_at_raw)
+    hyp_generated_at_parsed, hyp_drift_minutes = _parsed_and_drift(hypotheses_generated_at_raw)
     return {
         "run_at": run_at,
         "baseline_late": baseline_late,
@@ -1864,6 +1995,9 @@ def build_first_run_record(run_at, run_at_dt, baseline_late, market_open_reporte
         "generated_at_reported": generated_at_raw,
         "generated_at_parsed": generated_at_parsed,
         "generated_at_drift_minutes": drift_minutes,
+        "hypotheses_generated_at_reported": hypotheses_generated_at_raw,
+        "hypotheses_generated_at_parsed": hyp_generated_at_parsed,
+        "hypotheses_generated_at_drift_minutes": hyp_drift_minutes,
     }
 
 
@@ -1902,10 +2036,21 @@ def main():
 
         check_a_structure(edition)
         check_b_edition_id(edition, edition_path)
+
+        # 改修27-1(4-1): generated_atはAIの自己申告ではなく、照合スクリプトの実行時刻で
+        # 上書きする。AIの値(nullを含む)はfirst_run.generated_at_reportedに今までどおり
+        # 記録する(上書きする前に控えておく)。
+        generated_at_raw = override_generated_at(edition, run_at)
+
         # 検査24(要件3.5(9)): first_runの有無にかかわらず常に実行する(修正A)。
         # first_runは紙面を作るAIが書けるファイルの中にあるため、その有無で
         # 検査を飛ばすと、AIがfirst_runを自分で書いてこの検査を丸ごと避けられる。
         check_edition_date(edition, run_at_dt)
+
+        # 改修27-1(決定4): 実行時刻から期待する時間帯(slot)を出し、号のslotと違えば
+        # 記録するだけにする(号は止めない。止めるかは27-2で決める)。
+        slot_expected = compute_expected_slot(run_at_dt)
+        slot_mismatch = edition.get("slot") != slot_expected
 
         # usage/publisher_typeはAIの自己申告を信用せず、表の値で必ず上書きする。
         source_policy_result = apply_source_policy(edition, source_policy_path)
@@ -1961,11 +2106,18 @@ def main():
             "impact_kind_undetermined_by_doc_type": {},
             "edinet_url_unparsed": 0,
             "edinet_doclist_unavailable": edinet_companies is None,
+            # 改修27-1(4-5): --hypotheses未指定でもキーがそろうよう、既定値を0にしておく。
+            "horizon_overridden": 0,
+            "deadline_uncomputable": 0,
+            "horizon_recount_mismatch": 0,
         }
         hypotheses_doc = None
+        hypotheses_generated_at_raw = None
         industry_report = None
         if args.hypotheses:
             hypotheses_doc = load_json(args.hypotheses)
+            # 改修27-1(4-1): 仮説ファイルのgenerated_atも、紙面と同じく実行時刻で上書きする。
+            hypotheses_generated_at_raw = override_generated_at(hypotheses_doc, run_at)
             hypotheses_doc["baseline_late"] = baseline_late
             hypotheses_doc["market_open"] = edition["market_open"]
             business_days = load_business_days(args.calendar)
@@ -2057,7 +2209,8 @@ def main():
             first_run = build_first_run_record(
                 run_at, run_at_dt, baseline_late,
                 market_open_result["reported"], source_policy_result["overwritten"],
-                edition.get("generated_at"),
+                generated_at_raw,
+                hypotheses_generated_at_raw=hypotheses_generated_at_raw,
             )
 
         # 修正4: 号に残っている行(停止語・出典の鮮度の検査が終わった後)で数える。
@@ -2086,6 +2239,10 @@ def main():
             "unverified_reasons": stats["unverified_reasons"],
             "ticker_crosscheck": ticker_crosscheck,
             "baseline_late": baseline_late,
+            # 改修27-1(決定4): 検査24は時間帯のずれを止めずに記録するだけにする
+            # (号を止めるかどうかは27-2で決める)。
+            "slot_expected": slot_expected,
+            "slot_mismatch": slot_mismatch,
             "source_usage_invalid_hits": source_usage_invalid_hits,
             "source_policy_applied": True,
             "source_policy_overwritten": source_policy_result["overwritten"],
@@ -2104,6 +2261,14 @@ def main():
             "impact_kind_undetermined_by_doc_type": hypothesis_extra["impact_kind_undetermined_by_doc_type"],
             "edinet_url_unparsed": hypothesis_extra["edinet_url_unparsed"],
             "edinet_doclist_unavailable": hypothesis_extra["edinet_doclist_unavailable"],
+            # 改修27-1(4-5): horizon_business_days/deadline_dateを機械で埋めた件数・
+            # 計算できなかった件数(記録専用。会社を消すのはdeadline_uncomputableの
+            # 場合のみで、その削除は仮説に関する指摘件数の方に出る)。
+            "horizon_overridden": hypothesis_extra["horizon_overridden"],
+            "deadline_uncomputable": hypothesis_extra["deadline_uncomputable"],
+            # 検査17(改修27-1・4-5で検算に変更): 別の書き方で数え直した期限日がずれた件数
+            # (判定には使わない。会社は消さない)。
+            "horizon_recount_mismatch": hypothesis_extra["horizon_recount_mismatch"],
             "published_at_unverified_hits": published_at_unverified_hits,
             "published_at_unverified_sources": published_at_unverified_sources,
             # 修正5: 記録専用(判定には使わない)。既存のunknown_published_at_hitsは変えない。

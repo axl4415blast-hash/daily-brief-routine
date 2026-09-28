@@ -2904,8 +2904,11 @@ def test_evidence_downgrade_target_is_reported():
 
 
 def test_check_hypothesis_baseline_late_input():
-    """検査17(修正6): baseline_late_inputが真の仮説は、baseline_dateではなく
-    baseline_observed_atの日付(営業日でなければ後の最初の営業日)から期限日を数え直す。"""
+    """検査17(修正6・改修27-1の4-5で検算に変更): baseline_late_inputが真の仮説は、
+    baseline_dateではなくbaseline_observed_atの日付(営業日でなければ後の最初の営業日)
+    から期限日を数え直す。改修27-1により、期限日がずれていても会社は消えなくなった
+    (horizon_recount_mismatchに記録するだけ)。deadline_dateがnull(=apply_observation_
+    window()が計算できなかった場合)だけ、今までどおり削除される。"""
     business_days = ve.load_business_days(str(CALENDAR_DIR))
     sources = {}
     line_ids = {"L-1": "verified"}
@@ -2914,7 +2917,7 @@ def test_check_hypothesis_baseline_late_input():
     def base(**kw):
         h = {
             "company_name": "テスト物産", "relation_text": "業績に影響しうる",
-            "falsifier": "翌月大幅に悪化した場合", "baseline_price_type": "close",
+            "baseline_price_type": "close",
             "direction": "plus", "evidence_grade": "reported",
             "ticker": "8801", "ticker_source": "edinet_codelist", "line_ids": ["L-1"],
             # added_by="manual": このテストは検査17(期限日の計算)だけを確かめる対象で、
@@ -2927,7 +2930,8 @@ def test_check_hypothesis_baseline_late_input():
 
     def result_for(hyp):
         extra_counts = {"codelist_unavailable": True, "baseline_date_check_skipped": 0}
-        return ve.check_hypothesis(hyp, {}, line_ids, business_days, ng_words, sources, ".", None, None, extra_counts)
+        reason = ve.check_hypothesis(hyp, {}, line_ids, business_days, ng_words, sources, ".", None, None, extra_counts)
+        return reason, extra_counts.get("horizon_recount_mismatch", 0)
 
     # --- 正例1: baseline_observed_atが営業日そのもの ---
     expected1 = ve.compute_deadline(business_days, "2026-09-25", 5)
@@ -2935,10 +2939,12 @@ def test_check_hypothesis_baseline_late_input():
         baseline_late_input=True, baseline_observed_at="2026-09-25T10:00:00+09:00",
         baseline_date="2026-09-24", horizon_business_days=5, deadline_date=expected1,
     )
+    reason1, mismatch1 = result_for(hyp1)
     check(
         "検査17/正例1: baseline_late_inputが真ならbaseline_observed_atの日付から数えた期限日が合格する",
-        result_for(hyp1), None,
+        reason1, None,
     )
+    check("検査17/正例1: 期限日が合っていればhorizon_recount_mismatchは増えない", mismatch1, 0)
 
     # --- 正例2: baseline_observed_atが非営業日(土曜) → 後の最初の営業日(2026-09-28)から数える ---
     expected2 = ve.compute_deadline(business_days, "2026-09-28", 3)
@@ -2946,45 +2952,58 @@ def test_check_hypothesis_baseline_late_input():
         baseline_late_input=True, baseline_observed_at="2026-09-26T09:00:00+09:00",
         baseline_date="2026-09-24", horizon_business_days=3, deadline_date=expected2,
     )
+    reason2, mismatch2 = result_for(hyp2)
     check(
         "検査17/正例2: baseline_observed_atが非営業日なら後の最初の営業日から数え直す",
-        result_for(hyp2), None,
+        reason2, None,
     )
+    check("検査17/正例2: 期限日が合っていればhorizon_recount_mismatchは増えない", mismatch2, 0)
 
-    # --- 負例(反応してほしい): baseline_observed_atがnull → 削除 ---
+    # --- 負例(反応してほしい): baseline_observed_atがnullで期限日を計算できなかった
+    #     場合(apply_observation_window()がdeadline_dateをnullにする場合と同じ状態)
+    #     → 削除。これは検算のずれではなく「期限日が無い」ための削除(今までどおり)。 ---
     hyp3 = base(
         baseline_late_input=True, baseline_observed_at=None,
-        baseline_date="2026-09-24", horizon_business_days=5, deadline_date=expected1,
+        baseline_date="2026-09-24", horizon_business_days=5, deadline_date=None,
     )
+    reason3, _mismatch3 = result_for(hyp3)
     check(
-        "検査17/負例: baseline_observed_atがnullならdeadline_date_mismatchで削除される",
-        result_for(hyp3), "deadline_date_mismatch",
+        "検査17/負例: baseline_observed_atがnullでdeadline_dateがnullならdeadline_date_mismatchで削除される",
+        reason3, "deadline_date_mismatch",
     )
 
     # --- 負例(反応してほしくない例。5件以上): baseline_late_inputが偽・無い・nullは従来どおり ---
     expected_normal = ve.compute_deadline(business_days, "2026-09-24", 5)
     hyp4 = base(baseline_late_input=False, baseline_date="2026-09-24", horizon_business_days=5, deadline_date=expected_normal)
+    reason4, mismatch4 = result_for(hyp4)
     check(
         "検査17/反応してほしくない例1: baseline_late_inputが偽ならbaseline_dateから従来どおり計算される",
-        result_for(hyp4), None,
+        reason4, None,
     )
+    check("検査17/反応してほしくない例1: 期限日が合っていればhorizon_recount_mismatchは増えない", mismatch4, 0)
 
     hyp5 = base(baseline_date="2026-09-24", horizon_business_days=5, deadline_date=expected_normal)
     check(
         "検査17/反応してほしくない例2: baseline_late_inputキーが無くても従来どおり計算される",
-        result_for(hyp5), None,
+        result_for(hyp5)[0], None,
     )
 
     hyp6 = base(baseline_late_input=None, baseline_date="2026-09-24", horizon_business_days=5, deadline_date=expected_normal)
     check(
         "検査17/反応してほしくない例3: baseline_late_inputがnullでも従来どおり計算される",
-        result_for(hyp6), None,
+        result_for(hyp6)[0], None,
     )
 
+    # --- 改修27-1(4-5)の中心の確認: 期限日がずれていても会社は消えず、記録だけされる ---
     hyp7 = base(baseline_late_input=False, baseline_date="2026-09-24", horizon_business_days=5, deadline_date="2099-01-01")
+    reason7, mismatch7 = result_for(hyp7)
     check(
-        "検査17/反応してほしくない例4: baseline_late_inputが偽で期限日が違えばdeadline_date_mismatchになる(従来どおり)",
-        result_for(hyp7), "deadline_date_mismatch",
+        "改修27-1/検査17: 期限日がずれていても会社は消えない(検算に変わったため)",
+        reason7, None,
+    )
+    check(
+        "改修27-1/検査17: 期限日がずれていればhorizon_recount_mismatchが1増える",
+        mismatch7, 1,
     )
 
     expected_alt_horizon = ve.compute_deadline(business_days, "2026-09-25", 3)
@@ -2992,10 +3011,355 @@ def test_check_hypothesis_baseline_late_input():
         baseline_late_input=True, baseline_observed_at="2026-09-25T09:00:00+09:00",
         baseline_date="2026-09-24", horizon_business_days=3, deadline_date=expected_alt_horizon,
     )
+    reason8, mismatch8 = result_for(hyp8)
     check(
         "検査17/反応してほしくない例5: horizonを変えても営業日起算の仕組み自体は壊れていない",
-        result_for(hyp8), None,
+        reason8, None,
     )
+    check("検査17/反応してほしくない例5: 期限日が合っていればhorizon_recount_mismatchは増えない", mismatch8, 0)
+
+    # --- 負例(反応してほしい): horizon_business_daysが整数でなければ従来どおり削除される ---
+    hyp9 = base(baseline_date="2026-09-24", horizon_business_days=None, deadline_date=expected_normal)
+    check(
+        "検査17/負例: horizon_business_daysが無い(整数でない)ならdeadline_date_mismatchで削除される",
+        result_for(hyp9)[0], "deadline_date_mismatch",
+    )
+
+    # --- 負例(反応してほしい): deadline_dateがnull(計算できなかった)なら削除される ---
+    hyp10 = base(baseline_date="2026-09-24", horizon_business_days=5, deadline_date=None)
+    check(
+        "検査17/負例: deadline_dateがnull(計算できなかった)ならdeadline_date_mismatchで削除される",
+        result_for(hyp10)[0], "deadline_date_mismatch",
+    )
+
+
+def test_observation_window_horizon():
+    """改修27-1(4-5): impact_kindから観察の営業日数を機械で決める。"""
+    check("observation_window_horizon/正例: price_statedは5営業日", ve.observation_window_horizon("price_stated"), 5)
+    check("observation_window_horizon/負例: amount_statedは20営業日", ve.observation_window_horizon("amount_stated"), 20)
+    check("observation_window_horizon/負例: fact_onlyは20営業日", ve.observation_window_horizon("fact_only"), 20)
+    check("observation_window_horizon/負例: nullは20営業日", ve.observation_window_horizon(None), 20)
+
+
+def test_compute_deadline_base_date():
+    """改修27-1(4-5): 期限日の起算日を決める規則(baseline_late_inputの例外を含む)。"""
+    business_days = ve.load_business_days(str(CALENDAR_DIR))
+
+    base_normal, reason_normal = ve.compute_deadline_base_date({"baseline_date": "2026-09-24"}, business_days)
+    check("compute_deadline_base_date/正例: baseline_late_inputが無ければbaseline_dateがそのまま起算日", base_normal, "2026-09-24")
+    check("compute_deadline_base_date/正例: 理由はNone", reason_normal, None)
+
+    base_observed, _r1 = ve.compute_deadline_base_date(
+        {"baseline_late_input": True, "baseline_observed_at": "2026-09-25T10:00:00+09:00", "baseline_date": "2026-09-24"},
+        business_days,
+    )
+    check(
+        "compute_deadline_base_date/正例: baseline_late_inputが真なら営業日のbaseline_observed_atがそのまま起算日",
+        base_observed, "2026-09-25",
+    )
+
+    base_weekend, _r2 = ve.compute_deadline_base_date(
+        {"baseline_late_input": True, "baseline_observed_at": "2026-09-26T09:00:00+09:00", "baseline_date": "2026-09-24"},
+        business_days,
+    )
+    check(
+        "compute_deadline_base_date/正例: baseline_observed_atが非営業日(土曜)なら後の最初の営業日",
+        base_weekend, "2026-09-28",
+    )
+
+    base_none, reason_none = ve.compute_deadline_base_date(
+        {"baseline_late_input": True, "baseline_observed_at": None, "baseline_date": "2026-09-24"}, business_days,
+    )
+    check("compute_deadline_base_date/負例: baseline_observed_atが読めなければ起算日はNone", base_none, None)
+    check("compute_deadline_base_date/負例: 理由はbaseline_observed_at_unparseable", reason_none, "baseline_observed_at_unparseable")
+
+    base_missing, reason_missing = ve.compute_deadline_base_date({"baseline_date": None}, business_days)
+    check("compute_deadline_base_date/負例: baseline_dateが無ければ起算日はNone", base_missing, None)
+    check("compute_deadline_base_date/負例: 理由はbaseline_date_missing", reason_missing, "baseline_date_missing")
+
+
+def test_recount_deadline_by_stepping():
+    """改修27-1(4-5): 検査17の検算(compute_deadline()とは別の書き方)が、同じ入力なら
+    compute_deadline()と同じ答えを返すこと、境界で正しくNoneを返すことを確かめる。"""
+    business_days = ve.load_business_days(str(CALENDAR_DIR))
+
+    for base_date, horizon in (("2026-09-24", 5), ("2026-09-24", 20), ("2026-09-25", 1)):
+        expected = ve.compute_deadline(business_days, base_date, horizon)
+        actual = ve.recount_deadline_by_stepping(business_days, base_date, horizon)
+        check(
+            f"recount_deadline_by_stepping/正例: compute_deadline()と同じ答え(base={base_date}, horizon={horizon})",
+            actual, expected,
+        )
+
+    check(
+        "recount_deadline_by_stepping/負例: base_dateがbusiness_daysに無ければNone(土曜)",
+        ve.recount_deadline_by_stepping(business_days, "2026-09-26", 5), None,
+    )
+    check(
+        "recount_deadline_by_stepping/負例: 営業日が足りなければNone(カレンダーの末尾を超える)",
+        ve.recount_deadline_by_stepping(business_days, business_days[-1], 1), None,
+    )
+
+
+def test_apply_observation_window():
+    """改修27-1(4-5): horizon_business_days・deadline_dateを機械で必ず上書きすること、
+    AIが書いた値の一致・不一致にかかわらず上書きすること、件数の記録を確かめる。"""
+    business_days = ve.load_business_days(str(CALENDAR_DIR))
+
+    price_hyp = {
+        "impact_kind": "price_stated", "baseline_date": "2026-09-24",
+        "horizon_business_days": 999, "deadline_date": "AIが書いた値",
+    }
+    other_hyp = {"impact_kind": "fact_only", "baseline_date": "2026-09-24"}
+    unresolvable_hyp = {"impact_kind": None, "baseline_date": None}
+
+    hyps = [price_hyp, other_hyp, unresolvable_hyp]
+    counts = ve.apply_observation_window(hyps, business_days)
+
+    check("apply_observation_window/正例: price_statedは5営業日で上書きされる", price_hyp["horizon_business_days"], 5)
+    check(
+        "apply_observation_window/正例: price_statedのdeadline_dateはcompute_deadline()と一致",
+        price_hyp["deadline_date"], ve.compute_deadline(business_days, "2026-09-24", 5),
+    )
+    check("apply_observation_window/正例: fact_onlyは20営業日になる", other_hyp["horizon_business_days"], 20)
+    check(
+        "apply_observation_window/正例: horizon_business_daysが未記入でも機械が埋める",
+        other_hyp["deadline_date"], ve.compute_deadline(business_days, "2026-09-24", 20),
+    )
+    check(
+        "apply_observation_window/負例: 起算日が無ければdeadline_dateはnullになる",
+        unresolvable_hyp["deadline_date"], None,
+    )
+    check(
+        "apply_observation_window/負例: 起算日が無くてもhorizon_business_daysは20が入る(nullのままにはしない)",
+        unresolvable_hyp["horizon_business_days"], 20,
+    )
+
+    check("apply_observation_window/件数: horizon_overridden(3件とも値が変わった)", counts["horizon_overridden"], 3)
+    check("apply_observation_window/件数: deadline_uncomputable(起算日が無い1件)", counts["deadline_uncomputable"], 1)
+
+    # 既に正しい値が入っている場合は上書きされても件数は増えない(値が変わらないため)。
+    already_correct = {
+        "impact_kind": "price_stated", "baseline_date": "2026-09-24",
+        "horizon_business_days": 5, "deadline_date": ve.compute_deadline(business_days, "2026-09-24", 5),
+    }
+    counts2 = ve.apply_observation_window([already_correct], business_days)
+    check("apply_observation_window/負例: 既に正しい値ならhorizon_overriddenは増えない", counts2["horizon_overridden"], 0)
+
+
+def test_required_hypothesis_fields_no_falsifier_or_horizon():
+    """改修27-1(決定1・4-5): 上段の必須項目からfalsifier・horizon_business_daysを外した。
+    紙面を書くAIがこの2つを書かなくても(キー自体が無くても)、そのために会社が
+    消えることはない(REQUIRED_HYPOTHESIS_FIELDSのループでmissing_fieldにならない)。"""
+    check(
+        "REQUIRED_HYPOTHESIS_FIELDS/正例: falsifierが必須項目に含まれていない",
+        "falsifier" in ve.REQUIRED_HYPOTHESIS_FIELDS, False,
+    )
+    check(
+        "REQUIRED_HYPOTHESIS_FIELDS/正例: horizon_business_daysが必須項目に含まれていない",
+        "horizon_business_days" in ve.REQUIRED_HYPOTHESIS_FIELDS, False,
+    )
+
+    business_days = ve.load_business_days(str(CALENDAR_DIR))
+    sources = {}
+    line_ids = {"L-1": "verified"}
+    ng_words = []
+
+    hyp = {
+        "company_name": "テスト物産", "relation_text": "業績に影響しうる",
+        "baseline_price_type": "close", "baseline_date": "2026-09-24",
+        "evidence_grade": "reported", "ticker": "8801", "ticker_source": "edinet_codelist",
+        "line_ids": ["L-1"], "added_by": "manual",
+        # apply_observation_window()が埋めた後の状態を模して、horizon_business_days・
+        # deadline_dateは機械の値を入れておく(check_hypothesis()単体では
+        # apply_observation_window()を呼ばないため)。falsifier・direction・
+        # evidence_excerptはキーごと書かない(第7.1版9.4の(2))。
+        "horizon_business_days": 20,
+        "deadline_date": ve.compute_deadline(business_days, "2026-09-24", 20),
+    }
+    extra_counts = {"codelist_unavailable": True, "baseline_date_check_skipped": 0}
+    reason = ve.check_hypothesis(hyp, {}, line_ids, business_days, ng_words, sources, ".", None, None, extra_counts)
+    check(
+        "改修27-1/正例: falsifier・direction・evidence_excerptを書かなくても会社は消えない",
+        reason, None,
+    )
+
+
+def test_inference_falsifier_still_required():
+    """改修27-1(決定1)の確認: 上段の仮説のfalsifierは必須項目から外れたが、記事の
+    推論欄(inferences)のfalsifierはrun_check_d_inferences()で今までどおり必須のまま。
+    上段と推論欄のfalsifierを取り違えていないことを確かめる。"""
+    edition = {
+        "sections": [{
+            "section_id": "big",
+            "articles": [{
+                "article_id": "A-1",
+                "lines": [],
+                "inferences": [
+                    {
+                        "text": "説明文", "falsifier": "反証条件",
+                        "check_metric": "指標", "check_by": "2026-10-01",
+                    },
+                    {
+                        "text": "説明文2", "falsifier": None,
+                        "check_metric": "指標2", "check_by": "2026-10-02",
+                    },
+                ],
+            }],
+        }],
+    }
+    dropped = ve.run_check_d_inferences(edition)
+    check("改修27-1/推論欄: falsifierが無い推論は今までどおり削除される", dropped, 1)
+    remaining = edition["sections"][0]["articles"][0]["inferences"]
+    check("改修27-1/推論欄: falsifierがある推論は残る", len(remaining), 1)
+    check("改修27-1/推論欄: 残った推論のfalsifierは元のまま", remaining[0]["falsifier"], "反証条件")
+
+
+def test_override_generated_at():
+    """改修27-1(4-1): generated_atをAIの自己申告から実行時刻に上書きし、元の値を返すこと。"""
+    doc1 = {"generated_at": "2026-09-24T08:00:00+09:00", "other": 1}
+    reported1 = ve.override_generated_at(doc1, "2026-09-28T18:30:00+09:00")
+    check("override_generated_at/正例: 戻り値はAIが書いていた元の値", reported1, "2026-09-24T08:00:00+09:00")
+    check("override_generated_at/正例: docのgenerated_atは実行時刻に上書きされる", doc1["generated_at"], "2026-09-28T18:30:00+09:00")
+    check("override_generated_at/正例: 他のキーは変わらない", doc1["other"], 1)
+
+    doc2 = {"generated_at": None}
+    reported2 = ve.override_generated_at(doc2, "2026-09-28T18:30:00+09:00")
+    check("override_generated_at/正例: AIの値がnullでも戻り値はnull", reported2, None)
+    check("override_generated_at/正例: nullでも実行時刻に上書きされる", doc2["generated_at"], "2026-09-28T18:30:00+09:00")
+
+    doc3 = {}
+    reported3 = ve.override_generated_at(doc3, "2026-09-28T18:30:00+09:00")
+    check("override_generated_at/正例: generated_atキー自体が無くても戻り値はnull", reported3, None)
+    check("override_generated_at/正例: キーが無くても実行時刻のキーが作られる", doc3["generated_at"], "2026-09-28T18:30:00+09:00")
+
+
+def test_compute_expected_slot():
+    """改修27-1(決定4): 実行時刻の時刻部分だけから期待する時間帯を決める境界値を確かめる。"""
+    def slot_at(iso):
+        return ve.compute_expected_slot(dt.datetime.fromisoformat(iso))
+
+    check("compute_expected_slot/境界: 4:59はevening(前日分)", slot_at("2026-09-28T04:59:00+09:00"), "evening")
+    check("compute_expected_slot/境界: 5:00はmorning", slot_at("2026-09-28T05:00:00+09:00"), "morning")
+    check("compute_expected_slot/境界: 10:59はmorning", slot_at("2026-09-28T10:59:00+09:00"), "morning")
+    check("compute_expected_slot/境界: 11:00はnoon", slot_at("2026-09-28T11:00:00+09:00"), "noon")
+    check("compute_expected_slot/境界: 15:59はnoon", slot_at("2026-09-28T15:59:00+09:00"), "noon")
+    check("compute_expected_slot/境界: 16:00はevening", slot_at("2026-09-28T16:00:00+09:00"), "evening")
+    check("compute_expected_slot/境界: 23:59はevening", slot_at("2026-09-28T23:59:00+09:00"), "evening")
+    check("compute_expected_slot/境界: 0:00はevening", slot_at("2026-09-28T00:00:00+09:00"), "evening")
+
+
+def test_round1_end_to_end_missing_ai_fields():
+    """改修27-1(第1回)をCLI全体(main())で確かめる統合テスト。紙面を書くAIへの指示
+    第7.1版で、上段の会社がfalsifier・horizon_business_days・deadline_date・direction・
+    evidence_excerptを一切書かなくても(キーごと省略しても)、会社が消えないことを
+    確かめる。generated_atがnull(未記入)でも実行時刻で上書きされ、AIの値(null)が
+    first_run.generated_at_reported/hypotheses_generated_at_reportedに残ることも確かめる。
+    scripts/testdataは使わず、その場で作った最小限の架空データだけを使う
+    (ticker_sourceが無いなど、この確認に無関係な理由で仮説が落ちるのを避けるため)。"""
+    with tempfile.TemporaryDirectory() as d:
+        work_dir = Path(d)
+        now = dt.datetime.now(ve.JST)
+        today_str = _expected_edition_date("evening", now)
+
+        edition = {
+            "edition_id": f"{today_str}-evening",
+            "date": today_str,
+            "slot": "evening",
+            "generated_at": None,
+            "market_open": None,
+            "sources": [],
+            "sections": [{
+                "section_id": "change",
+                "articles": [{
+                    "article_id": "A-1",
+                    "lines": [{
+                        "line_id": "L-1", "text": "架空の会社の発表内容です",
+                        "claimed_mark": "reported_unverified", "numbers": [],
+                    }],
+                }],
+            }],
+        }
+        hyp_doc = {
+            "edition_id": f"{today_str}-evening",
+            "generated_at": None,
+            "hypotheses": [{
+                "hypothesis_id": "H-1",
+                "company_name": "カナリア工業",
+                "relation_text": "業績に影響しうる可能性がある",
+                "evidence_grade": "reported",
+                "ticker": "1234",
+                "ticker_source": "edinet_seccode",
+                "baseline_date": today_str,
+                "baseline_price_type": "close",
+                "added_by": "manual",
+                "line_ids": ["L-1"],
+                # falsifier・horizon_business_days・deadline_date・direction・
+                # evidence_excerptはキーごと省略する(第7.1版9.4の(1)(2))。
+            }],
+        }
+
+        edition_dir = work_dir / "editions" / today_str
+        edition_dir.mkdir(parents=True)
+        edition_path = edition_dir / "evening.json"
+        edition_path.write_text(json.dumps(edition, ensure_ascii=False, indent=1), encoding="utf-8")
+
+        hyp_dir = work_dir / "hypotheses"
+        hyp_dir.mkdir(parents=True)
+        hyp_path = hyp_dir / f"{today_str}-evening.json"
+        hyp_path.write_text(json.dumps(hyp_doc, ensure_ascii=False, indent=1), encoding="utf-8")
+
+        cache_dir = work_dir / "cache"
+        cache_dir.mkdir(parents=True)
+        calendar_dir = _write_temp_calendar(work_dir, dt.datetime.strptime(today_str, "%Y-%m-%d").date(), 40)
+
+        result = _run_verify_cli(work_dir, edition_path, hyp_path, cache_dir, calendar_dir)
+        check("改修27-1/統合: 正常終了する(終了コード0)", result.returncode, 0)
+
+        after_edition = json.loads(edition_path.read_text(encoding="utf-8"))
+        after_hyp = json.loads(hyp_path.read_text(encoding="utf-8"))
+
+        check(
+            "改修27-1/統合: falsifier・horizon_business_days等を書かなくても会社は消えない",
+            len(after_hyp.get("hypotheses") or []), 1,
+        )
+        if after_hyp.get("hypotheses"):
+            kept = after_hyp["hypotheses"][0]
+            check(
+                "改修27-1/統合: horizon_business_daysが機械で埋まる(fact_only相当=20営業日)",
+                kept.get("horizon_business_days"), 20,
+            )
+            check("改修27-1/統合: deadline_dateが機械で埋まる(null以外)", kept.get("deadline_date") is not None, True)
+
+        v = after_edition.get("verification") or {}
+        check("改修27-1/統合: hypothesis_violationsが0(会社が消えていない)", v.get("hypothesis_violations"), 0)
+
+        check(
+            "改修27-1/統合: 紙面のgenerated_atが実行時刻に上書きされる(nullのままではない)",
+            after_edition.get("generated_at") is not None, True,
+        )
+        check(
+            "改修27-1/統合: 仮説ファイルのgenerated_atも実行時刻に上書きされる",
+            after_hyp.get("generated_at") is not None, True,
+        )
+
+        first_run = v.get("first_run") or {}
+        check(
+            "改修27-1/統合: first_run.generated_at_reportedにAIの元の値(null)が残る",
+            first_run.get("generated_at_reported"), None,
+        )
+        check(
+            "改修27-1/統合: first_run.hypotheses_generated_at_reportedにAIの元の値(null)が残る",
+            first_run.get("hypotheses_generated_at_reported"), None,
+        )
+
+        check(
+            "改修27-1/統合: slot_expectedキーが記録される",
+            v.get("slot_expected") in ("morning", "noon", "evening"), True,
+        )
+        check("改修27-1/統合: slot_mismatchは真偽値", isinstance(v.get("slot_mismatch"), bool), True)
+
+    _assert_testdata_untouched("改修27-1/統合テスト")
 
 
 def test_apply_edinet_evidence():
@@ -3526,6 +3890,18 @@ def main():
     test_edition_date_check_cannot_be_bypassed_by_forged_first_run()
     test_evidence_downgrade_target_is_reported()
     test_check_hypothesis_baseline_late_input()
+
+    # 改修27-1(第1回): decision1(falsifier)・4-5(観察窓の機械化)・4-1(generated_atの
+    # 上書き)・決定4(検査24の時間帯記録)のテスト。
+    test_observation_window_horizon()
+    test_compute_deadline_base_date()
+    test_recount_deadline_by_stepping()
+    test_apply_observation_window()
+    test_required_hypothesis_fields_no_falsifier_or_horizon()
+    test_inference_falsifier_still_required()
+    test_override_generated_at()
+    test_compute_expected_slot()
+    test_round1_end_to_end_missing_ai_fields()
 
     total = len(results)
     passed = sum(1 for _, ok, _, _ in results if ok)
