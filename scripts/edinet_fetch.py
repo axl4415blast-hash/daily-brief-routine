@@ -157,6 +157,9 @@ def build_companies(raw_doc):
             "doc_type_code": r.get("docTypeCode"),
             "doc_description": r.get("docDescription"),
             "submit_date_time": r.get("submitDateTime"),
+            # 改修27-1(4-10): 公開買付関係の書類で「対象の発行者」を表す項目。
+            # verify_edition.pyのtob_sideの機械判定で使う。
+            "subject_edinet_code": r.get("subjectEdinetCode"),
         })
     return companies, reason_counts
 

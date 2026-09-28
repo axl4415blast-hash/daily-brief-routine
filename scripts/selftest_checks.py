@@ -3428,7 +3428,7 @@ def test_apply_edinet_evidence():
 
     # --- 1: 書類種別240、company_nameが提出者本人 → filer_self/price_stated/edinet_doctype ---
     h1 = hyp(company_name="株式会社フェローテック", evidence_source_ref="SRC-TOB")
-    ve.apply_edinet_evidence([h1], sources, edinet_companies)
+    ve.apply_edinet_evidence([h1], sources, edinet_companies, None)
     check(
         "apply_edinet_evidence/#1: 書類種別240・提出者本人はfiler_self/price_stated/edinet_doctype",
         (h1["evidence_role"], h1["impact_kind"], h1["impact_kind_source"]),
@@ -3439,6 +3439,10 @@ def test_apply_edinet_evidence():
         (h1["evidence_filer_name"], h1["evidence_doc_type"]),
         ("株式会社フェローテック", "公開買付届出書"),
     )
+    check(
+        "改修27-1(4-10)/apply_edinet_evidence: filer_selfの書類種別240はtob_sideがbidderになる",
+        h1["tob_side"], "bidder",
+    )
 
     # --- 7・9(★今回ふさぐ穴): TOB対象会社(提出者は別会社=フェローテック) ---
     #     AIがevidence_filer_nameにcompany_nameと同じ文字列を書いていても、機械は
@@ -3448,11 +3452,20 @@ def test_apply_edinet_evidence():
         evidence_filer_name="株式会社日本抵抗器製作所",  # AIの自己申告(誤り)
         impact_kind="fact_only",  # AIの自己申告(こちらも機械の値で上書きされる)
     )
-    ve.apply_edinet_evidence([h9], sources, edinet_companies)
+    counts9 = ve.apply_edinet_evidence([h9], sources, edinet_companies, None)
     check(
         "apply_edinet_evidence/#9(★穴の再現): AIが書いたevidence_filer_nameは使われず、"
         "evidence_roleはmentionedになる",
         h9["evidence_role"], "mentioned",
+    )
+    check(
+        "改修27-1(4-10)/apply_edinet_evidence: subjectEdinetCodeが無い書類種別240はtob_sideが"
+        "今の規則(mentioned→target)に倒れる",
+        h9["tob_side"], "target",
+    )
+    check(
+        "改修27-1(4-10)/apply_edinet_evidence: subjectEdinetCodeが無ければtob_side_subject_code_missingが1",
+        counts9["tob_side_subject_code_missing"], 1,
     )
     check(
         "apply_edinet_evidence/#9: evidence_filer_nameも書類一覧の提出者名(フェローテック)で上書きされる",
@@ -3469,15 +3482,19 @@ def test_apply_edinet_evidence():
 
     # --- 2: 書類種別350 → amount_stated ---
     h2 = hyp(company_name="テスト投資株式会社", evidence_source_ref="SRC-AMOUNT")
-    ve.apply_edinet_evidence([h2], sources, edinet_companies)
+    ve.apply_edinet_evidence([h2], sources, edinet_companies, None)
     check(
         "apply_edinet_evidence/#2: 書類種別350はamount_stated/edinet_doctype",
         (h2["impact_kind"], h2["impact_kind_source"]), ("amount_stated", "edinet_doctype"),
     )
+    check(
+        "改修27-1(4-10)/apply_edinet_evidence: 公開買付関係でない書類種別350はtob_sideがnull",
+        h2["tob_side"], None,
+    )
 
     # --- 3・8: 対応表に無いコード(120) → null/edinet_doctype_unmapped、auto_check_targetもfalse ---
     h3 = hyp(evidence_source_ref="SRC-UNMAPPED", impact_kind="price_stated")
-    counts3 = ve.apply_edinet_evidence([h3], sources, edinet_companies)
+    counts3 = ve.apply_edinet_evidence([h3], sources, edinet_companies, None)
     check(
         "apply_edinet_evidence/#3: 対応表に無いコード(120)はimpact_kindがnull、edinet_doctype_unmapped",
         (h3["impact_kind"], h3["impact_kind_source"]), (None, "edinet_doctype_unmapped"),
@@ -3493,7 +3510,7 @@ def test_apply_edinet_evidence():
 
     # --- 4: 書類管理番号は取れるが、その日の一覧に無い → mentioned/null/edinet_doc_not_found ---
     h4 = hyp(evidence_source_ref="SRC-NOTFOUND", impact_kind="amount_stated")
-    ve.apply_edinet_evidence([h4], sources, edinet_companies)
+    ve.apply_edinet_evidence([h4], sources, edinet_companies, None)
     check(
         "apply_edinet_evidence/#4: 一覧に無いdoc_idはmentioned/null/edinet_doc_not_found",
         (h4["evidence_role"], h4["impact_kind"], h4["impact_kind_source"]),
@@ -3502,7 +3519,7 @@ def test_apply_edinet_evidence():
 
     # --- 5: 出典が報道記事(EDINETでない) → mentioned/null/no_edinet_doc ---
     h5 = hyp(evidence_source_ref="SRC-NEWS", impact_kind="price_stated")
-    ve.apply_edinet_evidence([h5], sources, edinet_companies)
+    ve.apply_edinet_evidence([h5], sources, edinet_companies, None)
     check(
         "apply_edinet_evidence/#5: 報道記事の出典はmentioned/null/no_edinet_doc",
         (h5["evidence_role"], h5["impact_kind"], h5["impact_kind_source"]),
@@ -3514,7 +3531,7 @@ def test_apply_edinet_evidence():
               evidence_filer_name="株式会社フェローテック", impact_kind="price_stated")
     h6b = hyp(evidence_source_ref="SRC-NEWS")
     hyps6 = [h6a, h6b]
-    ve.apply_edinet_evidence(hyps6, sources, None)
+    ve.apply_edinet_evidence(hyps6, sources, None, None)
     check(
         "apply_edinet_evidence/#6: 書類一覧が読めない場合、全件mentioned/null/doclist_unavailableになる",
         [(h["evidence_role"], h["impact_kind"], h["impact_kind_source"]) for h in hyps6],
@@ -3524,7 +3541,7 @@ def test_apply_edinet_evidence():
 
     # --- edinet_url_unparsed: EDINETドメインだが書類管理番号が取れないURL ---
     h_unparsed = hyp(evidence_source_ref="SRC-UNPARSED")
-    counts_unparsed = ve.apply_edinet_evidence([h_unparsed], sources, edinet_companies)
+    counts_unparsed = ve.apply_edinet_evidence([h_unparsed], sources, edinet_companies, None)
     check(
         "apply_edinet_evidence/URL形: EDINETドメインだが書類管理番号が取れないURLはedinet_url_unparsedが1",
         counts_unparsed["edinet_url_unparsed"], 1,
@@ -3534,7 +3551,7 @@ def test_apply_edinet_evidence():
         h_unparsed["impact_kind_source"], "no_edinet_doc",
     )
     h_news_for_count = hyp(evidence_source_ref="SRC-NEWS")
-    counts_news = ve.apply_edinet_evidence([h_news_for_count], sources, edinet_companies)
+    counts_news = ve.apply_edinet_evidence([h_news_for_count], sources, edinet_companies, None)
     check(
         "apply_edinet_evidence/URL形: 報道記事(EDINETドメインでない)はedinet_url_unparsedに数えない",
         counts_news["edinet_url_unparsed"], 0,
@@ -3545,7 +3562,7 @@ def test_apply_edinet_evidence():
         company_name="株式会社フェローテック", evidence_source_ref="SRC-TOB",
         evidence_filer_name="違う値", evidence_doc_type="違う値", impact_kind="amount_stated",
     )
-    counts_over = ve.apply_edinet_evidence([h_over], sources, edinet_companies)
+    counts_over = ve.apply_edinet_evidence([h_over], sources, edinet_companies, None)
     check(
         "apply_edinet_evidence/overridden: AIの値と機械の値が違えば3つとも1件ずつ数えられる",
         (
@@ -3559,6 +3576,412 @@ def test_apply_edinet_evidence():
         "apply_edinet_evidence/impact_kind_source_counts: edinet_doctypeが1件記録される",
         counts_over["impact_kind_source_counts"].get("edinet_doctype"), 1,
     )
+
+
+def test_compute_tob_side():
+    """改修27-1(4-10、Q8の回答): tob_sideを機械で決める規則の正例・負例。"""
+    codelist_rows = [{
+        "ＥＤＩＮＥＴコード": "E-TARGET", "提出者名": "カナリア物産",
+        "提出者業種": "小売業", "上場区分": "上場", "資本金": "1000", "証券コード": "12340",
+    }]
+
+    tob_record = {"doc_type_code": "240", "subject_edinet_code": "E-TARGET"}
+
+    # --- 正例1: filer_self → bidder(subjectEdinetCodeを見るまでもなく決まる) ---
+    counts1 = {"tob_side_subject_code_missing": 0}
+    hyp_bidder = {"company_name": "だれでもよい"}
+    result1 = ve.compute_tob_side(hyp_bidder, tob_record, "filer_self", codelist_rows, counts1)
+    check("compute_tob_side/正例1: filer_selfはbidder", result1, "bidder")
+    check("compute_tob_side/正例1: subjectEdinetCodeを見ないのでtob_side_subject_code_missingは増えない", counts1["tob_side_subject_code_missing"], 0)
+
+    # --- 正例2: mentionedで、companyのEDINETコードがsubjectEdinetCodeと一致 → target ---
+    counts2 = {"tob_side_subject_code_missing": 0}
+    hyp_target = {"company_name": "カナリア物産"}
+    result2 = ve.compute_tob_side(hyp_target, tob_record, "mentioned", codelist_rows, counts2)
+    check("compute_tob_side/正例2: companyのEDINETコードがsubjectEdinetCodeと一致すればtarget", result2, "target")
+    check("compute_tob_side/正例2: 一致すればtob_side_subject_code_missingは増えない", counts2["tob_side_subject_code_missing"], 0)
+
+    # --- 負例1: mentionedで、companyのEDINETコードがsubjectEdinetCodeと不一致 → null ---
+    counts3 = {"tob_side_subject_code_missing": 0}
+    hyp_other = {"company_name": "別の会社"}  # コードリストに無い
+    result3 = ve.compute_tob_side(hyp_other, tob_record, "mentioned", codelist_rows, counts3)
+    check("compute_tob_side/負例1: companyのEDINETコードが分からなければnull", result3, None)
+    check("compute_tob_side/負例1: これはsubjectEdinetCode自体は取れているのでtob_side_subject_code_missingは増えない", counts3["tob_side_subject_code_missing"], 0)
+
+    # --- 負例2: subjectEdinetCodeが空 → 今の規則(mentioned→target)に倒し、件数を記録 ---
+    counts4 = {"tob_side_subject_code_missing": 0}
+    record_no_subject = {"doc_type_code": "240", "subject_edinet_code": None}
+    result4 = ve.compute_tob_side(hyp_target, record_no_subject, "mentioned", codelist_rows, counts4)
+    check("compute_tob_side/負例2: subjectEdinetCodeが空ならmentioned→targetに倒れる", result4, "target")
+    check("compute_tob_side/負例2: tob_side_subject_code_missingが1増える", counts4["tob_side_subject_code_missing"], 1)
+
+    # --- 負例3: 書類種別が対象外(240〜280でない) → null ---
+    counts5 = {"tob_side_subject_code_missing": 0}
+    non_tob_record = {"doc_type_code": "350", "subject_edinet_code": "E-TARGET"}
+    result5 = ve.compute_tob_side(hyp_target, non_tob_record, "mentioned", codelist_rows, counts5)
+    check("compute_tob_side/負例3: 公開買付関係でない書類種別はnull", result5, None)
+
+    # --- 負例4: recordがNone(書類が見つからない) → null ---
+    counts6 = {"tob_side_subject_code_missing": 0}
+    result6 = ve.compute_tob_side(hyp_target, None, "mentioned", codelist_rows, counts6)
+    check("compute_tob_side/負例4: 参照した書類が見つからなければnull", result6, None)
+
+    # --- 負例5: codelist_rowsがNone(コードリスト未取得)で、subjectEdinetCodeはある → null ---
+    counts7 = {"tob_side_subject_code_missing": 0}
+    result7 = ve.compute_tob_side(hyp_target, tob_record, "mentioned", None, counts7)
+    check("compute_tob_side/負例5: コードリストが読めずcompanyのEDINETコードが分からなければnull", result7, None)
+
+
+def test_last_business_day_before():
+    """改修27-1(4-4): edinet_doclist_partialの日付表示に使う「直前の営業日」の算出。"""
+    business_days = ve.load_business_days(str(CALENDAR_DIR))
+    check(
+        "last_business_day_before/正例: 2026-09-24より前の最後の営業日は2026-09-18"
+        "(19〜23日は祝日・休日を挟むため)",
+        ve.last_business_day_before(business_days, "2026-09-24"), "2026-09-18",
+    )
+    check(
+        "last_business_day_before/負例: business_daysの先頭より前を指定すればNone",
+        ve.last_business_day_before(business_days, business_days[0]), None,
+    )
+
+
+def test_format_edinet_submit_datetime():
+    """改修27-1(4-2): EDINETのsubmitDateTime('YYYY-MM-DD hh:mm')を+09:00付きに変える。"""
+    check(
+        "format_edinet_submit_datetime/正例: 分単位の値がそのままJSTのISO8601になる",
+        ve.format_edinet_submit_datetime("2026-09-25 17:59"),
+        "2026-09-25T17:59:00+09:00",
+    )
+    check("format_edinet_submit_datetime/負例: nullはNone", ve.format_edinet_submit_datetime(None), None)
+    check("format_edinet_submit_datetime/負例: 空文字はNone", ve.format_edinet_submit_datetime(""), None)
+    check(
+        "format_edinet_submit_datetime/負例: 読み取れない形式はNone",
+        ve.format_edinet_submit_datetime("2026/09/25 17:59"), None,
+    )
+
+
+def _write_edinet_list_json(path, date_str, results):
+    """改修27-1のテスト専用: edinet_fetch.py listが保存する生データと同じ形
+    (metadata.parameter.date + results)のJSONファイルを作る。"""
+    payload = {
+        "metadata": {"status": "200", "parameter": {"date": date_str, "type": "2"}},
+        "results": results,
+    }
+    Path(path).write_text(json.dumps(payload, ensure_ascii=False, indent=1), encoding="utf-8")
+
+
+def test_load_edinet_companies_two_days():
+    """改修27-1(4-4): SRC-EDINET-LIST.json(号の日付)とSRC-EDINET-LIST-PREV.json
+    (直前の営業日)の両方を読み、合わせて1つの配列にする。片方しか無ければ、
+    読めた方だけで続ける。.cache/edinet/companies.jsonは読まない(経路を廃止)。"""
+    with tempfile.TemporaryDirectory() as d:
+        cache_dir = Path(d)
+        _write_edinet_list_json(
+            cache_dir / "SRC-EDINET-LIST.json", "2026-09-28",
+            [{"edinetCode": "E-TODAY", "filerName": "今日の会社", "docID": "S-TODAY", "docTypeCode": "180"}],
+        )
+        _write_edinet_list_json(
+            cache_dir / "SRC-EDINET-LIST-PREV.json", "2026-09-25",
+            [{"edinetCode": "E-PREV", "filerName": "前日の会社", "docID": "S-PREV", "docTypeCode": "180"}],
+        )
+
+        companies, availability = ve.load_edinet_companies(str(cache_dir))
+        check("load_edinet_companies/正例: 両方読めればavailabilityが両方True", availability, {"today": True, "prev": True})
+        check(
+            "load_edinet_companies/正例: 2日分が1つの配列に合わさる",
+            sorted(c["doc_id"] for c in companies), ["S-PREV", "S-TODAY"],
+        )
+
+    # --- 負例: 今日の分しか無い場合 ---
+    with tempfile.TemporaryDirectory() as d:
+        cache_dir = Path(d)
+        _write_edinet_list_json(
+            cache_dir / "SRC-EDINET-LIST.json", "2026-09-28",
+            [{"edinetCode": "E-TODAY", "filerName": "今日の会社", "docID": "S-TODAY", "docTypeCode": "180"}],
+        )
+        companies, availability = ve.load_edinet_companies(str(cache_dir))
+        check("load_edinet_companies/負例: prevが無ければavailability.prevはFalse", availability["prev"], False)
+        check("load_edinet_companies/負例: todayだけでも読めた方は使う(1件)", len(companies), 1)
+
+    # --- 負例: どちらも無い場合 → companiesはNone ---
+    with tempfile.TemporaryDirectory() as d:
+        companies_none, availability_none = ve.load_edinet_companies(d)
+        check("load_edinet_companies/負例: 両方無ければcompaniesはNone", companies_none, None)
+        check("load_edinet_companies/負例: 両方無ければavailabilityは両方False", availability_none, {"today": False, "prev": False})
+
+    # --- 負例: .cache/edinet/companies.json相当のファイルがあっても読まない(経路廃止) ---
+    with tempfile.TemporaryDirectory() as d:
+        cache_dir = Path(d)
+        companies_path = cache_dir / "companies.json"
+        companies_path.write_text(json.dumps([{"filer_name": "旧経路の会社", "ticker": "9999"}]), encoding="utf-8")
+        companies_legacy, availability_legacy = ve.load_edinet_companies(str(cache_dir))
+        check(
+            "load_edinet_companies/負例: companies.json相当のファイルがあっても読まない(SRC-EDINET-LISTが無ければNoneのまま)",
+            companies_legacy, None,
+        )
+        check("load_edinet_companies/負例: 上と同じ理由でavailabilityも両方False", availability_legacy, {"today": False, "prev": False})
+
+
+def test_apply_edinet_source_published_at():
+    """改修27-1(4-2・4-3): EDINETの出典のpublished_atを機械で書き込む。
+    個々の書類はsubmitDateTimeから時刻まで、書類一覧そのものは取得条件の日付だけ。"""
+    with tempfile.TemporaryDirectory() as d:
+        cache_dir = Path(d)
+        _write_edinet_list_json(
+            cache_dir / "SRC-EDINET-LIST.json", "2026-09-28",
+            [{
+                "edinetCode": "E-DOC", "filerName": "書類の会社", "docID": "S-DOC",
+                "docTypeCode": "180", "submitDateTime": "2026-09-28 09:00",
+            }],
+        )
+
+        edinet_companies, _availability = ve.load_edinet_companies(str(cache_dir))
+
+        edition = {
+            "sources": [
+                {
+                    "source_id": "SRC-DOC", "published_at": "AIが書いた値(嘘でもよい)",
+                    "url": "https://disclosure2.edinet-fsa.go.jp/api/v2/documents/S-DOC?type=1",
+                },
+                {
+                    "source_id": "SRC-DOC-NOTFOUND", "published_at": "2026-01-01T00:00:00+09:00",
+                    "url": "https://disclosure2.edinet-fsa.go.jp/api/v2/documents/S-NONE?type=1",
+                },
+                {
+                    "source_id": "SRC-EDINET-LIST", "published_at": None,
+                    "url": "https://api.edinet-fsa.go.jp/api/v2/documents.json?date=2026-09-28&type=2",
+                },
+                {
+                    "source_id": "SRC-EDINET-LIST-MISSING", "published_at": "元の値",
+                    "url": "https://api.edinet-fsa.go.jp/api/v2/documents.json?date=2026-09-01&type=2",
+                },
+                {
+                    "source_id": "SRC-NEWS", "published_at": "2026-09-27T10:00:00+09:00",
+                    "url": "https://www.nikkei.com/article/xxx/",
+                },
+            ],
+        }
+
+        overwritten = ve.apply_edinet_source_published_at(edition, str(cache_dir), edinet_companies)
+        by_id = {s["source_id"]: s for s in edition["sources"]}
+
+        check(
+            "apply_edinet_source_published_at/正例(4-2): 個々の書類はsubmitDateTimeから時刻まで書き込まれる",
+            by_id["SRC-DOC"]["published_at"], "2026-09-28T09:00:00+09:00",
+        )
+        check(
+            "apply_edinet_source_published_at/負例(4-2): 一覧に見つからない書類はnullになる",
+            by_id["SRC-DOC-NOTFOUND"]["published_at"], None,
+        )
+        check(
+            "apply_edinet_source_published_at/正例(4-3): 書類一覧そのものは取得条件の日付だけになる",
+            by_id["SRC-EDINET-LIST"]["published_at"], "2026-09-28",
+        )
+        check(
+            "apply_edinet_source_published_at/正例(4-3): published_date_onlyが真になる",
+            by_id["SRC-EDINET-LIST"]["published_date_only"], True,
+        )
+        check(
+            "apply_edinet_source_published_at/負例(4-3): 対応するキャッシュファイルが無ければnullでpublished_date_onlyは立たない",
+            (by_id["SRC-EDINET-LIST-MISSING"]["published_at"], by_id["SRC-EDINET-LIST-MISSING"]["published_date_only"]),
+            (None, False),
+        )
+        check(
+            "apply_edinet_source_published_at/負例: EDINET以外の出典には触れない",
+            by_id["SRC-NEWS"]["published_at"], "2026-09-27T10:00:00+09:00",
+        )
+        check(
+            "apply_edinet_source_published_at/負例: EDINET以外の出典にpublished_date_onlyは付かない",
+            "published_date_only" in by_id["SRC-NEWS"], False,
+        )
+        check("apply_edinet_source_published_at/件数: 値が変わった出典は4件(SRC-NEWS以外)", overwritten, 4)
+
+
+def test_run_check_e_stale_sources_36h_boundary():
+    """改修27-1(4-2、Q2の回答): 検査10の境目を「実行時刻を分単位に切り捨てて、
+    36時間を超えたら古い」に直したことの確認。17:59提出の書類が、翌々日の5:59の
+    実行では新しい、6:00の実行では古いという依頼文の例をそのまま確かめる。"""
+    def make_edition(published_at):
+        return {
+            "sections": [{
+                "section_id": "change",
+                "articles": [{"lines": [{"line_id": "X-01", "source_ref": "SRC-X"}]}],
+            }],
+            "sources": [{"source_id": "SRC-X", "published_at": published_at}],
+        }
+
+    published = "2026-09-25T17:59:00+09:00"
+
+    edition_a = make_edition(published)
+    stale_a, _ = ve.run_check_e_stale_sources(edition_a, dt.datetime.fromisoformat("2026-09-27T05:59:00+09:00"))
+    check(
+        "検査10/境界(改修27-1・4-2): 17:59提出は翌々日5:59の実行では新しい(36時間ちょうど、落とさない)",
+        stale_a, 0,
+    )
+    check(
+        "検査10/境界: 5:59の実行では行が残る",
+        len(edition_a["sections"][0]["articles"][0]["lines"]), 1,
+    )
+
+    edition_b = make_edition(published)
+    stale_b, _ = ve.run_check_e_stale_sources(edition_b, dt.datetime.fromisoformat("2026-09-27T06:00:00+09:00"))
+    check(
+        "検査10/境界(改修27-1・4-2): 17:59提出は翌々日6:00の実行では古い(36時間1分超過)",
+        stale_b, 1,
+    )
+    check(
+        "検査10/境界: 6:00の実行では行が落とされる",
+        len(edition_b["sections"][0]["articles"][0]["lines"]), 0,
+    )
+
+    # 実行時刻の秒によって境目がぶれないことの確認(分単位への切り捨て)。
+    edition_c = make_edition(published)
+    stale_c, _ = ve.run_check_e_stale_sources(edition_c, dt.datetime.fromisoformat("2026-09-27T05:59:59+09:00"))
+    check(
+        "検査10/境界: 実行時刻の秒が59でも分単位に切り捨てられ、5:59の判定のまま新しい",
+        stale_c, 0,
+    )
+
+
+def test_run_check_published_at_skips_date_only():
+    """改修27-1(4-3): published_date_onlyが真の出典は検査36の対象から外す。"""
+    edition = {
+        "sections": [{"section_id": "change", "articles": [{"lines": []}]}],
+        "sources": [{
+            "source_id": "SRC-EDINET-LIST", "published_at": "2026-09-28",
+            "published_date_only": True,
+        }],
+    }
+    with tempfile.TemporaryDirectory() as d:
+        # キャッシュに本文が無くても(そもそも対象外なので)エラーにならず、0件のまま。
+        hits, unverified_sources = ve.run_check_published_at(edition, d)
+        check("検査36/負例(改修27-1・4-3): published_date_onlyの出典は対象から外れる(0件)", hits, 0)
+        check("検査36/負例: 確認できなかった出典の一覧にも入らない", unverified_sources, [])
+
+
+def test_round2_end_to_end_edinet_published_at_and_tob_side():
+    """改修27-1(第2回)をCLI全体(main())で確かめる統合テスト。EDINET書類一覧(2日分)を
+    キャッシュに置き、出典のpublished_atが機械で書き込まれること(4-2)、それより前の
+    段階で書き込まれるため検査10(36時間ルール)が正しく働くこと、公開買付関係の
+    書類でtob_sideがbidderになること(4-10)を、実データの取得はせず確かめる。
+    scripts/testdataは使わない(round1の統合テストと同じ理由)。"""
+    with tempfile.TemporaryDirectory() as d:
+        work_dir = Path(d)
+        now = dt.datetime.now(ve.JST)
+        today_str = _expected_edition_date("evening", now)
+        # 実行時刻の1時間前を提出時刻にする(36時間以内に確実に収まる余裕を持たせる)。
+        submit_str = (now - dt.timedelta(hours=1)).strftime("%Y-%m-%d %H:%M")
+
+        cache_dir = work_dir / "cache"
+        cache_dir.mkdir(parents=True)
+        _write_edinet_list_json(
+            cache_dir / "SRC-EDINET-LIST.json", today_str,
+            [{
+                "edinetCode": "E-BID", "filerName": "カナリア工業", "docID": "S-BID",
+                "docTypeCode": "240", "submitDateTime": submit_str,
+            }],
+        )
+        _write_edinet_list_json(cache_dir / "SRC-EDINET-LIST-PREV.json", today_str, [])
+
+        edition = {
+            "edition_id": f"{today_str}-evening",
+            "date": today_str,
+            "slot": "evening",
+            "generated_at": None,
+            "market_open": None,
+            "sources": [{
+                "source_id": "SRC-BID", "publisher": "カナリア工業", "title": "公開買付届出書",
+                "url": "https://disclosure2.edinet-fsa.go.jp/api/v2/documents/S-BID?type=1",
+                "published_at": None,
+            }],
+            "sections": [{
+                "section_id": "change",
+                "articles": [{
+                    "article_id": "A-1",
+                    "lines": [{
+                        "line_id": "L-1", "text": "カナリア工業が公開買付を届け出た内容です",
+                        "claimed_mark": "reported_unverified", "numbers": [], "source_ref": "SRC-BID",
+                    }],
+                }],
+            }],
+        }
+        hyp_doc = {
+            "edition_id": f"{today_str}-evening",
+            "generated_at": None,
+            "hypotheses": [{
+                "hypothesis_id": "H-1",
+                "company_name": "カナリア工業",
+                "relation_text": "公開買付の対象として影響しうる",
+                "evidence_grade": "reported",
+                "evidence_source_ref": "SRC-BID",
+                "impact_reason": "買付価格が示されているため",
+                "ticker": "1234",
+                "ticker_source": "edinet_codelist",
+                "baseline_date": today_str,
+                "baseline_price_type": "close",
+                "added_by": "manual",
+                "line_ids": ["L-1"],
+            }],
+        }
+
+        edition_dir = work_dir / "editions" / today_str
+        edition_dir.mkdir(parents=True)
+        edition_path = edition_dir / "evening.json"
+        edition_path.write_text(json.dumps(edition, ensure_ascii=False, indent=1), encoding="utf-8")
+
+        hyp_dir = work_dir / "hypotheses"
+        hyp_dir.mkdir(parents=True)
+        hyp_path = hyp_dir / f"{today_str}-evening.json"
+        hyp_path.write_text(json.dumps(hyp_doc, ensure_ascii=False, indent=1), encoding="utf-8")
+
+        calendar_dir = _write_temp_calendar(work_dir, dt.datetime.strptime(today_str, "%Y-%m-%d").date(), 40)
+
+        result = _run_verify_cli(work_dir, edition_path, hyp_path, cache_dir, calendar_dir)
+        check("改修27-1第2回/統合: 正常終了する(終了コード0)", result.returncode, 0)
+
+        after_edition = json.loads(edition_path.read_text(encoding="utf-8"))
+        after_hyp = json.loads(hyp_path.read_text(encoding="utf-8"))
+        v = after_edition.get("verification") or {}
+
+        source_after = after_edition["sources"][0]
+        check(
+            "改修27-1第2回/統合(4-2): 出典のpublished_atがsubmitDateTimeから機械で書き込まれる",
+            source_after.get("published_at"), submit_str.replace(" ", "T") + ":00+09:00",
+        )
+
+        check(
+            "改修27-1第2回/統合(4-2): published_atを書き込んだ後に検査10が働くため、"
+            "新しい出典の行は落とされない",
+            len(after_edition["sections"][0]["articles"][0]["lines"]), 1,
+        )
+        check("改修27-1第2回/統合: stale_source_hitsは0(出典が新しいため)", v.get("stale_source_hits"), 0)
+
+        check(
+            "改修27-1第2回/統合(4-4): 2日分とも読めたのでedinet_doclist_partialは空",
+            v.get("edinet_doclist_partial"), [],
+        )
+        check(
+            "改修27-1第2回/統合(4-2): edinet_published_at_overwrittenが1以上",
+            (v.get("edinet_published_at_overwritten") or 0) >= 1, True,
+        )
+
+        check(
+            "改修27-1第2回/統合: 会社は消えない(hypothesesが1件残る)",
+            len(after_hyp.get("hypotheses") or []), 1,
+        )
+        if after_hyp.get("hypotheses"):
+            kept = after_hyp["hypotheses"][0]
+            check(
+                "改修27-1第2回/統合(4-10): 提出者本人の公開買付届出書はtob_sideがbidderになる",
+                kept.get("tob_side"), "bidder",
+            )
+            check(
+                "改修27-1第2回/統合: impact_kindは書類種別からprice_statedになる(5営業日)",
+                kept.get("horizon_business_days"), 5,
+            )
+
+    _assert_testdata_untouched("改修27-1第2回/統合テスト")
 
 
 def _hyp_base(**kw):
@@ -3902,6 +4325,17 @@ def main():
     test_override_generated_at()
     test_compute_expected_slot()
     test_round1_end_to_end_missing_ai_fields()
+
+    # 改修27-1(第2回): 4-4(EDINET書類一覧2日分)・4-2(published_atの書き込みと検査10の
+    # 境目)・4-3(一覧そのもののpublished_at)・4-10(tob_side)のテスト。
+    test_compute_tob_side()
+    test_last_business_day_before()
+    test_format_edinet_submit_datetime()
+    test_load_edinet_companies_two_days()
+    test_apply_edinet_source_published_at()
+    test_run_check_e_stale_sources_36h_boundary()
+    test_run_check_published_at_skips_date_only()
+    test_round2_end_to_end_edinet_published_at_and_tob_side()
 
     total = len(results)
     passed = sum(1 for _, ok, _, _ in results if ok)

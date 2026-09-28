@@ -103,6 +103,10 @@ EDINET_DOC_TYPE_IMPACT_KIND = {
     "220": "amount_stated",  # 自己株券買付状況報告書
     "230": "amount_stated",  # 訂正自己株券買付状況報告書
 }
+# 改修27-1(4-10): tob_sideを機械で決める対象(公開買付関係、書類種別コード240〜280)。
+# 240:公開買付届出書 250:訂正公開買付届出書 260:公開買付撤回届出書
+# 270:公開買付報告書 280:訂正公開買付報告書
+TOB_DOC_TYPE_CODES = {"240", "250", "260", "270", "280"}
 VALID_SOURCE_USAGES = {"quotable", "link_only", "snippet_only"}
 VALID_PUBLISHER_TYPES = {
     "government_statistics", "central_bank", "company_disclosure",
@@ -667,13 +671,21 @@ def parse_datetime_assume_jst(s):
 
 
 def run_check_e_stale_sources(edition, run_at_dt):
-    """検査10: change欄(新しい変化)の行について、出典の公表時刻が36時間以上前でないかを確かめる。
-    基準時刻はスクリプトの実行時刻(run_at_dt)。AIの自己申告(generated_at)を基準にすると、
-    古い出典を新しく見せられてしまうため使わない。
-    36時間以上前と分かった行、公表時刻が読み取れなかった(null)行は、どちらも安全側に倒して
-    行そのものを落とす。原因が違うため件数は別々に数える(stale_source_hits / unknown_published_at_hits)。
-    change以外の欄(big/ripple/deep)は36時間ルールの対象外なので、対象にしない。"""
+    """検査10: change欄(新しい変化)の行について、出典の公表時刻が36時間を超えて
+    古くないかを確かめる。基準時刻はスクリプトの実行時刻(run_at_dt)。AIの自己申告
+    (generated_at)を基準にすると、古い出典を新しく見せられてしまうため使わない。
+
+    改修27-1(4-2、Q2の回答): 境目は「実行時刻を分単位に切り捨てて、36時間を超えたら
+    古い」(36時間ちょうどは「新しい」側に残す)。実行時刻を秒未満(・秒)で切り捨てるのは、
+    EDINETのsubmitDateTimeが分単位(秒の情報を持たない)であり、実行時刻の秒によって
+    境目の判定が変わってしまうのを防ぐため。EDINET以外の時刻付き出典にも同じ境目を使う。
+
+    36時間を超えて古いと分かった行、公表時刻が読み取れなかった(null)行は、どちらも
+    安全側に倒して行そのものを落とす。原因が違うため件数は別々に数える
+    (stale_source_hits / unknown_published_at_hits)。change以外の欄(big/ripple/deep)は
+    36時間ルールの対象外なので、対象にしない。"""
     sources_by_id = {s.get("source_id"): s for s in edition.get("sources", [])}
+    run_at_dt_minute = run_at_dt.replace(second=0, microsecond=0)
 
     stale = 0
     unknown_published_at = 0
@@ -693,8 +705,8 @@ def run_check_e_stale_sources(edition, run_at_dt):
                 if published_dt is None:
                     unknown_published_at += 1
                     continue
-                delta_hours = (run_at_dt - published_dt).total_seconds() / 3600
-                if delta_hours >= 36:
+                delta_hours = (run_at_dt_minute - published_dt).total_seconds() / 3600
+                if delta_hours > 36:
                     stale += 1
                     continue
                 kept_lines.append(line)
@@ -730,6 +742,10 @@ def run_check_published_at(edition, cache_dir):
     入れない)。判定は出典ごとに1回だけ行う(同じ出典を参照する行が複数あっても、
     本文の読み込みと照合は1回)。
 
+    改修27-1(4-3): published_date_onlyが真の出典(書類一覧そのものの出典。published_atは
+    一覧の取得条件から来る日付だけで、本文の日付表記と比べる意味が無い)は、この検査の
+    対象から外す(件数にも入れない)。
+
     戻り値: (確認できなかった出典を参照する本文の行の数, 確認できなかった出典IDの一覧)。"""
     line_counts_by_source = {}
     for _section, _article, line in iter_lines(edition):
@@ -740,6 +756,8 @@ def run_check_published_at(edition, cache_dir):
     unverified_hits = 0
     unverified_sources = []
     for source in edition.get("sources", []):
+        if source.get("published_date_only"):
+            continue
         source_id = source.get("source_id")
         published_dt = parse_datetime_assume_jst(source.get("published_at"))
         if published_dt is None:
@@ -1057,29 +1075,128 @@ def check_minus_direction(hyp, sources_by_id, cache_dir):
     return True
 
 
+EDINET_DOCLIST_FILENAMES = {"today": "SRC-EDINET-LIST.json", "prev": "SRC-EDINET-LIST-PREV.json"}
+
+
 def load_edinet_companies(cache_dir):
-    """検査13(証券コードの確認)で使う、EDINET書類一覧から作った「会社名→証券コード」の
-    対応を読む。--cache フォルダの中の SRC-EDINET-LIST.json(edinet_fetch.py listが
-    そのまま保存した生データ)を優先し、無ければ .cache/edinet/companies.json
-    (edinet_fetch.py list が同時に作る、company_name/tickerの形に整形済みのファイル)を見る。
-    どちらも見つからなければ None を返す(=検査13の条件3を適用しない)。"""
-    raw_path = Path(cache_dir) / "SRC-EDINET-LIST.json"
-    if raw_path.is_file():
-        try:
-            raw_doc = load_json(raw_path)
-        except (json.JSONDecodeError, OSError):
-            return None
-        companies, _ = edinet_fetch.build_companies(raw_doc)
-        return companies
+    """検査13(証券コードの確認)・apply_edinet_evidence()の書類の引き当てで使う、
+    EDINET書類一覧から作った「会社名→証券コード」等の対応を読む。
 
-    companies_path = edinet_fetch.COMPANIES_CACHE_PATH
-    if companies_path.is_file():
-        try:
-            return load_json(companies_path)
-        except (json.JSONDecodeError, OSError):
-            return None
+    改修27-1(4-4): --cache フォルダの中の SRC-EDINET-LIST.json(号の日付の一覧)と
+    SRC-EDINET-LIST-PREV.json(直前の営業日の一覧)の両方を読み、合わせて1つの配列に
+    する。片方しか読めなければ、読めた方だけで続ける(号は止めない。呼び出し側で
+    読めなかった日付をedinet_doclist_partialとして記録する)。
 
-    return None
+    .cache/edinet/companies.json を読む経路は改修27-1(4-4のQ4回答)で廃止した。
+    「一覧ファイル自体は今日取得したはずなのに、前回実行時の古い一覧を黙って使って
+    しまう」危険があったため。
+
+    戻り値: (companies配列 or None, {"today": bool, "prev": bool}=それぞれ読めたか)。
+    両方とも読めなければ companies は None(=検査13の条件3もapply_edinet_evidence()も
+    適用しない、従来の「一覧が無い」扱いと同じ)。"""
+    companies = []
+    availability = {"today": False, "prev": False}
+    for key, filename in EDINET_DOCLIST_FILENAMES.items():
+        path = Path(cache_dir) / filename
+        if not path.is_file():
+            continue
+        try:
+            raw_doc = load_json(path)
+        except (json.JSONDecodeError, OSError):
+            continue
+        day_companies, _reason_counts = edinet_fetch.build_companies(raw_doc)
+        companies.extend(day_companies)
+        availability[key] = True
+
+    if not availability["today"] and not availability["prev"]:
+        return None, availability
+    return companies, availability
+
+
+def last_business_day_before(business_days, date_str):
+    """business_days(昇順)の中から、date_strより前(date_str自身は含まない)で
+    最後の営業日を返す。無ければNone。改修27-1(4-4)で、edinet_doclist_partialに
+    記録する「直前の営業日」の日付を出すために使う。"""
+    result = None
+    for day in business_days:
+        if day >= date_str:
+            break
+        result = day
+    return result
+
+
+def format_edinet_submit_datetime(submit_date_time_raw):
+    """改修27-1(4-2): EDINETのsubmitDateTime(「YYYY-MM-DD hh:mm」形式、時差の表記なし。
+    EDINET API仕様書v2)を、日本時間の+09:00付きISO8601文字列に変える。
+    読み取れなければNoneを返す。"""
+    if not submit_date_time_raw:
+        return None
+    try:
+        naive = dt.datetime.strptime(submit_date_time_raw, "%Y-%m-%d %H:%M")
+    except (TypeError, ValueError):
+        return None
+    return naive.replace(tzinfo=JST).isoformat()
+
+
+def apply_edinet_source_published_at(edition, cache_dir, edinet_companies):
+    """改修27-1(4-2・4-3): EDINETの出典のpublished_atを、AIの自己申告ではなく機械で
+    書き込む(AIの値は使わない。一致・不一致にかかわらず必ず上書きする)。EDINET以外の
+    出典には触れない(usageを表で上書きするapply_source_policy()と同じく、判定より前に
+    行う。検査10・検査36がpublished_at/published_date_onlyを読むより前に呼ぶこと)。
+
+      ・個々の書類(urlに書類管理番号を含む。4-2): 書類一覧のsubmitDateTimeから
+        時刻まで書き込む。一覧が読めない・その書類IDが一覧に見つからない場合は
+        published_atをnullにする(nullになった件数は分からないため上書き件数だけ数える。
+        個々の理由は数えない)。
+      ・書類一覧そのもの(urlは書類管理番号を含まないEDINETのURL。4-3): 出典と同じ名前
+        (source_id)のキャッシュファイル({source_id}.json)を読み、その取得条件
+        (metadata.parameter.date)を日付だけ書き込み、published_date_only を真にする。
+        ファイルが読めなければpublished_atをnullにし、published_date_onlyは立てない。
+
+    戻り値: published_atの値が変わった出典の件数。"""
+    doc_by_id = {}
+    if edinet_companies is not None:
+        for c in edinet_companies:
+            doc_id = c.get("doc_id")
+            if doc_id:
+                doc_by_id[doc_id] = c
+
+    overwritten = 0
+    for source in edition.get("sources", []):
+        url = source.get("url")
+        if not is_edinet_domain(url):
+            continue
+
+        doc_id = extract_edinet_doc_id(url)
+        if doc_id is not None:
+            record = doc_by_id.get(doc_id)
+            new_published_at = format_edinet_submit_datetime(record.get("submit_date_time")) if record else None
+            if source.get("published_at") != new_published_at:
+                overwritten += 1
+            source["published_at"] = new_published_at
+            continue
+
+        source_id = source.get("source_id")
+        list_path = Path(cache_dir) / f"{source_id}.json" if source_id else None
+        new_published_at = None
+        new_published_date_only = False
+        if list_path is not None and list_path.is_file():
+            try:
+                raw_doc = load_json(list_path)
+            except (json.JSONDecodeError, OSError):
+                raw_doc = None
+            if raw_doc is not None:
+                date_str = ((raw_doc.get("metadata") or {}).get("parameter") or {}).get("date")
+                if date_str:
+                    new_published_at = date_str
+                    new_published_date_only = True
+
+        if source.get("published_at") != new_published_at:
+            overwritten += 1
+        source["published_at"] = new_published_at
+        source["published_date_only"] = new_published_date_only
+
+    return overwritten
 
 
 def is_edinet_domain(url):
@@ -1103,9 +1220,46 @@ def extract_edinet_doc_id(url):
     return m.group(1) if m else None
 
 
-def apply_edinet_evidence(hyps, sources_by_id, edinet_companies):
+def compute_tob_side(hyp, record, new_role, codelist_rows, counts):
+    """改修27-1(4-10、Q8の回答): 書類種別コードが240〜280(公開買付関係、TOB_DOC_TYPE_CODES)
+    の書類について、tob_sideを機械で決める。
+      ・提出者本人(evidence_role=filer_self) → bidder
+      ・companyのEDINETコードがsubjectEdinetCodeと一致(evidence_role=mentioned) → target
+      ・subjectEdinetCodeが取れない場合は、今の規則(mentioned→target)に倒し、
+        その件数をtob_side_subject_code_missingとして数える
+      ・それ以外(対象書類でない、コードが不一致、companyのEDINETコードが分からない)はnull
+    company(hypothesis)自身のEDINETコードは、参照した書類の提出者(record)とは別に、
+    コードリスト(codelist_rows)からcompany_nameで引き直す(record.edinet_codeは
+    「この書類を提出した会社」のコードであり、company_nameがmentionedのときは別の会社の
+    コードのため)。"""
+    if record is None:
+        return None
+    doc_type_code = record.get("doc_type_code")
+    if doc_type_code not in TOB_DOC_TYPE_CODES:
+        return None
+
+    if new_role == "filer_self":
+        return "bidder"
+
+    subject_edinet_code = record.get("subject_edinet_code")
+    if not subject_edinet_code:
+        counts["tob_side_subject_code_missing"] += 1
+        return "target"
+
+    company_edinet_code = None
+    if codelist_rows is not None:
+        match = edinet_codelist.find_company_by_name(hyp.get("company_name"), codelist_rows, [])
+        if match is not None:
+            company_edinet_code = match.get("edinet_code")
+
+    if company_edinet_code is not None and company_edinet_code == subject_edinet_code:
+        return "target"
+    return None
+
+
+def apply_edinet_evidence(hyps, sources_by_id, edinet_companies, codelist_rows):
     """上段の仮説ごとに、evidence_filer_name/evidence_doc_type/evidence_role/impact_kind/
-    impact_kind_source/auto_check_targetを、AIに書かせず出典URLの書類管理番号から
+    impact_kind_source/auto_check_target/tob_sideを、AIに書かせず出典URLの書類管理番号から
     EDINET書類一覧を引いて確定する。AIが書いた値は一致・不一致にかかわらず必ず上書きする
     (判定に使ってよいのはスクリプトが自分で決めた値だけのため)。impact_reasonはAIが書いた
     値のまま上書きしない。
@@ -1118,6 +1272,9 @@ def apply_edinet_evidence(hyps, sources_by_id, edinet_companies):
         "impact_kind_source_counts": {},
         "impact_kind_undetermined_by_doc_type": {},
         "edinet_url_unparsed": 0,
+        # 改修27-1(4-10): tob_sideを決めるときにsubjectEdinetCodeが取れず、
+        # 今の規則(mentioned→target)に倒した件数。
+        "tob_side_subject_code_missing": 0,
     }
 
     doc_by_id = {}
@@ -1184,6 +1341,9 @@ def apply_edinet_evidence(hyps, sources_by_id, edinet_companies):
         cond_a = new_impact_kind in ("price_stated", "amount_stated") and new_role == "filer_self"
         cond_b = new_impact_kind == "price_stated" and new_impact_kind_source == "edinet_doctype"
         hyp["auto_check_target"] = bool(cond_a or cond_b)
+
+        # 改修27-1(4-10): tob_sideも機械で決める(AIは書かない)。
+        hyp["tob_side"] = compute_tob_side(hyp, record, new_role, codelist_rows, counts)
 
         if old_filer_name != new_filer_name:
             counts["evidence_filer_name_overridden"] += 1
@@ -1405,9 +1565,17 @@ def check_hypothesis(hyp, edition, line_ids, business_days, ng_words, sources_by
     if not isinstance(horizon, int) or hyp.get("deadline_date") is None:
         return "deadline_date_mismatch"
 
+    # 改修27-1第2回: ここで起算日が求められない状況は、apply_observation_window()が
+    # 同じcompute_deadline_base_date()で先に判定済みのはず(その場合はdeadline_dateが
+    # nullになり、上のreturnで既に処理されている)。通常の実行では、この
+    # deadline_base_date is Noneの分岐には到達しない。それでも到達した場合(検査32の
+    # baseline_date_check_skippedとは意味が違う不具合として)に備えて、専用のキー
+    # (horizon_recount_skipped)に分けて記録する。baseline_date_check_skippedを
+    # 混ぜて使わないこと(検査17の検算専用のキーと検査32の記録を混同しないため。
+    # 第2回でこの取り違えを直した)。
     deadline_base_date, _base_reason = compute_deadline_base_date(hyp, business_days)
     if deadline_base_date is None:
-        extra_counts["baseline_date_check_skipped"] += 1
+        extra_counts["horizon_recount_skipped"] = extra_counts.get("horizon_recount_skipped", 0) + 1
     else:
         recount = recount_deadline_by_stepping(business_days, deadline_base_date, horizon)
         if recount != hyp.get("deadline_date"):
@@ -1477,6 +1645,12 @@ def run_hypothesis_checks(hypotheses_doc, edition, business_days, ng_words, cach
         "horizon_overridden": 0,
         "deadline_uncomputable": 0,
         "horizon_recount_mismatch": 0,
+        # 改修27-1第2回: 検査17の検算で起算日が求められなかった件数(検査32の
+        # baseline_date_check_skippedとは別のキー。通常は0のまま)。
+        "horizon_recount_skipped": 0,
+        # 改修27-1(4-10): tob_sideの決定でsubjectEdinetCodeが取れず、今の規則
+        # (mentioned→target)に倒した件数。
+        "tob_side_subject_code_missing": 0,
     }
 
     market_open = edition.get("market_open", True)
@@ -1504,13 +1678,14 @@ def run_hypothesis_checks(hypotheses_doc, edition, business_days, ng_words, cach
     # 書かせず、出典URLの書類管理番号からEDINET書類一覧を引いてスクリプトが確定する。
     # 検査12(evidence_role)・検査23(impact_kind)がこの結果を見るため、check_hypothesis()の
     # ループより必ず先に実行すること。
-    evidence_counts = apply_edinet_evidence(hyps, sources_by_id, edinet_companies)
+    evidence_counts = apply_edinet_evidence(hyps, sources_by_id, edinet_companies, codelist_rows)
     extra_counts["evidence_filer_name_overridden"] = evidence_counts["evidence_filer_name_overridden"]
     extra_counts["evidence_doc_type_overridden"] = evidence_counts["evidence_doc_type_overridden"]
     extra_counts["impact_kind_overridden"] = evidence_counts["impact_kind_overridden"]
     extra_counts["impact_kind_source_counts"] = evidence_counts["impact_kind_source_counts"]
     extra_counts["impact_kind_undetermined_by_doc_type"] = evidence_counts["impact_kind_undetermined_by_doc_type"]
     extra_counts["edinet_url_unparsed"] = evidence_counts["edinet_url_unparsed"]
+    extra_counts["tob_side_subject_code_missing"] = evidence_counts["tob_side_subject_code_missing"]
 
     # 改修27-1(4-5): horizon_business_days・deadline_dateも、impact_kindが確定した後で
     # 機械が埋める(apply_edinet_evidence()の直後、check_hypothesis()のループより前)。
@@ -2058,6 +2233,29 @@ def main():
         # 検査35: market_openはAIの自己申告ではなく営業日カレンダーで確定させる。
         market_open_result = check_market_open(edition, args.calendar)
 
+        # 改修27-1第2回: business_daysはEDINET書類一覧の「直前の営業日」の特定(4-4)にも
+        # 使うため、ここで1回だけ読み込み、仮説の検査(検査17・32等)にも同じものを渡す
+        # (同じファイルを2回読む作りにしない)。
+        business_days = load_business_days(args.calendar)
+
+        # 改修27-1(4-4): --cache フォルダの中のSRC-EDINET-LIST.json(号の日付)と
+        # SRC-EDINET-LIST-PREV.json(直前の営業日)の両方を読み、合わせて使う。片方が
+        # 読めなければ、読めた方だけで続け、読めなかった日付をedinet_doclist_partialに
+        # 記録する。
+        edinet_companies, edinet_doclist_availability = load_edinet_companies(args.cache)
+        prev_business_day = last_business_day_before(business_days, edition.get("date")) if business_days else None
+        edinet_doclist_partial = []
+        if not edinet_doclist_availability["today"]:
+            edinet_doclist_partial.append(edition.get("date"))
+        if not edinet_doclist_availability["prev"]:
+            edinet_doclist_partial.append(prev_business_day)
+        ticker_crosscheck = "applied" if edinet_companies is not None else "skipped"
+
+        # 改修27-1(4-2・4-3): EDINETの出典のpublished_atを機械で書き込む。検査10(36時間
+        # ルール)・検査36(published_atの検算)がpublished_at/published_date_onlyを読むより
+        # 前に行う。
+        edinet_published_at_overwritten = apply_edinet_source_published_at(edition, args.cache, edinet_companies)
+
         ng_words = load_ng_words(ng_words_path)
         ng_words_exclude = load_ng_words(ng_words_exclude_path)
 
@@ -2091,9 +2289,6 @@ def main():
                 f"(実行時刻: {run_at_dt.isoformat()}, slot: {edition.get('slot')})。"
             )
 
-        edinet_companies = load_edinet_companies(args.cache)
-        ticker_crosscheck = "applied" if edinet_companies is not None else "skipped"
-
         hypothesis_violations = 0
         hypothesis_reasons = {}
         hypothesis_extra = {
@@ -2110,6 +2305,9 @@ def main():
             "horizon_overridden": 0,
             "deadline_uncomputable": 0,
             "horizon_recount_mismatch": 0,
+            "horizon_recount_skipped": 0,
+            # 改修27-1(4-10): --hypotheses未指定でもキーがそろうよう、既定値を0にしておく。
+            "tob_side_subject_code_missing": 0,
         }
         hypotheses_doc = None
         hypotheses_generated_at_raw = None
@@ -2120,7 +2318,6 @@ def main():
             hypotheses_generated_at_raw = override_generated_at(hypotheses_doc, run_at)
             hypotheses_doc["baseline_late"] = baseline_late
             hypotheses_doc["market_open"] = edition["market_open"]
-            business_days = load_business_days(args.calendar)
             # 修正12(a): コードリストは上段(hypotheses)・下段(industry_examples)の両方の
             # 検査(21・31)で使うため、ここで1回だけ読み込み、両方に同じ結果を渡す
             # (同じファイルを2回読む作りにしない)。
@@ -2238,6 +2435,12 @@ def main():
             "hypothesis_violations": hypothesis_violations,
             "unverified_reasons": stats["unverified_reasons"],
             "ticker_crosscheck": ticker_crosscheck,
+            # 改修27-1(4-4): EDINET書類一覧2日分のうち、読めなかった日付(記録専用)。
+            # 両方読めれば空配列。
+            "edinet_doclist_partial": edinet_doclist_partial,
+            # 改修27-1(4-2・4-3): EDINETの出典のpublished_atを機械で上書きした件数
+            # (個々の書類・一覧そのものの両方を合わせた件数。記録専用)。
+            "edinet_published_at_overwritten": edinet_published_at_overwritten,
             "baseline_late": baseline_late,
             # 改修27-1(決定4): 検査24は時間帯のずれを止めずに記録するだけにする
             # (号を止めるかどうかは27-2で決める)。
@@ -2269,6 +2472,11 @@ def main():
             # 検査17(改修27-1・4-5で検算に変更): 別の書き方で数え直した期限日がずれた件数
             # (判定には使わない。会社は消さない)。
             "horizon_recount_mismatch": hypothesis_extra["horizon_recount_mismatch"],
+            # 改修27-1第2回: 検査17の検算で起算日が求められなかった件数(通常は0。
+            # 検査32のbaseline_date_check_skippedとは別のキー)。
+            "horizon_recount_skipped": hypothesis_extra["horizon_recount_skipped"],
+            # 改修27-1(4-10): tob_sideの決定でsubjectEdinetCodeが取れなかった件数(記録専用)。
+            "tob_side_subject_code_missing": hypothesis_extra["tob_side_subject_code_missing"],
             "published_at_unverified_hits": published_at_unverified_hits,
             "published_at_unverified_sources": published_at_unverified_sources,
             # 修正5: 記録専用(判定には使わない)。既存のunknown_published_at_hitsは変えない。
