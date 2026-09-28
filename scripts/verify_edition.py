@@ -50,6 +50,7 @@ import csv
 import datetime as dt
 import decimal
 import hashlib
+import html
 import json
 import re
 import sys
@@ -273,6 +274,42 @@ def read_source_text(path):
         except (UnicodeDecodeError, LookupError):
             continue
     return None
+
+
+_HTML_STYLE_SCRIPT_RE = re.compile(r"(?is)<(style|script)[^>]*>.*?</\1>")
+_HTML_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def strip_html_tags(html_text):
+    """改修27-1(4-9): EDINETのHTML本文(iXBRLのhtmlファイル)からタグを取り除いた
+    素のテキストを作る。まず<style>・<script>ブロックを丸ごと除き(文字色や
+    フォント指定の中の文字が本文に紛れ込むのを防ぐ)、次にタグを除き、最後に
+    HTMLエンティティ(&amp;等)を元の文字に戻す。呼び出し側(read_source_body_for_checks)
+    がキャッシュの元ファイルを書き換えずに毎回メモリの中でこの結果を作る。"""
+    if not html_text:
+        return html_text
+    without_style_script = _HTML_STYLE_SCRIPT_RE.sub("", html_text)
+    without_tags = _HTML_TAG_RE.sub("", without_style_script)
+    return html.unescape(without_tags)
+
+
+def read_source_body_for_checks(cache_path, source):
+    """改修27-1(4-9): 検査1(excerpt・数字の一致)・検査11(一次情報の会社名)・
+    検査12(directionがminusの仮説のevidence_excerpt)・検査36(published_atの検算)で
+    使う出典本文を読む。read_source_text()で読んだ生のテキストのうち、出典が
+    EDINET(is_edinet_domain)のものだけ、タグを取り除いてから返す(4-9で処理する
+    のはEDINETの書類の本文がタグ入りのHTMLのため。EDINET以外の出典はタグを
+    含まない普通の本文のため、そのまま返す)。
+    キャッシュの元ファイル自体は一切書き換えない(read_source_text()経由で
+    読むだけ)。呼ぶたびにメモリの中で1回だけタグ除去を行う(元ファイルを
+    書き換えて使い回すことはしない)。"""
+    raw_text = read_source_text(cache_path)
+    if raw_text is None:
+        return None
+    url = (source or {}).get("url")
+    if is_edinet_domain(url):
+        return strip_html_tags(raw_text)
+    return raw_text
 
 
 def load_ng_words(path):
@@ -571,7 +608,9 @@ def verify_line(line, sources_by_id, cache_dir):
         if actual_hash != expected_hash:
             return "unverified", "hash_mismatch", None
 
-        body_text = read_source_text(cache_path)
+        # 改修27-1(4-9): EDINETの出典はHTMLタグを取り除いた本文で照合する
+        # (キャッシュの元ファイル・ハッシュの確認は上のraw_bytesのまま変えない)。
+        body_text = read_source_body_for_checks(cache_path, source)
         if body_text is None:
             return "unverified", "source_unreadable", None
         body_norm = normalize_text(body_text)
@@ -765,7 +804,8 @@ def run_check_published_at(edition, cache_dir):
         cache_path = Path(cache_dir) / f"{source_id}.txt"
         if not cache_path.is_file():
             continue
-        body_text = read_source_text(cache_path)
+        # 改修27-1(4-9): EDINETの出典はHTMLタグを取り除いた本文で照合する。
+        body_text = read_source_body_for_checks(cache_path, source)
         if body_text is None:
             continue
 
@@ -1028,7 +1068,8 @@ def check_evidence_source_ref(hyp, sources_by_id, cache_dir):
     if not cache_path.is_file():
         return "evidence_source_not_found"
 
-    body_text = read_source_text(cache_path)
+    # 改修27-1(4-9): EDINETの出典はHTMLタグを取り除いた本文で会社名を探す。
+    body_text = read_source_body_for_checks(cache_path, source)
     if body_text is None:
         return "evidence_source_unreadable"
 
@@ -1066,7 +1107,8 @@ def check_minus_direction(hyp, sources_by_id, cache_dir):
     if source is None:
         return False
     cache_path = Path(cache_dir) / f"{ref}.txt"
-    body_text = read_source_text(cache_path)
+    # 改修27-1(4-9): EDINETの出典はHTMLタグを取り除いた本文で照合する。
+    body_text = read_source_body_for_checks(cache_path, source)
     if body_text is None:
         return False
     if normalize_text(excerpt) not in normalize_text(body_text):
@@ -1138,6 +1180,12 @@ def format_edinet_submit_datetime(submit_date_time_raw):
     return naive.replace(tzinfo=JST).isoformat()
 
 
+# 改修27-1第3回の小さな修正1: 書類一覧そのもの(4-3)として扱うのは、source_idが
+# この2つのどちらかの出典だけにする。edinet_fetch.pyの --out に指定するファイル名
+# (4-4のコマンド例)と同じ名前。
+EDINET_DOCLIST_SOURCE_IDS = {"SRC-EDINET-LIST", "SRC-EDINET-LIST-PREV"}
+
+
 def apply_edinet_source_published_at(edition, cache_dir, edinet_companies):
     """改修27-1(4-2・4-3): EDINETの出典のpublished_atを、AIの自己申告ではなく機械で
     書き込む(AIの値は使わない。一致・不一致にかかわらず必ず上書きする)。EDINET以外の
@@ -1148,12 +1196,18 @@ def apply_edinet_source_published_at(edition, cache_dir, edinet_companies):
         時刻まで書き込む。一覧が読めない・その書類IDが一覧に見つからない場合は
         published_atをnullにする(nullになった件数は分からないため上書き件数だけ数える。
         個々の理由は数えない)。
-      ・書類一覧そのもの(urlは書類管理番号を含まないEDINETのURL。4-3): 出典と同じ名前
-        (source_id)のキャッシュファイル({source_id}.json)を読み、その取得条件
+      ・書類一覧そのもの(urlは書類管理番号を含まないEDINETのURL、かつsource_idが
+        EDINET_DOCLIST_SOURCE_IDSのどちらか。4-3): 出典と同じ名前(source_id)の
+        キャッシュファイル({source_id}.json)を読み、その取得条件
         (metadata.parameter.date)を日付だけ書き込み、published_date_only を真にする。
         ファイルが読めなければpublished_atをnullにし、published_date_onlyは立てない。
+      ・改修27-1第3回の小さな修正1: urlは書類管理番号を含まないEDINETのURLだが、
+        source_idが一覧の2つのどちらでもない出典(会社の検索ページなど)は、一覧
+        ではないと判断し、published_atには一切触れない(AIの値をそのまま残す)。
+        件数だけedinet_other_url_hitsとして数える。
 
-    戻り値: published_atの値が変わった出典の件数。"""
+    戻り値: (published_atの値が変わった出典の件数, 一覧でも個々の書類でもない
+    EDINETのURLだった出典の件数)。"""
     doc_by_id = {}
     if edinet_companies is not None:
         for c in edinet_companies:
@@ -1162,6 +1216,7 @@ def apply_edinet_source_published_at(edition, cache_dir, edinet_companies):
                 doc_by_id[doc_id] = c
 
     overwritten = 0
+    edinet_other_url_hits = 0
     for source in edition.get("sources", []):
         url = source.get("url")
         if not is_edinet_domain(url):
@@ -1177,10 +1232,14 @@ def apply_edinet_source_published_at(edition, cache_dir, edinet_companies):
             continue
 
         source_id = source.get("source_id")
-        list_path = Path(cache_dir) / f"{source_id}.json" if source_id else None
+        if source_id not in EDINET_DOCLIST_SOURCE_IDS:
+            edinet_other_url_hits += 1
+            continue
+
+        list_path = Path(cache_dir) / f"{source_id}.json"
         new_published_at = None
         new_published_date_only = False
-        if list_path is not None and list_path.is_file():
+        if list_path.is_file():
             try:
                 raw_doc = load_json(list_path)
             except (json.JSONDecodeError, OSError):
@@ -1196,7 +1255,37 @@ def apply_edinet_source_published_at(edition, cache_dir, edinet_companies):
         source["published_at"] = new_published_at
         source["published_date_only"] = new_published_date_only
 
-    return overwritten
+    return overwritten, edinet_other_url_hits
+
+
+def collect_edinet_doc_files(edition, cache_dir):
+    """改修27-1(4-8): EDINETの個々の書類を指す出典について、edinet_fetch.pyが
+    書き出したSRC-xxx.files.json(どのファイルを本文として選んだか、
+    _select_document_files()参照)を読み、記録用にそのまま写す。
+
+    ファイルが無い・読めない出典は記録に含めない(選ばれた本文自体はキャッシュに
+    既にあるものを使うだけで、この記録が読めなくても号は止めない)。
+
+    戻り値: {source_id: {"files": [...], "fallback": bool}, ...}。"""
+    result = {}
+    for source in edition.get("sources", []):
+        if extract_edinet_doc_id(source.get("url")) is None:
+            continue
+        source_id = source.get("source_id")
+        if not source_id:
+            continue
+        files_path = Path(cache_dir) / f"{source_id}.files.json"
+        if not files_path.is_file():
+            continue
+        try:
+            record = load_json(files_path)
+        except (json.JSONDecodeError, OSError):
+            continue
+        result[source_id] = {
+            "files": record.get("files"),
+            "fallback": record.get("fallback"),
+        }
+    return result
 
 
 def is_edinet_domain(url):
@@ -2254,7 +2343,14 @@ def main():
         # 改修27-1(4-2・4-3): EDINETの出典のpublished_atを機械で書き込む。検査10(36時間
         # ルール)・検査36(published_atの検算)がpublished_at/published_date_onlyを読むより
         # 前に行う。
-        edinet_published_at_overwritten = apply_edinet_source_published_at(edition, args.cache, edinet_companies)
+        edinet_published_at_overwritten, edinet_other_url_hits = apply_edinet_source_published_at(
+            edition, args.cache, edinet_companies
+        )
+
+        # 改修27-1(4-8): EDINETの個々の書類について、edinet_fetch.pyがどのファイルを
+        # 本文に選んだかを記録する(選んだ本文自体はキャッシュに既にある。ここでは
+        # 記録を写すだけ)。
+        edinet_doc_files = collect_edinet_doc_files(edition, args.cache)
 
         ng_words = load_ng_words(ng_words_path)
         ng_words_exclude = load_ng_words(ng_words_exclude_path)
@@ -2441,6 +2537,14 @@ def main():
             # 改修27-1(4-2・4-3): EDINETの出典のpublished_atを機械で上書きした件数
             # (個々の書類・一覧そのものの両方を合わせた件数。記録専用)。
             "edinet_published_at_overwritten": edinet_published_at_overwritten,
+            # 改修27-1第3回の小さな修正1: 一覧でも個々の書類でもない、EDINETの別の
+            # URL(会社の検索ページ等)だった出典の件数(記録専用。published_atは
+            # 変えていない)。
+            "edinet_other_url_hits": edinet_other_url_hits,
+            # 改修27-1(4-8): EDINETの個々の書類ごとに、どのファイルを本文として
+            # 選んだか(edinet_fetch.pyが書き出したSRC-xxx.files.jsonを写したもの。
+            # 記録専用)。
+            "edinet_doc_files": edinet_doc_files,
             "baseline_late": baseline_late,
             # 改修27-1(決定4): 検査24は時間帯のずれを止めずに記録するだけにする
             # (号を止めるかどうかは27-2で決める)。

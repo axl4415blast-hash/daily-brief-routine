@@ -164,11 +164,51 @@ def build_companies(raw_doc):
     return companies, reason_counts
 
 
+# 改修27-1(4-8): EDINETのZIPの中のファイル名の規則。表紙(【提出書類】【会社名】等の
+# 見出し情報だけのファイル)は"0000000_header"で始まり、本文は"honbun"を含む
+# (臨時報告書・公開買付届出書等で確認済み。2026年9月時点)。
+HEADER_FILENAME_PREFIX = "0000000_header"
+HONBUN_FILENAME_MARKER = "honbun"
+
+
+def _select_document_files(candidates):
+    """改修27-1(4-8、Q1の回答=案B): ZIP内のテキスト系ファイル候補から、本文として
+    使うファイルの並び順を決める。honbunを含むファイルをファイル名の昇順ですべて
+    つなげ(1つの書類が複数のhonbunファイルに分かれることがあるため)、表紙
+    (0000000_headerで始まるファイル)があれば最後に1つだけ付け加える(表紙は
+    会社名・提出日などの見出し情報のみで本文の内容そのものではないため、
+    本文をさえぎらないよう先頭ではなく最後に置く)。
+
+    honbunを含むファイルが1つも無い場合は、フォールバックとして今までどおり
+    テキスト系ファイルの中でいちばん大きいものを1つだけ選ぶ(有価証券報告書など、
+    臨時報告書と違うファイル名の付け方をする書類種別があるかもしれないための
+    安全側の作り。止めない・今までの動きを保つ)。
+
+    戻り値: (選んだ順のZipInfoのリスト, フォールバックだったか)。"""
+    header_files = sorted(
+        (c for c in candidates if Path(c.filename).name.startswith(HEADER_FILENAME_PREFIX)),
+        key=lambda c: c.filename,
+    )
+    honbun_files = sorted(
+        (c for c in candidates if HONBUN_FILENAME_MARKER in Path(c.filename).name.lower()),
+        key=lambda c: c.filename,
+    )
+    if honbun_files:
+        chosen = list(honbun_files)
+        if header_files:
+            chosen.append(header_files[0])
+        return chosen, False
+
+    return [max(candidates, key=lambda info: info.file_size)], True
+
+
 def extract_text_payload(raw_bytes):
-    """レスポンスがZIPならテキスト系ファイルの中でいちばん大きいものを選んで返す。
-    ZIPでなければそのまま返す。戻り値: (bytes, 選んだファイル名 or None)。"""
+    """レスポンスがZIPなら、本文として使うファイルを_select_document_files()の
+    規則で選ぶ。ZIPでなければそのままの中身を1件として返す。
+    戻り値: ([(bytes, ファイル名), ...]=選んだ順, フォールバックだったか)。
+    ZIPでない場合は ([(raw_bytes, None)], False)。"""
     if raw_bytes[:2] != b"PK":
-        return raw_bytes, None
+        return [(raw_bytes, None)], False
     with zipfile.ZipFile(io.BytesIO(raw_bytes)) as zf:
         candidates = [
             info for info in zf.infolist()
@@ -176,8 +216,8 @@ def extract_text_payload(raw_bytes):
         ]
         if not candidates:
             raise EdinetError("ZIP内にテキスト系ファイルが見つかりませんでした")
-        chosen = max(candidates, key=lambda info: info.file_size)
-        return zf.read(chosen.filename), chosen.filename
+        chosen_infos, fallback = _select_document_files(candidates)
+        return [(zf.read(info.filename), info.filename) for info in chosen_infos], fallback
 
 
 def decode_bytes(raw_bytes):
@@ -316,28 +356,53 @@ def cmd_doc(args):
             return 1
 
     try:
-        payload, chosen_name = extract_text_payload(raw_bytes)
+        parts, fallback = extract_text_payload(raw_bytes)
     except EdinetError as e:
         print(str(e), file=sys.stderr)
         return 1
-    if chosen_name:
-        print(f"選んだファイル: {chosen_name}")
 
-    text, encoding_used = decode_bytes(payload)
-    if text is None:
+    chosen_names = [name for _payload, name in parts if name]
+    if chosen_names:
+        print("選んだファイル: " + "、".join(chosen_names))
+    if fallback:
         print(
-            "文字コードを判定できませんでした(UTF-8・cp932のいずれでも読めません)。"
-            "変換せずに終了します。",
+            "honbunを含むファイルが見つからなかったため、テキスト系ファイルの中で"
+            "いちばん大きいものを選びました(フォールバック)。",
             file=sys.stderr,
         )
-        return 1
+
+    # 改修27-1(4-8): 複数ファイルを選んだ場合(honbunが複数、または表紙を付け加えた場合)は、
+    # ファイルごとに文字コードを判定してから文字列としてつなげる(バイト列のまま
+    # つなげてから1回で判定すると、2つ目以降のファイルの先頭にBOMがあった場合に
+    # 判定を誤るため)。
+    decoded_parts = []
+    encodings_used = []
+    for payload, _name in parts:
+        text, encoding_used = decode_bytes(payload)
+        if text is None:
+            print(
+                "文字コードを判定できませんでした(UTF-8・cp932のいずれでも読めません)。"
+                "変換せずに終了します。",
+                file=sys.stderr,
+            )
+            return 1
+        decoded_parts.append(text)
+        encodings_used.append(encoding_used)
+
+    text = "\n\n".join(decoded_parts)
 
     out_path = Path(args.out)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(text, encoding="utf-8")
 
+    # 改修27-1(4-8): 選んだファイル名の一覧を記録する(拡張子を除いた同じ名前に
+    # .files.json を付けたファイル。verify_edition.pyがedinet_doc_filesとして写す)。
+    files_record = {"doc_id": args.doc_id, "files": chosen_names, "fallback": fallback}
+    files_path = out_path.with_name(out_path.stem + ".files.json")
+    files_path.write_text(json.dumps(files_record, ensure_ascii=False, indent=1), encoding="utf-8")
+
     digest = hashlib.sha256(out_path.read_bytes()).hexdigest()
-    print(f"文字コード判定: {encoding_used}")
+    print(f"文字コード判定: {'、'.join(dict.fromkeys(encodings_used))}")
     print(f"SHA256: {digest}")
     return 0
 

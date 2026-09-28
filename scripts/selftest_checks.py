@@ -20,11 +20,14 @@ scripts/testdata の中身が書き換わってしまう(過去に2回、この�
 1件でも期待と異なれば、終了コード1で終わる。
 """
 import datetime as dt
+import hashlib
+import io
 import json
 import shutil
 import subprocess
 import sys
 import tempfile
+import zipfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -3724,8 +3727,11 @@ def test_load_edinet_companies_two_days():
 
 
 def test_apply_edinet_source_published_at():
-    """改修27-1(4-2・4-3): EDINETの出典のpublished_atを機械で書き込む。
-    個々の書類はsubmitDateTimeから時刻まで、書類一覧そのものは取得条件の日付だけ。"""
+    """改修27-1(4-2・4-3、第3回の小さな修正1): EDINETの出典のpublished_atを機械で
+    書き込む。個々の書類はsubmitDateTimeから時刻まで、書類一覧そのもの
+    (source_idがSRC-EDINET-LIST/SRC-EDINET-LIST-PREVのどちらか)は取得条件の日付だけ。
+    それ以外のEDINETのURL(会社の検索ページ等)は、一覧ではないのでpublished_atに
+    一切触れない(小さな修正1)。"""
     with tempfile.TemporaryDirectory() as d:
         cache_dir = Path(d)
         _write_edinet_list_json(
@@ -3735,6 +3741,8 @@ def test_apply_edinet_source_published_at():
                 "docTypeCode": "180", "submitDateTime": "2026-09-28 09:00",
             }],
         )
+        # SRC-EDINET-LIST-PREV.jsonはわざと作らない(キャッシュファイルが無い場合の
+        # 負例に使う)。
 
         edinet_companies, _availability = ve.load_edinet_companies(str(cache_dir))
 
@@ -3753,8 +3761,16 @@ def test_apply_edinet_source_published_at():
                     "url": "https://api.edinet-fsa.go.jp/api/v2/documents.json?date=2026-09-28&type=2",
                 },
                 {
-                    "source_id": "SRC-EDINET-LIST-MISSING", "published_at": "元の値",
+                    # 一覧の2つの名前のどちらか(ここではPREV)だが、対応する
+                    # キャッシュファイルがまだ無い場合。
+                    "source_id": "SRC-EDINET-LIST-PREV", "published_at": "元の値",
                     "url": "https://api.edinet-fsa.go.jp/api/v2/documents.json?date=2026-09-01&type=2",
+                },
+                {
+                    # 小さな修正1: EDINETドメインだが、書類管理番号も無く、一覧の
+                    # 2つの名前のどちらでもない出典(例: 会社の検索ページ)。
+                    "source_id": "SRC-EDINET-SEARCH", "published_at": "AIが書いた値のまま残るはず",
+                    "url": "https://disclosure2.edinet-fsa.go.jp/",
                 },
                 {
                     "source_id": "SRC-NEWS", "published_at": "2026-09-27T10:00:00+09:00",
@@ -3763,7 +3779,7 @@ def test_apply_edinet_source_published_at():
             ],
         }
 
-        overwritten = ve.apply_edinet_source_published_at(edition, str(cache_dir), edinet_companies)
+        overwritten, other_url_hits = ve.apply_edinet_source_published_at(edition, str(cache_dir), edinet_companies)
         by_id = {s["source_id"]: s for s in edition["sources"]}
 
         check(
@@ -3784,8 +3800,16 @@ def test_apply_edinet_source_published_at():
         )
         check(
             "apply_edinet_source_published_at/負例(4-3): 対応するキャッシュファイルが無ければnullでpublished_date_onlyは立たない",
-            (by_id["SRC-EDINET-LIST-MISSING"]["published_at"], by_id["SRC-EDINET-LIST-MISSING"]["published_date_only"]),
+            (by_id["SRC-EDINET-LIST-PREV"]["published_at"], by_id["SRC-EDINET-LIST-PREV"]["published_date_only"]),
             (None, False),
+        )
+        check(
+            "改修27-1第3回/小さな修正1・正例: 一覧の名前でないEDINETのURLはpublished_atに触れない",
+            by_id["SRC-EDINET-SEARCH"]["published_at"], "AIが書いた値のまま残るはず",
+        )
+        check(
+            "改修27-1第3回/小さな修正1・正例: そのURLにはpublished_date_onlyも付かない",
+            "published_date_only" in by_id["SRC-EDINET-SEARCH"], False,
         )
         check(
             "apply_edinet_source_published_at/負例: EDINET以外の出典には触れない",
@@ -3795,7 +3819,191 @@ def test_apply_edinet_source_published_at():
             "apply_edinet_source_published_at/負例: EDINET以外の出典にpublished_date_onlyは付かない",
             "published_date_only" in by_id["SRC-NEWS"], False,
         )
-        check("apply_edinet_source_published_at/件数: 値が変わった出典は4件(SRC-NEWS以外)", overwritten, 4)
+        check(
+            "apply_edinet_source_published_at/件数: 値が変わった出典は4件"
+            "(SRC-DOC・SRC-DOC-NOTFOUND・SRC-EDINET-LIST・SRC-EDINET-LIST-PREV)",
+            overwritten, 4,
+        )
+        check(
+            "改修27-1第3回/小さな修正1・件数: 一覧でも個々の書類でもないEDINETのURLは1件",
+            other_url_hits, 1,
+        )
+
+
+def _make_zip(entries):
+    """entries: [(ファイル名, bytes), ...]。テスト専用のZIPバイト列を作る。"""
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        for name, data in entries:
+            zf.writestr(name, data)
+    return buf.getvalue()
+
+
+def test_select_document_files_and_extract_text_payload():
+    """改修27-1(4-8、Q1の回答=案B): ZIPの中から本文として使うファイルを選ぶ規則。
+    honbunを含むファイルをファイル名の昇順でつなげ、表紙(0000000_header)があれば
+    最後に1つだけ付け加える。honbunが1つも無ければ、フォールバックとして今までどおり
+    いちばん大きいファイルを1つ選ぶ(実装は安全側+記録)。"""
+    # --- 正例: honbunが2つ(ファイル名の順が逆)+表紙が1つ+無関係なファイル ---
+    zip_bytes = _make_zip([
+        ("XBRL/PublicDoc/0101010_honbun_b.htm", b"HONBUN-B"),
+        ("XBRL/PublicDoc/0101010_honbun_a.htm", b"HONBUN-A"),
+        ("XBRL/PublicDoc/0000000_header_x.htm", b"HEADER"),
+        ("XBRL/PublicDoc/manifest_PublicDoc.xml", b"<manifest/>"),
+    ])
+    parts, fallback = edinet_fetch.extract_text_payload(zip_bytes)
+    check("extract_text_payload/正例: フォールバックではない(honbunが見つかった)", fallback, False)
+    check(
+        "extract_text_payload/正例: honbunをファイル名の昇順でつなげ、最後に表紙を付ける",
+        [name for _payload, name in parts],
+        [
+            "XBRL/PublicDoc/0101010_honbun_a.htm",
+            "XBRL/PublicDoc/0101010_honbun_b.htm",
+            "XBRL/PublicDoc/0000000_header_x.htm",
+        ],
+    )
+    check(
+        "extract_text_payload/正例: 選んだ内容も対応するバイト列になっている",
+        [payload for payload, _name in parts],
+        [b"HONBUN-A", b"HONBUN-B", b"HEADER"],
+    )
+
+    # --- 正例: honbunが1つ、表紙が無い書類(臨時報告書以外の一部を想定) ---
+    zip_bytes2 = _make_zip([("XBRL/PublicDoc/0101010_honbun.htm", b"HONBUN-ONLY")])
+    parts2, fallback2 = edinet_fetch.extract_text_payload(zip_bytes2)
+    check("extract_text_payload/正例: 表紙が無くてもhonbunだけで正常に選べる", fallback2, False)
+    check(
+        "extract_text_payload/正例: honbunが1つならそれだけを選ぶ",
+        [name for _payload, name in parts2], ["XBRL/PublicDoc/0101010_honbun.htm"],
+    )
+
+    # --- 負例(フォールバック): honbunを含むファイルが1つも無い ---
+    zip_bytes3 = _make_zip([
+        ("XBRL/PublicDoc/0000000_header_x.htm", b"HEADER"),
+        ("XBRL/PublicDoc/small.htm", b"S"),
+        ("XBRL/PublicDoc/biggest.htm", b"BIGGEST-CONTENT-HERE"),
+    ])
+    parts3, fallback3 = edinet_fetch.extract_text_payload(zip_bytes3)
+    check(
+        "extract_text_payload/負例(実装は安全側): honbunが無ければフォールバックと記録される",
+        fallback3, True,
+    )
+    check(
+        "extract_text_payload/負例: フォールバック時はいちばん大きいファイルを1つだけ選ぶ(今までどおり)",
+        [name for _payload, name in parts3], ["XBRL/PublicDoc/biggest.htm"],
+    )
+
+    # --- ZIPでない場合はそのまま1件として返す(今までどおり) ---
+    parts4, fallback4 = edinet_fetch.extract_text_payload(b"not a zip")
+    check("extract_text_payload/負例: ZIPでなければそのまま1件で返す", parts4, [(b"not a zip", None)])
+    check("extract_text_payload/負例: ZIPでなければフォールバックの扱いにしない", fallback4, False)
+
+
+def test_strip_html_tags():
+    """改修27-1(4-9): EDINETのHTML本文からタグを取り除く処理。<style>・<script>は
+    丸ごと除き、タグをまたいだ表記(1株当たり1,500円のような分割)をつなげて読める
+    ようにし、HTMLエンティティは元の文字に戻す。"""
+    html_text = (
+        "<html><head><style>p{color:red}</style></head><body>"
+        "<p>【会社名】カナリア工業株式会社</p>"
+        "<p>1株当たり<span>1,500</span>円で<script>var x=1;</script>買付ける</p>"
+        "<p>AT&amp;T株式会社との比較</p>"
+        "</body></html>"
+    )
+    plain = ve.strip_html_tags(html_text)
+    check("strip_html_tags/正例: 会社名がタグ無しで読める", "カナリア工業株式会社" in plain, True)
+    check("strip_html_tags/正例: タグをまたいだ数字がつながって読める", "1株当たり1,500円で買付ける" in plain, True)
+    check("strip_html_tags/正例: styleブロックの中身は本文に残らない", "color:red" in plain, False)
+    check("strip_html_tags/正例: scriptブロックの中身は本文に残らない", "var x=1" in plain, False)
+    check("strip_html_tags/正例: HTMLエンティティは元の文字に戻る", "AT&T株式会社との比較" in plain, True)
+    check("strip_html_tags/負例: nullはそのままNoneを返す", ve.strip_html_tags(None), None)
+    check("strip_html_tags/負例: 空文字はそのまま空文字を返す", ve.strip_html_tags(""), "")
+
+
+def test_read_source_body_for_checks():
+    """改修27-1(4-9): 出典がEDINETのものだけタグを取り除く。EDINET以外の出典は
+    そのまま返す。キャッシュの元ファイル自体は書き換えない。"""
+    with tempfile.TemporaryDirectory() as d:
+        edinet_path = write(d, "SRC-EDINET.txt", "<p>カナリア工業<b>株式会社</b></p>")
+        news_path = write(d, "SRC-NEWS.txt", "<p>タグに見える文字列</p>そのままの記事")
+
+        edinet_source = {"url": "https://disclosure2.edinet-fsa.go.jp/api/v2/documents/S100X?type=1"}
+        news_source = {"url": "https://www.nikkei.com/article/xxx/"}
+
+        body_edinet = ve.read_source_body_for_checks(edinet_path, edinet_source)
+        check(
+            "read_source_body_for_checks/正例: EDINETの出典はタグが取り除かれる",
+            body_edinet, "カナリア工業株式会社",
+        )
+
+        body_news = ve.read_source_body_for_checks(news_path, news_source)
+        check(
+            "read_source_body_for_checks/負例: EDINET以外の出典はタグに見える文字列もそのまま残る",
+            body_news, "<p>タグに見える文字列</p>そのままの記事",
+        )
+
+        check(
+            "read_source_body_for_checks/負例: キャッシュの元ファイルは書き換えられていない",
+            edinet_path.read_text(encoding="utf-8"), "<p>カナリア工業<b>株式会社</b></p>",
+        )
+
+        check(
+            "read_source_body_for_checks/負例: 存在しないファイルはNone",
+            ve.read_source_body_for_checks(Path(d) / "not_exist.txt", edinet_source), None,
+        )
+
+
+def test_collect_edinet_doc_files():
+    """改修27-1(4-8): edinet_fetch.pyが書き出したSRC-xxx.files.jsonを、
+    edinet_doc_filesとして写す。"""
+    with tempfile.TemporaryDirectory() as d:
+        cache_dir = Path(d)
+        (cache_dir / "SRC-DOC.files.json").write_text(
+            json.dumps({
+                "doc_id": "S-DOC",
+                "files": ["XBRL/PublicDoc/0101010_honbun.htm", "XBRL/PublicDoc/0000000_header.htm"],
+                "fallback": False,
+            }, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        # SRC-DOC-NOFILE.files.jsonはわざと作らない(記録が無い場合の負例)。
+
+        edition = {
+            "sources": [
+                {
+                    "source_id": "SRC-DOC",
+                    "url": "https://disclosure2.edinet-fsa.go.jp/api/v2/documents/S-DOC?type=1",
+                },
+                {
+                    "source_id": "SRC-DOC-NOFILE",
+                    "url": "https://disclosure2.edinet-fsa.go.jp/api/v2/documents/S-NOFILE?type=1",
+                },
+                {
+                    # EDINETの個々の書類でない出典(一覧そのもの)は対象外。
+                    "source_id": "SRC-EDINET-LIST",
+                    "url": "https://api.edinet-fsa.go.jp/api/v2/documents.json?date=2026-09-28&type=2",
+                },
+                {
+                    "source_id": "SRC-NEWS",
+                    "url": "https://www.nikkei.com/article/xxx/",
+                },
+            ],
+        }
+
+        result = ve.collect_edinet_doc_files(edition, str(cache_dir))
+        check(
+            "collect_edinet_doc_files/正例: 記録があるEDINETの書類は写される",
+            result.get("SRC-DOC"),
+            {"files": ["XBRL/PublicDoc/0101010_honbun.htm", "XBRL/PublicDoc/0000000_header.htm"], "fallback": False},
+        )
+        check(
+            "collect_edinet_doc_files/負例: 記録が無いEDINETの書類はキーごと入らない",
+            "SRC-DOC-NOFILE" in result, False,
+        )
+        check(
+            "collect_edinet_doc_files/負例: 書類一覧そのもの・EDINET以外の出典は対象外",
+            ("SRC-EDINET-LIST" in result, "SRC-NEWS" in result), (False, False),
+        )
 
 
 def test_run_check_e_stale_sources_36h_boundary():
@@ -3982,6 +4190,116 @@ def test_round2_end_to_end_edinet_published_at_and_tob_side():
             )
 
     _assert_testdata_untouched("改修27-1第2回/統合テスト")
+
+
+def test_round3_end_to_end_html_tags_and_doc_files():
+    """改修27-1(第3回)をCLI全体(main())で確かめる統合テスト。EDINETの書類本文が
+    タグ入りのHTMLでも、タグをまたいだ抜き出し文が検査1で一致すること(4-9)、
+    どのファイルを本文に選んだかがedinet_doc_filesに記録されること(4-8)を確かめる。"""
+    with tempfile.TemporaryDirectory() as d:
+        work_dir = Path(d)
+        now = dt.datetime.now(ve.JST)
+        today_str = _expected_edition_date("evening", now)
+        submit_str = (now - dt.timedelta(hours=1)).strftime("%Y-%m-%d %H:%M")
+
+        cache_dir = work_dir / "cache"
+        cache_dir.mkdir(parents=True)
+        _write_edinet_list_json(
+            cache_dir / "SRC-EDINET-LIST.json", today_str,
+            [{
+                "edinetCode": "E-DOC", "filerName": "カナリア電機株式会社", "docID": "S-DOC",
+                "docTypeCode": "180", "submitDateTime": submit_str,
+            }],
+        )
+        _write_edinet_list_json(cache_dir / "SRC-EDINET-LIST-PREV.json", today_str, [])
+
+        # タグの中に数字が分かれて入っている、実物のEDINET書類(HTML)を模した本文。
+        html_body = (
+            "<html><body>"
+            "<p>【会社名】カナリア電機株式会社</p>"
+            "<p>今期の設備投資額は<span>1,200</span>百万円を予定している</p>"
+            "</body></html>"
+        )
+        doc_path = cache_dir / "SRC-DOC.txt"
+        doc_path.write_text(html_body, encoding="utf-8")
+        content_hash = hashlib.sha256(doc_path.read_bytes()).hexdigest()
+
+        (cache_dir / "SRC-DOC.files.json").write_text(
+            json.dumps({
+                "doc_id": "S-DOC",
+                "files": ["XBRL/PublicDoc/0101010_honbun_x.htm", "XBRL/PublicDoc/0000000_header_x.htm"],
+                "fallback": False,
+            }, ensure_ascii=False),
+            encoding="utf-8",
+        )
+
+        edition = {
+            "edition_id": f"{today_str}-evening",
+            "date": today_str,
+            "slot": "evening",
+            "generated_at": None,
+            "market_open": None,
+            "sources": [{
+                "source_id": "SRC-DOC", "publisher": "カナリア電機株式会社", "title": "有価証券報告書",
+                "url": "https://disclosure2.edinet-fsa.go.jp/api/v2/documents/S-DOC?type=1",
+                "published_at": None, "usage": "quotable", "publisher_type": "company_disclosure",
+                "content_sha256": content_hash,
+            }],
+            "sections": [{
+                "section_id": "change",
+                "articles": [{
+                    "article_id": "A-1",
+                    "lines": [{
+                        "line_id": "L-1",
+                        "text": "カナリア電機の設備投資額は1,200百万円を予定している",
+                        "claimed_mark": "source_number_match",
+                        "numbers": [{"label": "金額", "value": 1200}],
+                        "source_ref": "SRC-DOC",
+                        # タグ(<span>)で1,200が分かれている元のHTMLとは違い、
+                        # 抜き出し文自体はAIが書く普通の(タグの無い)文。タグを
+                        # 取り除いた本文の中に、この文がそのまま見つかるかどうかを試す。
+                        "excerpt": "今期の設備投資額は1,200百万円を予定している",
+                        "attribution": "出典：カナリア電機株式会社「有価証券報告書」（https://example.test/）",
+                        "processing_note": "本サイトが同資料をもとに作成",
+                    }],
+                }],
+            }],
+        }
+        hyp_doc = {"edition_id": f"{today_str}-evening", "generated_at": None, "hypotheses": []}
+
+        edition_dir = work_dir / "editions" / today_str
+        edition_dir.mkdir(parents=True)
+        edition_path = edition_dir / "evening.json"
+        edition_path.write_text(json.dumps(edition, ensure_ascii=False, indent=1), encoding="utf-8")
+
+        hyp_dir = work_dir / "hypotheses"
+        hyp_dir.mkdir(parents=True)
+        hyp_path = hyp_dir / f"{today_str}-evening.json"
+        hyp_path.write_text(json.dumps(hyp_doc, ensure_ascii=False, indent=1), encoding="utf-8")
+
+        calendar_dir = _write_temp_calendar(work_dir, dt.datetime.strptime(today_str, "%Y-%m-%d").date(), 40)
+
+        result = _run_verify_cli(work_dir, edition_path, hyp_path, cache_dir, calendar_dir)
+        check("改修27-1第3回/統合: 正常終了する(終了コード0)", result.returncode, 0)
+
+        after_edition = json.loads(edition_path.read_text(encoding="utf-8"))
+        v = after_edition.get("verification") or {}
+        line_after = after_edition["sections"][0]["articles"][0]["lines"][0]
+
+        check(
+            "改修27-1第3回/統合(4-9): タグをまたいだ抜き出し文でも出典と数字が一致する(source_number_match)",
+            line_after.get("mark"), "source_number_match",
+        )
+        check(
+            "改修27-1第3回/統合(4-8): どのファイルを本文に選んだかがedinet_doc_filesに記録される",
+            v.get("edinet_doc_files", {}).get("SRC-DOC"),
+            {
+                "files": ["XBRL/PublicDoc/0101010_honbun_x.htm", "XBRL/PublicDoc/0000000_header_x.htm"],
+                "fallback": False,
+            },
+        )
+
+    _assert_testdata_untouched("改修27-1第3回/統合テスト")
 
 
 def _hyp_base(**kw):
@@ -4336,6 +4654,14 @@ def main():
     test_run_check_e_stale_sources_36h_boundary()
     test_run_check_published_at_skips_date_only()
     test_round2_end_to_end_edinet_published_at_and_tob_side()
+
+    # 改修27-1(第3回): 4-8(EDINETの表紙ファイルの除外)・4-9(タグ除去)・
+    # 小さな修正1(一覧でないEDINETのURL)のテスト。
+    test_select_document_files_and_extract_text_payload()
+    test_strip_html_tags()
+    test_read_source_body_for_checks()
+    test_collect_edinet_doc_files()
+    test_round3_end_to_end_html_tags_and_doc_files()
 
     total = len(results)
     passed = sum(1 for _, ok, _, _ in results if ok)
