@@ -19,6 +19,7 @@ scripts/testdata の中身が書き換わってしまう(過去に2回、この�
 
 1件でも期待と異なれば、終了コード1で終わる。
 """
+import copy
 import datetime as dt
 import hashlib
 import io
@@ -2376,6 +2377,149 @@ def test_apply_source_attribution():
         "改修27-1(4-6)/検査3: attribution・processing_noteがnullだった行も、上書き後はmissing_fieldにならない"
         "(出典本文が無いのでsource_unfetchableにはなるが、missing_fieldにはならない)",
         reason_l1, "source_unfetchable",
+    )
+
+
+def test_compute_edinet_view_url():
+    """改修27-1第6回: EDINETの出典について、読者が実際に開けるURL(view_url)を
+    機械で決める規則の正例・負例。"""
+    doc_source = {
+        "source_id": "SRC-DOC",
+        "url": "https://disclosure2.edinet-fsa.go.jp/api/v2/documents/S100Z3TZ?type=1",
+    }
+    check(
+        "compute_edinet_view_url/正例: 個々の書類はWZEK0040.aspx?書類管理番号になる",
+        ve.compute_edinet_view_url(doc_source),
+        "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z3TZ",
+    )
+
+    list_source = {
+        "source_id": "SRC-EDINET-LIST",
+        "url": "https://api.edinet-fsa.go.jp/api/v2/documents.json?date=2026-09-28&type=2",
+    }
+    check(
+        "compute_edinet_view_url/正例: 書類一覧そのものはEDINET閲覧サイトのトップになる",
+        ve.compute_edinet_view_url(list_source), "https://disclosure2.edinet-fsa.go.jp/",
+    )
+    list_prev_source = {"source_id": "SRC-EDINET-LIST-PREV", "url": "https://api.edinet-fsa.go.jp/api/v2/documents.json?date=2026-09-27&type=2"}
+    check(
+        "compute_edinet_view_url/正例: SRC-EDINET-LIST-PREVも同じくトップになる",
+        ve.compute_edinet_view_url(list_prev_source), "https://disclosure2.edinet-fsa.go.jp/",
+    )
+
+    other_edinet_source = {"source_id": "SRC-EDINET-SEARCH", "url": "https://disclosure2.edinet-fsa.go.jp/"}
+    check(
+        "compute_edinet_view_url/負例: 個々の書類でも一覧でもないEDINETのURLはNone(urlをそのまま使う)",
+        ve.compute_edinet_view_url(other_edinet_source), None,
+    )
+
+    news_source = {"source_id": "SRC-NEWS", "url": "https://www.nikkei.com/article/xxx/"}
+    check(
+        "compute_edinet_view_url/負例: EDINET以外の出典はNone",
+        ve.compute_edinet_view_url(news_source), None,
+    )
+
+
+def test_apply_edinet_view_url():
+    """改修27-1第6回: apply_edinet_view_url()が出典一覧の全件にview_urlを書き込む
+    (AIが書いた値も必ず上書きする)ことの正例・負例。"""
+    edition = {
+        "sources": [
+            {
+                "source_id": "SRC-DOC", "url": "https://disclosure2.edinet-fsa.go.jp/api/v2/documents/S100X?type=1",
+                "view_url": "AIが書いた(誤った)値",
+            },
+            {"source_id": "SRC-EDINET-LIST", "url": "https://api.edinet-fsa.go.jp/api/v2/documents.json?date=2026-09-28&type=2"},
+            {"source_id": "SRC-NEWS", "url": "https://www.nikkei.com/article/xxx/", "view_url": "AIが書いた値"},
+        ],
+    }
+    count = ve.apply_edinet_view_url(edition)
+    by_id = {s["source_id"]: s for s in edition["sources"]}
+    check(
+        "apply_edinet_view_url/正例: AIが書いた値があっても機械の値で上書きされる",
+        by_id["SRC-DOC"]["view_url"], "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100X",
+    )
+    check(
+        "apply_edinet_view_url/正例: 一覧の出典もview_urlが埋まる",
+        by_id["SRC-EDINET-LIST"]["view_url"], "https://disclosure2.edinet-fsa.go.jp/",
+    )
+    check(
+        "apply_edinet_view_url/負例: EDINET以外の出典はview_urlがNoneに上書きされる(AIの値は残らない)",
+        by_id["SRC-NEWS"]["view_url"], None,
+    )
+    check("apply_edinet_view_url/件数: view_urlを書いた出典は2件", count, 2)
+
+
+def test_apply_source_attribution_uses_edinet_view_url():
+    """改修27-1第6回をテストに必ず入れるものの確認:
+      ・書類の出典で、attributionにWZEK0040.aspx?書類管理番号が入り、
+        api/v2/documentsの形が出典表記に一切残らないこと
+      ・出典のurlは変わっておらず、書類管理番号の取り出しが今までどおり働くこと
+      ・書類一覧の出典で、出典表記にapi.edinet-fsa.go.jpのURLが残らないこと
+      ・EDINET以外の出典のattributionが第4回と1文字も変わらないこと
+    apply_edinet_view_url()を先に呼んでから(実際の照合スクリプトの順番どおり)
+    apply_source_attribution()を呼ぶ。"""
+    edition = {
+        "sources": [
+            {
+                "source_id": "C01", "publisher": "カナリア物産株式会社", "title": "公開買付届出書",
+                "url": "https://disclosure2.edinet-fsa.go.jp/api/v2/documents/S100CANARY?type=1",
+                "attribution": None, "processing_note": None,
+            },
+            {
+                "source_id": "SRC-EDINET-LIST", "publisher": "金融庁", "title": "EDINET 書類一覧",
+                "url": "https://api.edinet-fsa.go.jp/api/v2/documents.json?date=2026-09-28&type=2",
+                "attribution": None, "processing_note": None,
+            },
+            {
+                "source_id": "SRC-BOJ", "publisher": "日本銀行", "title": "金融政策決定会合",
+                "url": "https://www.boj.or.jp/x", "attribution": None, "processing_note": None,
+            },
+        ],
+        "sections": [],
+    }
+
+    # --- 第4回時点の挙動(view_urlを使わない)との比較用に、先に第4回の結果を控えておく ---
+    edition_round4_only = copy.deepcopy(edition)
+    ve.apply_source_attribution(edition_round4_only, SOURCE_POLICY_PATH)
+    boj_attribution_round4 = {s["source_id"]: s for s in edition_round4_only["sources"]}["SRC-BOJ"]["attribution"]
+
+    ve.apply_edinet_view_url(edition)
+    ve.apply_source_attribution(edition, SOURCE_POLICY_PATH)
+    by_id = {s["source_id"]: s for s in edition["sources"]}
+
+    doc_url = by_id["C01"]["url"]
+    doc_attribution = by_id["C01"]["attribution"]
+    check(
+        "改修27-1第6回/テストに必ず入れるもの1: 書類の出典のurlは変わっていない(書類管理番号の取り出しに使う値のまま)",
+        doc_url, "https://disclosure2.edinet-fsa.go.jp/api/v2/documents/S100CANARY?type=1",
+    )
+    check(
+        "改修27-1第6回/テストに必ず入れるもの1: attributionにWZEK0040.aspx?書類管理番号が入る",
+        "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100CANARY" in doc_attribution, True,
+    )
+    check(
+        "改修27-1第6回/テストに必ず入れるもの1: attributionにapi/v2/documentsの形が一切残らない",
+        "api/v2/documents" in doc_attribution, False,
+    )
+    check(
+        "改修27-1第6回/テストに必ず入れるもの1: extract_edinet_doc_id()は今までどおりurlから書類管理番号を取り出せる",
+        ve.extract_edinet_doc_id(doc_url), "S100CANARY",
+    )
+
+    list_attribution = by_id["SRC-EDINET-LIST"]["attribution"]
+    check(
+        "改修27-1第6回/テストに必ず入れるもの2: 書類一覧の出典表記にapi.edinet-fsa.go.jpのURLが残らない",
+        "api.edinet-fsa.go.jp" in list_attribution, False,
+    )
+    check(
+        "改修27-1第6回/テストに必ず入れるもの2: 書類一覧の出典表記にはEDINET閲覧サイトのトップが入る",
+        "https://disclosure2.edinet-fsa.go.jp/" in list_attribution, True,
+    )
+
+    check(
+        "改修27-1第6回/テストに必ず入れるもの3: EDINET以外の出典(日本銀行)のattributionは第4回と1文字も変わらない",
+        by_id["SRC-BOJ"]["attribution"], boj_attribution_round4,
     )
 
 
@@ -5526,6 +5670,11 @@ def main():
     test_load_source_policy_reads_templates()
     test_fill_source_template()
     test_apply_source_attribution()
+
+    # 改修27-1(第6回): EDINETの出典表記が読者向けの閲覧URLを使うようにする修正。
+    test_compute_edinet_view_url()
+    test_apply_edinet_view_url()
+    test_apply_source_attribution_uses_edinet_view_url()
     test_check_market_open()
     test_find_number_numeric_comparison()
     test_find_number_leading_zero()

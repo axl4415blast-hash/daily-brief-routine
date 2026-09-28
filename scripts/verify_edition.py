@@ -619,6 +619,10 @@ def apply_source_attribution(edition, policy_path):
     attribution/processing_noteにnullを置いた行が、上書きされる前に検査3で
     missing_fieldになってしまう。
 
+    改修27-1第6回: EDINETの出典は、{url}の代わりにview_url(apply_edinet_view_url()が
+    決めた、読者が実際に開けるURL)を使う。view_urlがまだ書かれていない場合に
+    備え、無ければurlに戻す(apply_edinet_view_url()をこの関数より前に呼ぶこと)。
+
     ひな形に埋める値(publisher・title・url)が足りずattribution・processing_noteの
     どちらかでも作れなかった場合は、両方ともnullのままにする(件数を
     attribution_generation_skippedに記録する。行がどうなるか自体は今までどおり
@@ -634,7 +638,12 @@ def apply_source_attribution(edition, policy_path):
     def apply_to(target, source):
         host = source_hostname(source.get("url"))
         attribution_template, processing_note_template = resolve_source_templates(host, policy)
-        publisher, title, url = source.get("publisher"), source.get("title"), source.get("url")
+        publisher, title = source.get("publisher"), source.get("title")
+        # 改修27-1第6回: EDINETの出典は、attribution/processing_noteの{url}に
+        # 読者が開けるview_url(apply_edinet_view_url()が決めた値)を使う。
+        # view_urlが無い出典(EDINET以外・対象外のEDINETのURL)は、今までどおり
+        # urlをそのまま使う。
+        url = source.get("view_url") or source.get("url")
         new_attribution = fill_source_template(attribution_template, publisher, title, url)
         new_processing_note = fill_source_template(processing_note_template, publisher, title, url)
         if new_attribution is None or new_processing_note is None:
@@ -1562,6 +1571,51 @@ def extract_edinet_doc_id(url):
         return None
     m = EDINET_DOC_ID_RE.match(url)
     return m.group(1) if m else None
+
+
+# 改修27-1第6回: 出典のurl(api/v2/documents/{書類管理番号}?type=1)はEDINETのAPI用の
+# アドレスで、ブラウザで開くと「規定外操作が行われました」となり読者は開けない
+# (依頼者がPCで確認済み)。読者向けの閲覧画面は別のURLになる。urlそのものは
+# 書類管理番号の取り出し・提出時刻の書き込み・各検査の目印として使い続けるため
+# 変えず、読者向けのURLはview_urlという別の項目に分けて持つ。
+EDINET_DOC_VIEW_URL_TMPL = "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?{doc_id}"
+EDINET_VIEW_TOP_URL = "https://disclosure2.edinet-fsa.go.jp/"
+
+
+def compute_edinet_view_url(source):
+    """改修27-1第6回: EDINETの出典について、読者が実際に開けるURL(view_url)を
+    機械で決める。
+      ・個々の書類(urlから書類管理番号が取れる) → その書類の閲覧画面
+        (WZEK0040.aspx?{書類管理番号})
+      ・書類一覧そのもの(source_idがEDINET_DOCLIST_SOURCE_IDSのどちらか) →
+        読者が開ける一覧専用のページが無いため、EDINET閲覧サイトのトップ
+      ・それ以外のEDINETのURL(edinet_other_url_hitsに数えるもの)、EDINET以外の
+        出典 → None(view_urlは書かない。attribution等は今までどおりurlを使う)
+    """
+    url = source.get("url")
+    if not is_edinet_domain(url):
+        return None
+    doc_id = extract_edinet_doc_id(url)
+    if doc_id is not None:
+        return EDINET_DOC_VIEW_URL_TMPL.format(doc_id=doc_id)
+    if source.get("source_id") in EDINET_DOCLIST_SOURCE_IDS:
+        return EDINET_VIEW_TOP_URL
+    return None
+
+
+def apply_edinet_view_url(edition):
+    """改修27-1第6回: すべての出典のview_urlを、AIの自己申告ではなく機械で書き込む
+    (AIが書いてきても必ず上書きする。EDINET以外・対象外のEDINETのURLはNoneにする)。
+    apply_source_attribution()より前に呼ぶこと(attribution/processing_noteの
+    {url}にview_urlを使うため)。
+    戻り値: view_urlが書かれた(Noneでない)出典の件数。"""
+    count = 0
+    for source in edition.get("sources", []):
+        view_url = compute_edinet_view_url(source)
+        source["view_url"] = view_url
+        if view_url is not None:
+            count += 1
+    return count
 
 
 def compute_tob_side(hyp, record, new_role, codelist_rows, counts):
@@ -2607,6 +2661,11 @@ def main():
         # 記録を写すだけ)。
         edinet_doc_files = collect_edinet_doc_files(edition, args.cache)
 
+        # 改修27-1第6回: EDINETの出典のview_url(読者が実際に開けるURL)を機械で
+        # 書き込む。apply_source_attribution()がattribution/processing_noteの
+        # {url}にこの値を使うため、その前に行うこと。
+        edinet_view_url_count = apply_edinet_view_url(edition)
+
         # 改修27-1(4-6): 出典(sources)と本文の各行のattribution/processing_noteを、
         # ひな形から機械で作る。検査3(run_line_verification内)より前に行うこと
         # (そうしないと、AIがnullを置いた行が検査3で丸ごとmissing_fieldになる)。
@@ -2834,6 +2893,8 @@ def main():
             # 選んだか(edinet_fetch.pyが書き出したSRC-xxx.files.jsonを写したもの。
             # 記録専用)。
             "edinet_doc_files": edinet_doc_files,
+            # 改修27-1第6回: view_urlを書いた(Noneでない)出典の件数(記録専用)。
+            "edinet_view_url_count": edinet_view_url_count,
             # 改修27-1(4-6): 出典・行のattribution/processing_noteをひな形で
             # 上書きした件数(nullから値にした件数も含む)と、ひな形に埋める値が
             # 足りず生成をやめた件数(記録専用)。
