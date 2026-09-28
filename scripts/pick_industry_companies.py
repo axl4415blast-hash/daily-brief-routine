@@ -42,7 +42,10 @@ RELATION_TEXT_MENTIONED = (
 )
 RELATION_TEXT_CAPITAL = (
     "東証33業種の「{industry}」に属する上場企業の例です。"
-    "この業種で資本金がもっとも大きい会社から順に選んでいます。"
+    # 改修27-1(4-7): 会社を選んでいるのはAIではなく機械(このスクリプト)であることを
+    # 明示する。検査27(verify_edition.check_lower_relation_text)がこの定数を
+    # そのまま参照しているため、直すのはここ1か所でよい。
+    "この業種で資本金がもっとも大きい会社から順に、機械が選んでいます。"
 )
 
 # same/parent以外の値になったentity_relationを検出したときに記録する理由。

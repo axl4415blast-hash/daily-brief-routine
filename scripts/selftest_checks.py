@@ -1749,6 +1749,36 @@ def test_check_lower_relation_text():
     )
 
 
+def test_relation_text_capital_has_machine_wording():
+    """改修27-1(4-7): 下段の資本金順の定型文に「機械が」を足したこと、検査27
+    (check_lower_relation_text)がpick_industry_companies.RELATION_TEXT_CAPITALを
+    そのまま参照しているため新しい文言で合格すること、「機械が」の無い古い文言は
+    不合格になる(過去の号のeditions/・hypotheses/は直さない方針のため、再照合すると
+    下段から消えることの確認)ことを確かめる。"""
+    check(
+        "RELATION_TEXT_CAPITAL/正例: 新しい定型文に「機械が」が入っている",
+        "機械が選んでいます" in pic.RELATION_TEXT_CAPITAL, True,
+    )
+    new_example = {
+        "industry": "銀行業", "company_name": "テスト銀行",
+        "relation_text": pic.RELATION_TEXT_CAPITAL.format(industry="銀行業"),
+    }
+    check(
+        "改修27-1(4-7)/検査27: 新しい定型文はcheck_lower_relation_text()を合格する",
+        ve.check_lower_relation_text(new_example), None,
+    )
+
+    old_text = (
+        "東証33業種の「銀行業」に属する上場企業の例です。"
+        "この業種で資本金がもっとも大きい会社から順に選んでいます。"
+    )
+    old_example = {"industry": "銀行業", "company_name": "テスト銀行", "relation_text": old_text}
+    check(
+        "改修27-1(4-7)/検査27: 「機械が」の無い古い定型文は不合格になる",
+        ve.check_lower_relation_text(old_example), "lower_relation_text_mismatch",
+    )
+
+
 def test_check_lower_industry():
     """作業C(8.2): 検査22(業種の許可リスト・impact_kind)の正例・負例。
     許可リストはこのテストの中だけの架空集合(データから作る処理は
@@ -2144,6 +2174,207 @@ def test_apply_source_policy():
         except ve.EditionInvalid:
             raised = True
         check("作業A/負例6: source_policy.csvが無いとEditionInvalidになり号を保存しない", raised, True)
+
+
+def test_load_source_policy_reads_templates():
+    """改修27-1(4-6): load_source_policy()がattribution_template・
+    processing_note_templateも読み、値が空の行は号を保存しない(EditionInvalid)。"""
+    policy = ve.load_source_policy(SOURCE_POLICY_PATH)
+    edinet_entry = policy["api.edinet-fsa.go.jp"]
+    check(
+        "load_source_policy/正例: EDINETのprocessing_note_templateが読める",
+        edinet_entry["processing_note_template"],
+        "EDINET閲覧（提出）サイト（{url}）をもとに本サイト作成",
+    )
+    check(
+        "load_source_policy/正例: EDINETのattribution_templateも読める(PDL1.0を含む)",
+        "PDL1.0" in edinet_entry["attribution_template"], True,
+    )
+    boj_entry = policy["www.boj.or.jp"]
+    check(
+        "load_source_policy/正例: それ以外のドメインのprocessing_note_templateは汎用の文言",
+        boj_entry["processing_note_template"],
+        "{publisher}「{title}」（{url}）をもとに本サイト作成",
+    )
+
+    with tempfile.TemporaryDirectory() as d:
+        bad_path = Path(d) / "source_policy.csv"
+        bad_path.write_text(
+            "domain,usage,publisher_type,independent_check,attribution_template,processing_note_template\n"
+            "example.test,quotable,news,no,出典：{publisher},\n",
+            encoding="utf-8",
+        )
+        raised = False
+        try:
+            ve.load_source_policy(bad_path)
+        except ve.EditionInvalid:
+            raised = True
+        check(
+            "load_source_policy/負例: processing_note_templateが空の行はEditionInvalidになる",
+            raised, True,
+        )
+
+
+def test_fill_source_template():
+    """改修27-1(4-6): ひな形に含まれるプレースホルダだけを見て埋める。使っている
+    プレースホルダの値が1つでも空なら、'None'や空の「」を含む文を作らずNoneを返す。"""
+    edinet_template = "EDINET閲覧（提出）サイト（{url}）をもとに本サイト作成"
+    check(
+        "fill_source_template/正例: EDINETのひな形はpublisher・titleが空でもurlだけで作れる",
+        ve.fill_source_template(edinet_template, None, None, "https://disclosure2.edinet-fsa.go.jp/x"),
+        "EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/x）をもとに本サイト作成",
+    )
+
+    generic_template = "出典：{publisher}「{title}」（{url}）"
+    check(
+        "fill_source_template/正例: 3つとも揃っていれば作れる",
+        ve.fill_source_template(generic_template, "日本銀行", "金融政策決定会合", "https://www.boj.or.jp/x"),
+        "出典：日本銀行「金融政策決定会合」（https://www.boj.or.jp/x）",
+    )
+    check(
+        "fill_source_template/負例: publisherが空なら(汎用ひな形は使うので)Noneを返す('None'を含む文を作らない)",
+        ve.fill_source_template(generic_template, None, "金融政策決定会合", "https://www.boj.or.jp/x"),
+        None,
+    )
+    check(
+        "fill_source_template/負例: publisherが空文字でもNoneを返す",
+        ve.fill_source_template(generic_template, "", "金融政策決定会合", "https://www.boj.or.jp/x"),
+        None,
+    )
+    check(
+        "fill_source_template/負例: titleが空でもNoneを返す",
+        ve.fill_source_template(generic_template, "日本銀行", None, "https://www.boj.or.jp/x"),
+        None,
+    )
+    check(
+        "fill_source_template/負例: urlが空でもNoneを返す",
+        ve.fill_source_template(generic_template, "日本銀行", "金融政策決定会合", None),
+        None,
+    )
+
+
+def test_apply_source_attribution():
+    """改修27-1(4-6): attribution/processing_noteを、出典のtitle・url・publisherと
+    ひな形から機械で作る。出典一覧と、本文の各行(source_refが指す出典の値を使う)の
+    両方に書くこと、AIの値(nullを含む)を必ず上書きすること、csvに無いドメインは
+    汎用ひな形を使うこと、値が足りなければnullのままにすることを確かめる。"""
+    edition = {
+        "sources": [
+            {
+                "source_id": "SRC-EDINET", "publisher": "カナリア工業", "title": "臨時報告書",
+                "url": "https://disclosure2.edinet-fsa.go.jp/api/v2/documents/S100X?type=1",
+                "usage": "quotable",
+                "attribution": None, "processing_note": None,
+            },
+            {
+                "source_id": "SRC-BOJ", "publisher": "日本銀行", "title": "金融政策決定会合",
+                "url": "https://www.boj.or.jp/x", "attribution": "AIが書いた値", "processing_note": "AIが書いた値",
+            },
+            {
+                "source_id": "SRC-UNLISTED", "publisher": "架空新聞社", "title": "架空の記事",
+                "url": "https://example.test/article", "attribution": None, "processing_note": None,
+            },
+            {
+                # publisherが空(AIが書けなかった)出典。汎用ひな形はpublisherを
+                # 使うので生成できない。
+                "source_id": "SRC-NO-PUBLISHER", "publisher": None, "title": "架空の記事2",
+                "url": "https://example.test/article2", "attribution": "元の値", "processing_note": "元の値",
+            },
+        ],
+        "sections": [{
+            "section_id": "change",
+            "articles": [{
+                "article_id": "A-1",
+                "lines": [
+                    {
+                        "line_id": "L-1", "claimed_mark": "source_number_match",
+                        "numbers": [{"label": "件数", "value": 1}],
+                        "source_ref": "SRC-EDINET", "excerpt": "何かの抜き出し",
+                        "attribution": None, "processing_note": None,
+                    },
+                    {
+                        "line_id": "L-2", "claimed_mark": "reported_unverified",
+                        "numbers": [], "source_ref": "SRC-NO-PUBLISHER",
+                        "attribution": "元の値", "processing_note": "元の値",
+                    },
+                ],
+            }],
+        }],
+    }
+
+    result = ve.apply_source_attribution(edition, SOURCE_POLICY_PATH)
+    by_id = {s["source_id"]: s for s in edition["sources"]}
+    lines_by_id = {l["line_id"]: l for l in edition["sections"][0]["articles"][0]["lines"]}
+
+    check(
+        "apply_source_attribution/正例(EDINET): attributionにPDL1.0のURLが入る",
+        "https://www.digital.go.jp/resources/open_data/public_data_license_v1.0" in by_id["SRC-EDINET"]["attribution"],
+        True,
+    )
+    check(
+        "apply_source_attribution/正例(EDINET): processing_noteに「をもとに本サイト作成」が入る",
+        by_id["SRC-EDINET"]["processing_note"],
+        "EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/api/v2/documents/S100X?type=1）をもとに本サイト作成",
+    )
+    check(
+        "apply_source_attribution/正例: AIの値(元の値)は日本銀行の出典でも上書きされる",
+        by_id["SRC-BOJ"]["attribution"], "出典：日本銀行「金融政策決定会合」（https://www.boj.or.jp/x）",
+    )
+    check(
+        "apply_source_attribution/正例: csvに無いドメインは汎用ひな形が使われる",
+        (by_id["SRC-UNLISTED"]["attribution"], by_id["SRC-UNLISTED"]["processing_note"]),
+        (
+            "出典：架空新聞社「架空の記事」（https://example.test/article）",
+            "架空新聞社「架空の記事」（https://example.test/article）をもとに本サイト作成",
+        ),
+    )
+    check(
+        "apply_source_attribution/負例: publisherが空なら'None'を含む文を作らずnullのままにする",
+        (by_id["SRC-NO-PUBLISHER"]["attribution"], by_id["SRC-NO-PUBLISHER"]["processing_note"]),
+        (None, None),
+    )
+    check(
+        "apply_source_attribution/負例: 'None'という文字列が出典表記に紛れ込んでいない",
+        any("None" in (by_id[sid].get("attribution") or "") for sid in by_id), False,
+    )
+
+    check(
+        "apply_source_attribution/正例: 本文の行にも、その行のsource_refが指す出典の値でattributionが入る",
+        lines_by_id["L-1"]["attribution"],
+        by_id["SRC-EDINET"]["attribution"],
+    )
+    check(
+        "apply_source_attribution/正例: 行のprocessing_noteも出典の値と同じになる",
+        lines_by_id["L-1"]["processing_note"], by_id["SRC-EDINET"]["processing_note"],
+    )
+    check(
+        "apply_source_attribution/負例: publisherが無い出典を参照する行もnullのままになる",
+        (lines_by_id["L-2"]["attribution"], lines_by_id["L-2"]["processing_note"]),
+        (None, None),
+    )
+
+    check(
+        "apply_source_attribution/件数: attribution_generation_skippedは1"
+        "(SRC-NO-PUBLISHERとそれを参照するL-2で2箇所nullになったが、"
+        "スキップと数えるのは出典・行それぞれ1回ずつ)",
+        result["attribution_generation_skipped"], 2,
+    )
+    check(
+        "apply_source_attribution/件数: attribution_overwrittenにはnullから値にした件数(SRC-EDINET・"
+        "SRC-BOJ・SRC-UNLISTED・L-1)と、生成できずnullに戻した件数(SRC-NO-PUBLISHER・L-2、"
+        "AIが書いていた元の値と違う値=nullになったので変化ありと数える)の合わせて6件が入る",
+        result["attribution_overwritten"], 6,
+    )
+
+    # --- 検査3が通ることの確認: AIがattribution/processing_noteにnullを置いた
+    #     source_number_matchの行が、上書き後は必須項目で落ちない(missing_fieldにならない) ---
+    sources_by_id = {s["source_id"]: s for s in edition["sources"]}
+    mark_l1, reason_l1, _ = ve.verify_line(lines_by_id["L-1"], sources_by_id, "/nonexistent")
+    check(
+        "改修27-1(4-6)/検査3: attribution・processing_noteがnullだった行も、上書き後はmissing_fieldにならない"
+        "(出典本文が無いのでsource_unfetchableにはなるが、missing_fieldにはならない)",
+        reason_l1, "source_unfetchable",
+    )
 
 
 def test_check_market_open():
@@ -4302,6 +4533,107 @@ def test_round3_end_to_end_html_tags_and_doc_files():
     _assert_testdata_untouched("改修27-1第3回/統合テスト")
 
 
+def test_round4_end_to_end_attribution():
+    """改修27-1(第4回)をCLI全体(main())で確かめる統合テスト。AIがattribution・
+    processing_noteにnullを置いたEDINETの出典・行が、機械が作った出典表記で
+    埋まり、検査3で消えないことを確かめる。"""
+    with tempfile.TemporaryDirectory() as d:
+        work_dir = Path(d)
+        now = dt.datetime.now(ve.JST)
+        today_str = _expected_edition_date("evening", now)
+
+        cache_dir = work_dir / "cache"
+        cache_dir.mkdir(parents=True)
+        doc_path = cache_dir / "SRC-DOC.txt"
+        doc_path.write_text("今期の売上高は1,000百万円だった", encoding="utf-8")
+        content_hash = hashlib.sha256(doc_path.read_bytes()).hexdigest()
+
+        # 出典のpublished_atが機械で埋まるよう(検査10で「公表時刻が分からない」と
+        # 落とされないよう)、EDINET書類一覧をキャッシュに置く(4-2・4-4)。
+        submit_str = (now - dt.timedelta(hours=1)).strftime("%Y-%m-%d %H:%M")
+        _write_edinet_list_json(
+            cache_dir / "SRC-EDINET-LIST.json", today_str,
+            [{
+                "edinetCode": "E-DOC", "filerName": "カナリア工業", "docID": "S-DOC",
+                "docTypeCode": "120", "submitDateTime": submit_str,
+            }],
+        )
+        _write_edinet_list_json(cache_dir / "SRC-EDINET-LIST-PREV.json", today_str, [])
+
+        edition = {
+            "edition_id": f"{today_str}-evening",
+            "date": today_str,
+            "slot": "evening",
+            "generated_at": None,
+            "market_open": None,
+            "sources": [{
+                "source_id": "SRC-DOC", "publisher": "カナリア工業", "title": "有価証券報告書",
+                "url": "https://disclosure2.edinet-fsa.go.jp/api/v2/documents/S-DOC?type=1",
+                "published_at": None, "content_sha256": content_hash,
+                # 第7.1版どおり、AIはattribution・processing_noteをnullのまま置く。
+                "attribution": None, "processing_note": None,
+            }],
+            "sections": [{
+                "section_id": "change",
+                "articles": [{
+                    "article_id": "A-1",
+                    "lines": [{
+                        "line_id": "L-1", "text": "カナリア工業の売上高は1,000百万円だった",
+                        "claimed_mark": "source_number_match",
+                        "numbers": [{"label": "金額", "value": 1000}],
+                        "source_ref": "SRC-DOC", "excerpt": "今期の売上高は1,000百万円だった",
+                        "attribution": None, "processing_note": None,
+                    }],
+                }],
+            }],
+        }
+        hyp_doc = {"edition_id": f"{today_str}-evening", "generated_at": None, "hypotheses": []}
+
+        edition_dir = work_dir / "editions" / today_str
+        edition_dir.mkdir(parents=True)
+        edition_path = edition_dir / "evening.json"
+        edition_path.write_text(json.dumps(edition, ensure_ascii=False, indent=1), encoding="utf-8")
+
+        hyp_dir = work_dir / "hypotheses"
+        hyp_dir.mkdir(parents=True)
+        hyp_path = hyp_dir / f"{today_str}-evening.json"
+        hyp_path.write_text(json.dumps(hyp_doc, ensure_ascii=False, indent=1), encoding="utf-8")
+
+        calendar_dir = _write_temp_calendar(work_dir, dt.datetime.strptime(today_str, "%Y-%m-%d").date(), 40)
+
+        result = _run_verify_cli(work_dir, edition_path, hyp_path, cache_dir, calendar_dir)
+        check("改修27-1第4回/統合: 正常終了する(終了コード0)", result.returncode, 0)
+
+        after_edition = json.loads(edition_path.read_text(encoding="utf-8"))
+        v = after_edition.get("verification") or {}
+        source_after = after_edition["sources"][0]
+        line_after = after_edition["sections"][0]["articles"][0]["lines"][0]
+
+        check(
+            "改修27-1第4回/統合: 出典のattributionがnullから機械の値に上書きされる",
+            source_after.get("attribution") is not None, True,
+        )
+        check(
+            "改修27-1第4回/統合: 行のattributionも出典と同じ値になる",
+            line_after.get("attribution"), source_after.get("attribution"),
+        )
+        check(
+            "改修27-1第4回/統合: attribution・processing_noteがnullだった行が、"
+            "検査3(必須項目)では落ちず出典と数字が一致する(source_number_match)",
+            line_after.get("mark"), "source_number_match",
+        )
+        check(
+            "改修27-1第4回/統合: attribution_overwrittenが記録される(1以上)",
+            (v.get("attribution_overwritten") or 0) >= 1, True,
+        )
+        check(
+            "改修27-1第4回/統合: attribution_generation_skippedキーが記録される(0)",
+            v.get("attribution_generation_skipped"), 0,
+        )
+
+    _assert_testdata_untouched("改修27-1第4回/統合テスト")
+
+
 def _hyp_base(**kw):
     h = {"company_name": "テスト検証株式会社", "ticker": "9001", "ticker_source": "edinet_codelist"}
     h.update(kw)
@@ -4600,6 +4932,7 @@ def main():
     test_dropped_names_records()
     test_find_company_by_name()
     test_check_lower_relation_text()
+    test_relation_text_capital_has_machine_wording()
     test_check_lower_industry()
     test_check_lower_line_mark()
     test_check_lower_ticker()
@@ -4614,6 +4947,11 @@ def main():
     test_testdata_copy_integration()
     test_verify_edition_industry_integration()
     test_apply_source_policy()
+
+    # 改修27-1(第4回): 4-6(出典表記の機械生成)のテスト。
+    test_load_source_policy_reads_templates()
+    test_fill_source_template()
+    test_apply_source_attribution()
     test_check_market_open()
     test_find_number_numeric_comparison()
     test_find_number_leading_zero()
@@ -4662,6 +5000,7 @@ def main():
     test_read_source_body_for_checks()
     test_collect_edinet_doc_files()
     test_round3_end_to_end_html_tags_and_doc_files()
+    test_round4_end_to_end_attribution()
 
     total = len(results)
     passed = sum(1 for _, ok, _, _ in results if ok)

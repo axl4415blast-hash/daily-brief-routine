@@ -113,7 +113,10 @@ VALID_PUBLISHER_TYPES = {
     "government_statistics", "central_bank", "company_disclosure",
     "international_org", "news", "other",
 }
-SOURCE_POLICY_COLUMNS = ("domain", "usage", "publisher_type", "independent_check", "attribution_template")
+SOURCE_POLICY_COLUMNS = (
+    "domain", "usage", "publisher_type", "independent_check",
+    "attribution_template", "processing_note_template",
+)
 MORNING_DEADLINE = dt.time(8, 50)
 
 _WS_RE = re.compile(r"[ \t\r\n　]")
@@ -504,6 +507,11 @@ def load_source_policy(policy_path):
         domain = (row.get("domain") or "").strip().lower()
         usage = (row.get("usage") or "").strip()
         publisher_type = (row.get("publisher_type") or "").strip()
+        # 改修27-1(4-6): attribution_template・processing_note_templateも、
+        # usage/publisher_typeと同じくここで読み、値が空の行は設定ミスとして
+        # 号ごと保存を止める(黙ってnullの出典表記を量産しないため)。
+        attribution_template = (row.get("attribution_template") or "").strip()
+        processing_note_template = (row.get("processing_note_template") or "").strip()
         if not domain:
             raise EditionInvalid("scripts/source_policy.csv にdomainが空の行があります。")
         if domain in policy:
@@ -516,7 +524,19 @@ def load_source_policy(policy_path):
             raise EditionInvalid(
                 f"scripts/source_policy.csv のpublisher_type '{publisher_type}' (domain={domain}) が不正な値です。"
             )
-        policy[domain] = {"usage": usage, "publisher_type": publisher_type}
+        if not attribution_template:
+            raise EditionInvalid(
+                f"scripts/source_policy.csv のattribution_template (domain={domain}) が空です。"
+            )
+        if not processing_note_template:
+            raise EditionInvalid(
+                f"scripts/source_policy.csv のprocessing_note_template (domain={domain}) が空です。"
+            )
+        policy[domain] = {
+            "usage": usage, "publisher_type": publisher_type,
+            "attribution_template": attribution_template,
+            "processing_note_template": processing_note_template,
+        }
     return policy
 
 
@@ -557,6 +577,86 @@ def apply_source_policy(edition, policy_path):
         source["publisher_type"] = new_publisher_type
 
     return {"overwritten": overwritten, "unlisted_domains": unlisted_domains}
+
+
+# 改修27-1(決定3・4-6): source_policy.csvに無いドメインの出典で使う汎用ひな形。
+GENERIC_ATTRIBUTION_TEMPLATE = "出典：{publisher}「{title}」（{url}）"
+GENERIC_PROCESSING_NOTE_TEMPLATE = "{publisher}「{title}」（{url}）をもとに本サイト作成"
+
+
+def fill_source_template(template, publisher, title, url):
+    """改修27-1(4-6): ひな形(template)に含まれるプレースホルダ({publisher}/{title}/
+    {url})のうち、実際にそのひな形が使っているものだけを見て、値を埋める。
+    使っているプレースホルダの値が1つでも空(null・空文字・空白のみ)なら、
+    'None'や空の「」を含む文を作ってしまわないよう、Noneを返す(生成をやめる)。
+    ひな形が使っていないプレースホルダの値は問わない(EDINETのひな形は
+    {publisher}/{title}を使わないため、これらが空でも生成してよい)。"""
+    values = {"publisher": publisher, "title": title, "url": url}
+    for name, value in values.items():
+        if "{" + name + "}" not in template:
+            continue
+        if not value or not str(value).strip():
+            return None
+    return template.format(**values)
+
+
+def resolve_source_templates(host, policy):
+    """改修27-1(4-6): host(小文字のホスト名)から、attribution/processing_noteの
+    ひな形を決める。source_policy.csvに載っていればその値、無ければ決定3の
+    汎用ひな形を使う。"""
+    entry = policy.get(host) if host else None
+    if entry is not None:
+        return entry["attribution_template"], entry["processing_note_template"]
+    return GENERIC_ATTRIBUTION_TEMPLATE, GENERIC_PROCESSING_NOTE_TEMPLATE
+
+
+def apply_source_attribution(edition, policy_path):
+    """改修27-1(4-6): sources[].attribution/processing_noteと、本文の各行
+    (source_refが指す出典の値を使う)のattribution/processing_noteを、AIの自己申告
+    ではなくひな形から機械で作る(AIの値は一致・不一致にかかわらず必ず上書きする)。
+
+    検査3(source_number_matchの必須項目)より前に呼ぶこと。そうしないと、AIが
+    attribution/processing_noteにnullを置いた行が、上書きされる前に検査3で
+    missing_fieldになってしまう。
+
+    ひな形に埋める値(publisher・title・url)が足りずattribution・processing_noteの
+    どちらかでも作れなかった場合は、両方ともnullのままにする(件数を
+    attribution_generation_skippedに記録する。行がどうなるか自体は今までどおり
+    検査3・empty_title_or_url_refsに任せる)。
+
+    戻り値: {"attribution_overwritten": 値が変わった出典・行の件数(nullから値に
+    した件数も含む。sources・lines合わせた件数),
+    "attribution_generation_skipped": ひな形が作れなかった件数}。"""
+    policy = load_source_policy(policy_path)
+    sources_by_id = {s.get("source_id"): s for s in edition.get("sources", [])}
+    counts = {"attribution_overwritten": 0, "attribution_generation_skipped": 0}
+
+    def apply_to(target, source):
+        host = source_hostname(source.get("url"))
+        attribution_template, processing_note_template = resolve_source_templates(host, policy)
+        publisher, title, url = source.get("publisher"), source.get("title"), source.get("url")
+        new_attribution = fill_source_template(attribution_template, publisher, title, url)
+        new_processing_note = fill_source_template(processing_note_template, publisher, title, url)
+        if new_attribution is None or new_processing_note is None:
+            counts["attribution_generation_skipped"] += 1
+        if target.get("attribution") != new_attribution or target.get("processing_note") != new_processing_note:
+            counts["attribution_overwritten"] += 1
+        target["attribution"] = new_attribution
+        target["processing_note"] = new_processing_note
+
+    for source in edition.get("sources", []):
+        apply_to(source, source)
+
+    for _section, _article, line in iter_lines(edition):
+        ref = line.get("source_ref")
+        if not ref:
+            continue
+        source = sources_by_id.get(ref)
+        if source is None:
+            continue
+        apply_to(line, source)
+
+    return counts
 
 
 def verify_line(line, sources_by_id, cache_dir):
@@ -2352,6 +2452,11 @@ def main():
         # 記録を写すだけ)。
         edinet_doc_files = collect_edinet_doc_files(edition, args.cache)
 
+        # 改修27-1(4-6): 出典(sources)と本文の各行のattribution/processing_noteを、
+        # ひな形から機械で作る。検査3(run_line_verification内)より前に行うこと
+        # (そうしないと、AIがnullを置いた行が検査3で丸ごとmissing_fieldになる)。
+        source_attribution_result = apply_source_attribution(edition, source_policy_path)
+
         ng_words = load_ng_words(ng_words_path)
         ng_words_exclude = load_ng_words(ng_words_exclude_path)
 
@@ -2545,6 +2650,11 @@ def main():
             # 選んだか(edinet_fetch.pyが書き出したSRC-xxx.files.jsonを写したもの。
             # 記録専用)。
             "edinet_doc_files": edinet_doc_files,
+            # 改修27-1(4-6): 出典・行のattribution/processing_noteをひな形で
+            # 上書きした件数(nullから値にした件数も含む)と、ひな形に埋める値が
+            # 足りず生成をやめた件数(記録専用)。
+            "attribution_overwritten": source_attribution_result["attribution_overwritten"],
+            "attribution_generation_skipped": source_attribution_result["attribution_generation_skipped"],
             "baseline_late": baseline_late,
             # 改修27-1(決定4): 検査24は時間帯のずれを止めずに記録するだけにする
             # (号を止めるかどうかは27-2で決める)。
