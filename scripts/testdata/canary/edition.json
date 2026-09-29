@@ -130,6 +130,17 @@
    "attribution": null,
    "processing_note": null,
    "published_at": "2026-09-24T17:00:00+09:00"
+  },
+  {
+   "source_id": "C10",
+   "publisher": "架空通信社",
+   "title": "架空商事、過去の発表",
+   "url": "https://www.example-canary-news.test/article/4",
+   "usage": null,
+   "publisher_type": null,
+   "attribution": null,
+   "processing_note": null,
+   "published_at": "2026-09-01"
   }
  ],
  "sections": [
@@ -190,6 +201,24 @@
        "claimed_mark": "unverified",
        "numbers": [],
        "source_ref": "C05",
+       "attribution": null,
+       "processing_note": null
+      },
+      {
+       "line_id": "L-11",
+       "text": "架空商事の前日の発表を伝える行",
+       "claimed_mark": "reported_unverified",
+       "numbers": [],
+       "source_ref": "C08",
+       "attribution": null,
+       "processing_note": null
+      },
+      {
+       "line_id": "L-12",
+       "text": "日付だけで古い資料を参照する行",
+       "claimed_mark": "reported_unverified",
+       "numbers": [],
+       "source_ref": "C10",
        "attribution": null,
        "processing_note": null
       }

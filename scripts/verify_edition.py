@@ -898,23 +898,39 @@ def parse_datetime_assume_jst(s):
 
 
 def run_check_e_stale_sources(edition, run_at_dt):
-    """検査10: change欄(新しい変化)の行について、出典の公表時刻が36時間を超えて
-    古くないかを確かめる。基準時刻はスクリプトの実行時刻(run_at_dt)。AIの自己申告
-    (generated_at)を基準にすると、古い出典を新しく見せられてしまうため使わない。
+    """検査10: change欄(新しい変化)の行について、出典が「新しい」かを、出典の種類で
+    分けて確かめる。change以外の欄(big/ripple/deep)は対象にしない(鮮度の条件は
+    change欄だけのため)。
 
-    改修27-1(4-2、Q2の回答): 境目は「実行時刻を分単位に切り捨てて、36時間を超えたら
-    古い」(36時間ちょうどは「新しい」側に残す)。実行時刻を秒未満(・秒)で切り捨てるのは、
-    EDINETのsubmitDateTimeが分単位(秒の情報を持たない)であり、実行時刻の秒によって
-    境目の判定が変わってしまうのを防ぐため。EDINET以外の時刻付き出典にも同じ境目を使う。
+      ・時刻付きの出典(published_date_onlyが偽。EDINETの個々の書類を含む):
+        実行時刻(run_at_dt)から36時間を超えて古ければ落とす(今までどおり)。基準は
+        AIの自己申告(generated_at)ではなく実行時刻。境目は「実行時刻を分単位に切り捨てて、
+        36時間を超えたら古い」(36時間ちょうどは新しい側に残す。EDINETのsubmitDateTimeが
+        分単位のため、実行時刻の秒で境目の判定が変わらないようにする。改修27-1・4-2)。
+      ・日付だけの出典(published_date_onlyが真。書類一覧の2つを含む。改修27-2第3回・S4):
+        号の日付(edition["date"])と同じ日か、その前日(暦日。営業日ではない)なら新しい。
+        それより前(前々日以前)も、号の日付より後(未来の日付)も、落とす。基準は
+        実行時刻の日付ではなく号の日付(0:00〜4:59に作る夕方号は号の日付が前日のため)。
+        号の日付が読めない場合は、判定できないので落とす(通常はcheck_market_open()が
+        先に号ごと止めるため到達しない)。
+      ・published_atがnull・読み取れない出典: 新しくないとして落とす。
 
-    36時間を超えて古いと分かった行、公表時刻が読み取れなかった(null)行は、どちらも
-    安全側に倒して行そのものを落とす。原因が違うため件数は別々に数える
-    (stale_source_hits / unknown_published_at_hits)。change以外の欄(big/ripple/deep)は
-    36時間ルールの対象外なので、対象にしない。"""
+    落とした行は、時刻付き・日付だけのどちらも、stale(古い行の合計)に数える。
+    合計の内訳はstale_by_kind({"timed": n, "date_only": n})で返す(stale == timed + date_only)。
+    published_atが読み取れず落とした行は、原因が違うためunknown_published_atに別に数える。
+
+    戻り値: (stale, unknown_published_at, stale_by_kind)。"""
     sources_by_id = {s.get("source_id"): s for s in edition.get("sources", [])}
     run_at_dt_minute = run_at_dt.replace(second=0, microsecond=0)
 
-    stale = 0
+    edition_date = None
+    try:
+        edition_date = dt.date.fromisoformat(edition.get("date"))
+    except (TypeError, ValueError):
+        pass
+    earliest_fresh_date = edition_date - dt.timedelta(days=1) if edition_date else None
+
+    stale_by_kind = {"timed": 0, "date_only": 0}
     unknown_published_at = 0
     for section in edition["sections"]:
         for article in section.get("articles", []):
@@ -928,17 +944,31 @@ def run_check_e_stale_sources(edition, run_at_dt):
                 if not source:
                     kept_lines.append(line)
                     continue
-                published_dt = parse_datetime_assume_jst(source.get("published_at"))
+                published_at = source.get("published_at")
+                if source.get("published_date_only"):
+                    # 日付だけの出典。時刻を持たないので、日付そのもので比べる。
+                    if not is_date_only_string(published_at):
+                        unknown_published_at += 1
+                        continue
+                    if edition_date is None or not (
+                        earliest_fresh_date <= dt.date.fromisoformat(published_at) <= edition_date
+                    ):
+                        stale_by_kind["date_only"] += 1
+                        continue
+                    kept_lines.append(line)
+                    continue
+                published_dt = parse_datetime_assume_jst(published_at)
                 if published_dt is None:
                     unknown_published_at += 1
                     continue
                 delta_hours = (run_at_dt_minute - published_dt).total_seconds() / 3600
                 if delta_hours > 36:
-                    stale += 1
+                    stale_by_kind["timed"] += 1
                     continue
                 kept_lines.append(line)
             article["lines"] = kept_lines
-    return stale, unknown_published_at
+    stale = stale_by_kind["timed"] + stale_by_kind["date_only"]
+    return stale, unknown_published_at, stale_by_kind
 
 
 def _reiwa_year(seireki_year):
@@ -2491,7 +2521,7 @@ def print_report(edition_path, stats, stop_hits, watch_hits, dropped_inferences,
         print("  注意に挙がった行(号は保存されています):")
         for hit in watch_hits:
             print(f"    ・{hit['line_id']}: 「{hit['word']}」 (本文: {hit['text']})")
-    print(f"出典が古い(36時間以上前)行の件数: {stale_hits}")
+    print(f"出典が古い行の件数(時刻付きは36時間超、日付だけは号の日付の前日より前か号の日付より後): {stale_hits}")
     print(f"出典の公表時刻が分からず、鮮度を確認できなかったため落とした行の件数: {unknown_published_at_hits}")
     print(f"出典の日時が読み取れず判定できなかった行の件数: {stale_skipped}")
     # 修正5: change枠に関係なく、出典そのものでpublished_atが無いものを数える
@@ -2783,7 +2813,7 @@ def run_verification(edition_file, hypotheses_file, cache_dir_arg, calendar_dir_
         }
         source_usage_invalid_hits = count_invalid_source_usages(edition)
         dropped_inferences = run_check_d_inferences(edition)
-        stale_hits, unknown_published_at_hits = run_check_e_stale_sources(edition, run_at_dt)
+        stale_hits, unknown_published_at_hits, stale_source_hits_by_kind = run_check_e_stale_sources(edition, run_at_dt)
         stale_check_skipped = 0  # run_at_dtは常に読み取れるため、判定を飛ばす理由が無い。
         # 検査36: 記録だけを取り、行は落とさない(要件定義書v12 13章。7日間の様子見)。
         published_at_unverified_hits, published_at_unverified_sources = run_check_published_at(edition, cache_dir_arg)
@@ -2965,6 +2995,9 @@ def run_verification(edition_file, hypotheses_file, cache_dir_arg, calendar_dir_
                 {"line_id": hit["line_id"], "word": hit["word"]} for hit in watch_hits
             ],
             "stale_source_hits": stale_hits,
+            # 改修27-2第3回(S4): 上の合計(stale_source_hits)の内訳。時刻付きの出典(36時間超)と
+            # 日付だけの出典(号の日付の前日より前、または号の日付より後)で落とした行の件数。
+            "stale_source_hits_by_kind": stale_source_hits_by_kind,
             "unknown_published_at_hits": unknown_published_at_hits,
             "stale_check_skipped": stale_check_skipped,
             "inference_dropped": dropped_inferences,

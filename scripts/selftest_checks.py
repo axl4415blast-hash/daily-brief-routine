@@ -334,18 +334,18 @@ def test_stale_sources():
         }
 
     fresh = make_edition("2026-09-23T08:00:00+09:00")
-    stale, unknown = ve.run_check_e_stale_sources(fresh, run_at_dt)
+    stale, unknown, _ = ve.run_check_e_stale_sources(fresh, run_at_dt)
     check("検査9/正例: 36時間以内なら落とさない(stale=0)", stale, 0)
     check("検査9/正例: 36時間以内なら行が残る", len(fresh["sections"][0]["articles"][0]["lines"]), 1)
 
     old = make_edition("2026-09-17T08:50:00+09:00")
-    stale, unknown = ve.run_check_e_stale_sources(old, run_at_dt)
+    stale, unknown, _ = ve.run_check_e_stale_sources(old, run_at_dt)
     check("検査9/負例: 36時間より古い場合はstale_source_hitsが増える", stale, 1)
     check("検査9/負例: 36時間より古い場合はunknown_published_at_hitsは増えない", unknown, 0)
     check("検査9/負例: 36時間より古い行は落とされる", len(old["sections"][0]["articles"][0]["lines"]), 0)
 
     unknown_pub = make_edition(None)
-    stale, unknown = ve.run_check_e_stale_sources(unknown_pub, run_at_dt)
+    stale, unknown, _ = ve.run_check_e_stale_sources(unknown_pub, run_at_dt)
     check("検査9/負例: 公表時刻がnullの場合はstale_source_hitsは増えない", stale, 0)
     check("検査9/負例: 公表時刻がnullの場合はunknown_published_at_hitsが増える", unknown, 1)
     check("検査9/負例: 公表時刻がnullの行も落とされる", len(unknown_pub["sections"][0]["articles"][0]["lines"]), 0)
@@ -2995,7 +2995,7 @@ def test_sources_published_at_null():
     # --- unknown_published_at_hits(change枠の行が落ちた件数)は既存どおり ---
     edition_for_stale = json.loads(json.dumps(edition))  # run_check_e_stale_sourcesは行を削除するため複製を使う
     now = dt.datetime.now(ve.JST)
-    stale_hits, unknown_published_at_hits = ve.run_check_e_stale_sources(edition_for_stale, now)
+    stale_hits, unknown_published_at_hits, _ = ve.run_check_e_stale_sources(edition_for_stale, now)
     check(
         "sources_published_at_null/正例12: unknown_published_at_hitsは変わらない"
         "(change枠でpublished_atが無い出典を参照する行1件のみ)",
@@ -4405,7 +4405,7 @@ def test_run_check_e_stale_sources_36h_boundary():
     published = "2026-09-25T17:59:00+09:00"
 
     edition_a = make_edition(published)
-    stale_a, _ = ve.run_check_e_stale_sources(edition_a, dt.datetime.fromisoformat("2026-09-27T05:59:00+09:00"))
+    stale_a, _, _ = ve.run_check_e_stale_sources(edition_a, dt.datetime.fromisoformat("2026-09-27T05:59:00+09:00"))
     check(
         "検査10/境界(改修27-1・4-2): 17:59提出は翌々日5:59の実行では新しい(36時間ちょうど、落とさない)",
         stale_a, 0,
@@ -4416,7 +4416,7 @@ def test_run_check_e_stale_sources_36h_boundary():
     )
 
     edition_b = make_edition(published)
-    stale_b, _ = ve.run_check_e_stale_sources(edition_b, dt.datetime.fromisoformat("2026-09-27T06:00:00+09:00"))
+    stale_b, _, _ = ve.run_check_e_stale_sources(edition_b, dt.datetime.fromisoformat("2026-09-27T06:00:00+09:00"))
     check(
         "検査10/境界(改修27-1・4-2): 17:59提出は翌々日6:00の実行では古い(36時間1分超過)",
         stale_b, 1,
@@ -4428,7 +4428,7 @@ def test_run_check_e_stale_sources_36h_boundary():
 
     # 実行時刻の秒によって境目がぶれないことの確認(分単位への切り捨て)。
     edition_c = make_edition(published)
-    stale_c, _ = ve.run_check_e_stale_sources(edition_c, dt.datetime.fromisoformat("2026-09-27T05:59:59+09:00"))
+    stale_c, _, _ = ve.run_check_e_stale_sources(edition_c, dt.datetime.fromisoformat("2026-09-27T05:59:59+09:00"))
     check(
         "検査10/境界: 実行時刻の秒が59でも分単位に切り捨てられ、5:59の判定のまま新しい",
         stale_c, 0,
@@ -5377,7 +5377,7 @@ def test_round1_27_2_end_to_end_default_keys_without_hypotheses():
         check("27-2 S15/正例: --hypothesesなしでも正常終了する", result.returncode, 0)
         v = json.loads(edition_path.read_text(encoding="utf-8")).get("verification") or {}
     check("27-2 S15/正例: reported_relation_text_mismatchは0件・空で出る", v.get("reported_relation_text_mismatch"), {"count": 0, "hypothesis_ids": []})
-    check("27-2 S15/正例: published_date_only_sourcesは紙面だけで決まるので3件", (v.get("published_date_only_sources") or {}).get("count"), 3)
+    check("27-2 S15/正例: published_date_only_sourcesは紙面だけで決まるので3件", (v.get("published_date_only_sources") or {}).get("count"), 4)
     check("27-2 S15/正例: empty_title_or_url_refsは紙面だけで決まるのでL-10の1件", v.get("empty_title_or_url_refs"), {"count": 1, "line_ids": ["L-10"]})
 
 
@@ -5573,6 +5573,167 @@ def test_cli_runs_with_current_time():
     _assert_testdata_untouched("コマンドのテスト")
 
 
+def test_stale_sources_by_source_kind():
+    """改修27-2第3回(S4): 検査10の「新しい」の条件を、出典の種類で分ける(changeの行だけ)。
+      時刻付き: 実行時刻から36時間を超えたら古い(今までどおり)
+      日付だけ: 号の日付と同じ日か前日(暦日)なら新しい。それより前・号の日付より後は古い
+      null・読めない: 落とす(unknown_published_at_hits)"""
+    def make(published_at, date_only, edition_date="2026-09-25", section_id="change", source_id="SRC-X"):
+        source = {"source_id": source_id, "published_at": published_at}
+        if date_only is not None:
+            source["published_date_only"] = date_only
+        edition = {
+            "date": edition_date,
+            "sections": [{"section_id": section_id, "articles": [{"lines": [{"line_id": "X-01", "source_ref": source_id}]}]}],
+            "sources": [source],
+        }
+        return edition
+
+    def run(published_at, date_only, run_at_iso, edition_date="2026-09-25", section_id="change", source_id="SRC-X"):
+        edition = make(published_at, date_only, edition_date, section_id, source_id)
+        stale, unknown, by_kind = ve.run_check_e_stale_sources(edition, dt.datetime.fromisoformat(run_at_iso))
+        kept = len(edition["sections"][0]["articles"][0]["lines"])
+        return kept, stale, unknown, by_kind
+
+    fresh = (1, 0, 0, {"timed": 0, "date_only": 0})
+    dropped_date = (0, 1, 0, {"timed": 0, "date_only": 1})
+
+    # --- 依頼文S4の例 ---
+    check("検査10/S4例1: 9/25の朝号(7:30に照合)で、日付だけの9/24の資料は新しい", run("2026-09-24", True, "2026-09-25T07:30:00+09:00"), fresh)
+    check("検査10/S4例2: 9/25の夕方号(17:30に照合)で、日付だけの9/24の資料は新しい(36時間の規則なら41.5時間前で古くなる例)",
+          run("2026-09-24", True, "2026-09-25T17:30:00+09:00"), fresh)
+    check("検査10/S4例3: 9/25の号で、日付だけの9/23の資料は古い", run("2026-09-23", True, "2026-09-25T07:30:00+09:00"), dropped_date)
+    check("検査10/S4例4: 9/23(休日)の号で、日付だけの9/18の資料は古い(営業日ではなく暦日で数える)",
+          run("2026-09-18", True, "2026-09-23T07:30:00+09:00", edition_date="2026-09-23"), dropped_date)
+    check("検査10/S4例5: 月曜(9/28)の朝号で、日付だけの金曜(9/25)の資料は古い(前日ではないため)",
+          run("2026-09-25", True, "2026-09-28T07:30:00+09:00", edition_date="2026-09-28"), dropped_date)
+    check("検査10/S4例5の対: 月曜(9/28)の朝号で、日付だけの日曜(9/27)の資料は新しい(前日のため)",
+          run("2026-09-27", True, "2026-09-28T07:30:00+09:00", edition_date="2026-09-28"), fresh)
+
+    # --- 号の日付を基準にし、実行時刻の日付は使わない ---
+    check("検査10/S4: 0:00〜4:59に照合する夕方号(号の日付は前日9/28)で、前日(9/27)の資料は新しい"
+          "(実行時刻の日付=9/29を基準にすると2日前で誤って古くなる例)",
+          run("2026-09-27", True, "2026-09-29T02:00:00+09:00", edition_date="2026-09-28"), fresh)
+    check("検査10/S4: 同じ号で、号の日付と同じ日(9/28)の資料も新しい",
+          run("2026-09-28", True, "2026-09-29T02:00:00+09:00", edition_date="2026-09-28"), fresh)
+    check("検査10/S4: 同じ号で、実行時刻の日付(9/29)は号の日付より後なので、日付だけの資料としては古い扱い(未来の日付)",
+          run("2026-09-29", True, "2026-09-29T02:00:00+09:00", edition_date="2026-09-28"), dropped_date)
+    check("検査10/S4: 実行時刻が号の日付から大きく遅れても(9/30に照合)、日付だけの資料の判定は号の日付(9/25)で行う",
+          run("2026-09-24", True, "2026-09-30T07:30:00+09:00"), fresh)
+
+    # --- 未来の日付 ---
+    check("検査10/S4/未来: 号の日付と同じ日(9/25)の日付だけの資料は新しい", run("2026-09-25", True, "2026-09-25T07:30:00+09:00"), fresh)
+    check("検査10/S4/未来: 号の日付より後(9/26)の日付だけの資料は落とす(古くない側に残さない)", run("2026-09-26", True, "2026-09-25T07:30:00+09:00"), dropped_date)
+    check("検査10/S4/未来: 号の日付より1年後の日付だけの資料も落とす", run("2027-09-25", True, "2026-09-25T07:30:00+09:00"), dropped_date)
+
+    # --- 書類一覧(前の営業日の一覧)---
+    check("検査10/S4/書類一覧: 月曜(9/28)の号で、前の営業日(金曜9/25)の一覧(SRC-EDINET-LIST-PREV)を出典にしたchangeの行は落ちる(意図した動き)",
+          run("2026-09-25", True, "2026-09-28T07:30:00+09:00", edition_date="2026-09-28", source_id="SRC-EDINET-LIST-PREV"), dropped_date)
+    check("検査10/S4/書類一覧: 同じ号の当日の一覧(SRC-EDINET-LIST、9/28)は新しい",
+          run("2026-09-28", True, "2026-09-28T07:30:00+09:00", edition_date="2026-09-28", source_id="SRC-EDINET-LIST"), fresh)
+    check("検査10/S4/書類一覧: 火曜(9/29)の号の前の営業日(月曜9/28)の一覧は前日なので新しい",
+          run("2026-09-28", True, "2026-09-29T07:30:00+09:00", edition_date="2026-09-29", source_id="SRC-EDINET-LIST-PREV"), fresh)
+    check("検査10/S4/書類一覧: 連休明け(9/24)の号で、連休前(9/18)の一覧は古い",
+          run("2026-09-18", True, "2026-09-24T07:30:00+09:00", edition_date="2026-09-24", source_id="SRC-EDINET-LIST-PREV"), dropped_date)
+
+    # --- 時刻付き(今までどおり36時間)---
+    check("検査10/S4/時刻付き: 36時間以内は新しい", run("2026-09-24T08:00:00+09:00", False, "2026-09-25T17:30:00+09:00"), fresh)
+    check("検査10/S4/時刻付き: 36時間超は古い(内訳は時刻付き)", run("2026-09-23T17:59:00+09:00", False, "2026-09-25T07:30:00+09:00"),
+          (0, 1, 0, {"timed": 1, "date_only": 0}))
+    check("検査10/S4/時刻付き: 36時間ちょうど(境目)は新しい側に残る", run("2026-09-25T17:59:00+09:00", False, "2026-09-27T05:59:00+09:00", edition_date="2026-09-27"), fresh)
+    check("検査10/S4/時刻付き: 36時間1分超過は古い", run("2026-09-25T17:59:00+09:00", False, "2026-09-27T06:00:00+09:00", edition_date="2026-09-27"),
+          (0, 1, 0, {"timed": 1, "date_only": 0}))
+    check("検査10/S4/時刻付き: published_date_onlyのキーが無い出典は時刻付きとして扱う(36時間)", run("2026-09-24T08:00:00+09:00", None, "2026-09-25T17:30:00+09:00"), fresh)
+    check("検査10/S4/時刻付き: 号の日付が読めなくても時刻付きの判定は影響を受けない", run("2026-09-24T08:00:00+09:00", False, "2026-09-25T17:30:00+09:00", edition_date=None), fresh)
+
+    # --- null・読めない ---
+    check("検査10/S4/null: 時刻付きの型でpublished_atがnullなら落とし、unknown_published_at_hitsに数える(staleには数えない)",
+          run(None, False, "2026-09-25T07:30:00+09:00"), (0, 0, 1, {"timed": 0, "date_only": 0}))
+    check("検査10/S4/null: 読めない文字列も同じ", run("不明", False, "2026-09-25T07:30:00+09:00"), (0, 0, 1, {"timed": 0, "date_only": 0}))
+    check("検査10/S4/null: published_date_onlyが真なのにpublished_atが日付だけの形でない(矛盾)場合も、読めない扱いで落とす",
+          run("2026-09-24T08:00:00+09:00", True, "2026-09-25T07:30:00+09:00"), (0, 0, 1, {"timed": 0, "date_only": 0}))
+    check("検査10/S4/null: 実在しない日付(2026-13-45)は読めない扱い", run("2026-13-45", True, "2026-09-25T07:30:00+09:00"), (0, 0, 1, {"timed": 0, "date_only": 0}))
+
+    # --- 号の日付が読めない ---
+    check("検査10/S4/号の日付不明: 日付だけの出典は判定できないので落とす(通常は号ごと止まるため到達しない)",
+          run("2026-09-24", True, "2026-09-25T07:30:00+09:00", edition_date=None), dropped_date)
+
+    # --- change以外の枠は対象外 ---
+    for section_id in ("big", "ripple", "deep"):
+        check(f"検査10/S4/枠: {section_id}の行は、日付だけの古い資料(9/18)でも落とさない",
+              run("2026-09-18", True, "2026-09-25T07:30:00+09:00", section_id=section_id), fresh)
+        check(f"検査10/S4/枠: {section_id}の行は、時刻付きの古い資料でも落とさない",
+              run("2026-09-01T08:00:00+09:00", False, "2026-09-25T07:30:00+09:00", section_id=section_id), fresh)
+
+    # --- 出典が見つからない行・出典を持たない行は今までどおり残す ---
+    edition = make("2026-09-01", True)
+    edition["sections"][0]["articles"][0]["lines"] = [{"line_id": "X-01", "source_ref": "SRC-NONE"}, {"line_id": "X-02"}]
+    ve.run_check_e_stale_sources(edition, dt.datetime.fromisoformat("2026-09-25T07:30:00+09:00"))
+    check("検査10/S4/出典なし: 出典が見つからない行・出典を持たない行は残る", len(edition["sections"][0]["articles"][0]["lines"]), 2)
+
+    # --- 内訳と合計 ---
+    mixed = {
+        "date": "2026-09-25",
+        "sections": [{"section_id": "change", "articles": [{"lines": [
+            {"line_id": "A", "source_ref": "T-OLD"}, {"line_id": "B", "source_ref": "D-OLD"},
+            {"line_id": "C", "source_ref": "D-FUTURE"}, {"line_id": "D", "source_ref": "T-NEW"},
+            {"line_id": "E", "source_ref": "D-NEW"}, {"line_id": "F", "source_ref": "NULL"},
+            {"line_id": "G", "source_ref": "T-OLD"},
+        ]}]}],
+        "sources": [
+            {"source_id": "T-OLD", "published_at": "2026-09-20T08:00:00+09:00", "published_date_only": False},
+            {"source_id": "D-OLD", "published_at": "2026-09-20", "published_date_only": True},
+            {"source_id": "D-FUTURE", "published_at": "2026-09-27", "published_date_only": True},
+            {"source_id": "T-NEW", "published_at": "2026-09-25T06:00:00+09:00", "published_date_only": False},
+            {"source_id": "D-NEW", "published_at": "2026-09-24", "published_date_only": True},
+            {"source_id": "NULL", "published_at": None, "published_date_only": False},
+        ],
+    }
+    stale, unknown, by_kind = ve.run_check_e_stale_sources(mixed, dt.datetime.fromisoformat("2026-09-25T07:30:00+09:00"))
+    check("検査10/S4/内訳: 古い行の合計は4(時刻付き2+日付だけ2)で、内訳はtimed=2・date_only=2", (stale, by_kind), (4, {"timed": 2, "date_only": 2}))
+    check("検査10/S4/内訳: 合計は内訳の和と一致し、nullの1行はunknown_published_atに別に数える", (stale == sum(by_kind.values()), unknown), (True, 1))
+    check("検査10/S4/内訳: 残る行は新しい時刻付き(D)と新しい日付だけ(E)の2行",
+          [l["line_id"] for l in mixed["sections"][0]["articles"][0]["lines"]], ["D", "E"])
+
+
+def test_prev_edinet_list_dropped_from_change_on_monday():
+    """改修27-2第3回(S4)・計画第7節: 月曜・連休明けの号では、前の営業日の書類一覧
+    (SRC-EDINET-LIST-PREV)は日付だけの資料としては「前日」ではなくなるため、
+    それを出典にしたchangeの行は落ちる(意図した動き)。書類一覧のキャッシュから
+    published_atが書かれ(apply_edinet_source_published_at)、published_date_onlyが
+    書かれ(apply_published_date_only)、検査10で落ちるまでの流れを通して確かめる。"""
+    def build(date_str, prev_str):
+        edition = {
+            "date": date_str,
+            "sections": [{"section_id": "change", "articles": [{"lines": [
+                {"line_id": "L-T", "source_ref": "SRC-EDINET-LIST"},
+                {"line_id": "L-P", "source_ref": "SRC-EDINET-LIST-PREV"},
+            ]}]}],
+            "sources": [
+                {"source_id": "SRC-EDINET-LIST", "url": "https://api.edinet-fsa.go.jp/api/v2/documents.json?date=" + date_str + "&type=2"},
+                {"source_id": "SRC-EDINET-LIST-PREV", "url": "https://api.edinet-fsa.go.jp/api/v2/documents.json?date=" + prev_str + "&type=2"},
+            ],
+        }
+        return edition
+
+    def flow(date_str, prev_str):
+        edition = build(date_str, prev_str)
+        with tempfile.TemporaryDirectory() as d:
+            for source_id, day in (("SRC-EDINET-LIST", date_str), ("SRC-EDINET-LIST-PREV", prev_str)):
+                write(d, f"{source_id}.json", json.dumps({"metadata": {"parameter": {"date": day}}}))
+            ve.apply_edinet_source_published_at(edition, d, [])
+        ve.apply_published_date_only(edition)
+        stale, unknown, by_kind = ve.run_check_e_stale_sources(edition, dt.datetime.fromisoformat(f"{date_str}T07:30:00+09:00"))
+        return [l["line_id"] for l in edition["sections"][0]["articles"][0]["lines"]], stale, by_kind
+
+    check("検査10/S4/月曜: 月曜(9/28)の号は、前の営業日(金曜9/25)の一覧を出典にした行(L-P)が落ち、当日の一覧の行(L-T)は残る",
+          flow("2026-09-28", "2026-09-25"), (["L-T"], 1, {"timed": 0, "date_only": 1}))
+    check("検査10/S4/連休明け: 連休明け(9/24)の号は、連休前(9/18)の一覧を出典にした行が落ちる",
+          flow("2026-09-24", "2026-09-18"), (["L-T"], 1, {"timed": 0, "date_only": 1}))
+    check("検査10/S4/平日: 火曜(9/29)の号は、前の営業日(月曜9/28)の一覧を出典にした行も残る(前日のため)",
+          flow("2026-09-29", "2026-09-28"), (["L-T", "L-P"], 0, {"timed": 0, "date_only": 0}))
+
+
 def test_canary_edition():
     """改修27-1(4-15): 見本の号(scripts/testdata/canary/)を、実際にverify_edition.pyの
     CLI全体に通して確かめる。第7.1版どおり10個の値(generated_at・baseline_late・
@@ -5601,7 +5762,7 @@ def test_canary_edition():
         business_days = ve.load_business_days(str(calendar_dir))
 
         # --- 出典の数(第5回で必ず直すこと1: 9つに揃える) ---
-        check("見本の号/正例: 出典は11(書類一覧2+C01〜C09。27-2第1回でC08・C09を足した)", len(after_edition.get("sources") or []), 11)
+        check("見本の号/正例: 出典は12(書類一覧2+C01〜C10。27-2第1回でC08・C09、第3回でC10を足した)", len(after_edition.get("sources") or []), 12)
 
         # --- 会社・行が消えないこと ---
         check("見本の号/正例: 上段の会社は4社とも残る", len(after_hyp.get("hypotheses") or []), 4)
@@ -5609,7 +5770,11 @@ def test_canary_edition():
             "見本の号/正例: hypothesis_violationsは0(検査で削除された会社は無い)",
             v.get("hypothesis_violations"), 0,
         )
-        check("見本の号/正例: 本文の行は10行とも残る(消えない。27-2第1回でL-09・L-10を足した)", v.get("lines_total"), 10)
+        check(
+            "見本の号/正例: 検査時点の本文の行は12行(27-2第1回でL-09・L-10、第3回でL-11・L-12を足した。"
+            "L-12は検査10で落ちるが、行の数は落とす前に数える)",
+            v.get("lines_total"), 12,
+        )
         check("見本の号/正例: 出典と数字が一致した行は4件", v.get("passed"), 4)
 
         # --- 10個のnullが機械で埋まること ---
@@ -5687,8 +5852,8 @@ def test_canary_edition():
         # --- 4-6: attribution_overwritten(第5回で必ず直すこと2: 出典・行の両方を
         #     合わせた第4回の数え方で計算し直した値) ---
         check(
-            "見本の号/正例: attribution_overwrittenは18(出典10件+source_refを持つ行8件。題名が空のC09とL-10はひな形が作れず、nullのままなので数えない)",
-            v.get("attribution_overwritten"), 18,
+            "見本の号/正例: attribution_overwrittenは21(出典11件+source_refを持つ行10件。題名が空のC09とL-10はひな形が作れず、nullのままなので数えない)",
+            v.get("attribution_overwritten"), 21,
         )
         check(
             "見本の号/正例: attribution_generation_skippedは2(題名が空のC09と、それを参照するL-10)",
@@ -5722,9 +5887,9 @@ def test_canary_edition():
 
         # --- 改修27-2第1回: S1・S12・S13 ---
         check(
-            "見本の号/正例(27-2 S1): published_date_onlyの出典は書類一覧2つと、日付だけを書いたC08の3件",
+            "見本の号/正例(27-2 S1): published_date_onlyの出典は書類一覧2つと、日付だけを書いたC08・C10の4件",
             v.get("published_date_only_sources"),
-            {"count": 3, "source_ids": ["SRC-EDINET-LIST", "SRC-EDINET-LIST-PREV", "C08"]},
+            {"count": 4, "source_ids": ["SRC-EDINET-LIST", "SRC-EDINET-LIST-PREV", "C08", "C10"]},
         )
         check(
             "見本の号/正例(27-2 S1): AIがpublished_date_only=falseと書いたC08(日付だけ)は機械が真に上書きする",
@@ -5747,6 +5912,27 @@ def test_canary_edition():
             "見本の号/正例(27-2 S13): reportedの上段4社は、いずれも定型文ではないため4件とも記録され、会社は消えない",
             (v.get("reported_relation_text_mismatch"), len(after_hyp["hypotheses"])),
             ({"count": 4, "hypothesis_ids": ["H-1", "H-2", "H-3", "H-4"]}, 4),
+        )
+
+        # --- 改修27-2第3回: S4(検査10を出典の種類で分ける) ---
+        change_line_ids = [l["line_id"] for l in after_edition["sections"][0]["articles"][0]["lines"]]
+        check(
+            "見本の号/正例(27-2 S4): changeの枠で、日付だけで前日のC08を参照するL-11は新しいので残り、"
+            "日付だけで古い(号の日付の18日前)C10を参照するL-12は落ちる",
+            ("L-11" in change_line_ids, "L-12" in change_line_ids), (True, False),
+        )
+        check(
+            "見本の号/正例(27-2 S4): 落ちたのはL-12の1行(stale_source_hits=1)で、内訳は日付だけが1・時刻付きが0",
+            (v.get("stale_source_hits"), v.get("stale_source_hits_by_kind")),
+            (1, {"timed": 0, "date_only": 1}),
+        )
+        check(
+            "見本の号/負例(27-2 S4): 時刻付き(C02・C03・C05・C07)のchangeの行はそのまま残る(L-01〜L-04)",
+            [lid for lid in change_line_ids if lid in ("L-01", "L-02", "L-03", "L-04")], ["L-01", "L-02", "L-03", "L-04"],
+        )
+        check(
+            "見本の号/負例(27-2 S4): 公表時刻が読めず落ちた行は0(unknown_published_at_hits)",
+            v.get("unknown_published_at_hits"), 0,
         )
 
         # --- 4-11: RECENT-HEADLINES.jsonを置いていないので失敗として記録される(号は止まらない) ---
@@ -6156,6 +6342,10 @@ def main():
     test_run_verification_stops_on_slot_mismatch()
     test_run_verification_requires_run_at()
     test_cli_runs_with_current_time()
+
+    # 改修27-2(第3回): 検査10の「新しい」の条件を出典の種類で分ける(S4)のテスト。
+    test_stale_sources_by_source_kind()
+    test_prev_edinet_list_dropped_from_change_on_monday()
 
     # 改修27-1(4-15): 見本の号(Canary)。
     test_canary_edition()
