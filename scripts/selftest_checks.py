@@ -6652,7 +6652,7 @@ def test_check37_reasons_and_run():
         hyp("OK-reported"),                                                              # 残る(reported、事実系の行あり)
         hyp("OK-primary", line_ids=("L-01", "L-03"), grade="primary", ref="S-1"),        # 残る(primaryで、出典が行の出典に含まれる)
         hyp("OK-reported-unverified", line_ids=("L-02",)),                               # 残る(reported_unverifiedも事実系)
-        hyp("NG-article-empty-article", article_id="A-EMPTY"),                            # 記事は実在する(行が0件でも)ので残る
+        hyp("NG-article-empty-article", article_id="A-EMPTY"),                            # 記事は実在する(行が0件でも)のでarticle_not_foundではないが、行L-01は別の記事(A-1)の行なので、line_not_in_articleで消える
         hyp("R1-none", article_id=None),
         hyp("R1-empty-str", article_id=""),
         hyp("R1-missing", article_id="A-99"),
@@ -6671,8 +6671,10 @@ def test_check37_reasons_and_run():
     ]
     result = ve.run_check37(hyps, edition, original, dropped_by)
     removed = {r["hypothesis_id"]: [x["reason"] for x in r["reasons"]] for r in result["removed"]}
-    check("検査37/残る例: 全部を満たす仮説(reported・primary・reported_unverified・行が0件でも実在する記事)は残る",
-          [h["hypothesis_id"] for h in result["kept"]], ["OK-reported", "OK-primary", "OK-reported-unverified", "NG-article-empty-article"])
+    check("検査37/残る例: 全部を満たす仮説(reported・primary・reported_unverified。行が同じ記事のもの)は残る",
+          [h["hypothesis_id"] for h in result["kept"]], ["OK-reported", "OK-primary", "OK-reported-unverified"])
+    check("検査37/実在する記事: 行が0件の記事(A-EMPTY)は実在する記事として扱い、article_not_foundにはならない(行が別の記事のものなので、line_not_in_articleだけで消える。改修27-2第8回の追加で残る例から消える例に変更)",
+          removed["NG-article-empty-article"], ["line_not_in_article"])
     check("検査37/article_not_found: article_idがnull・空文字・紙面に無いIDなら消える",
           (removed["R1-none"], removed["R1-empty-str"], removed["R1-missing"]), (["article_not_found"],) * 3)
     check("検査37/line_ids_empty: line_idsが空・nullなら消える(他の理由は重ねない)", (removed["R2-empty"], removed["R2-null"]), (["line_ids_empty"],) * 2)
@@ -6695,10 +6697,86 @@ def test_check37_reasons_and_run():
     check("検査37/記録: 社名・記事ID・行IDも記録される",
           {k: detail["R3-never"][k] for k in ("hypothesis_id", "company_name", "article_id", "line_ids")},
           {"hypothesis_id": "R3-never", "company_name": "社R3-never", "article_id": "A-1", "line_ids": ["L-999"]})
-    unknown = ve.check37_reasons(hyp(line_ids=("L-05",)), {"A-1"}, {}, {}, {"L-05"}, {})
+    unknown = ve.check37_reasons(hyp(line_ids=("L-05",)), {"A-1"}, {}, {}, {"L-05"}, {}, {})
     check("検査37/記録: 落とした検査の記録が無い行は、checksがunknownになる(落ちたことは分かる)", unknown[0]["checks"], {"L-05": "unknown"})
     check("検査37/事実系の行が1つでもあれば通る: 事実系の行とunverifiedの行が混ざる場合は残る(unverifiedの扱いは別の検査)",
-          ve.check37_reasons(hyp(line_ids=("L-01", "L-03")), {"A-1"}, {"L-01": "source_number_match", "L-03": "unverified"}, {"L-01": "S-1"}, {"L-01", "L-03"}, {}), [])
+          ve.check37_reasons(hyp(line_ids=("L-01", "L-03")), {"A-1"}, {"L-01": "source_number_match", "L-03": "unverified"}, {"L-01": "S-1"}, {"L-01", "L-03"}, {}, {"L-01": {"A-1"}, "L-03": {"A-1"}}), [])
+
+
+def test_check37_line_not_in_article():
+    """改修27-2第8回の追加: 検査37に line_not_in_article を足した。article_idが実在し、line_idsのうち
+    いま紙面に残っている行に、その記事以外の記事の行が1つでもあれば削除する。"""
+    edition = {"sections": [{"section_id": "big", "articles": [
+        {"article_id": "A-1", "lines": [
+            {"line_id": "L-01", "mark": "source_number_match", "source_ref": "S-1"},
+            {"line_id": "L-02", "mark": "reported_unverified", "source_ref": "S-2"},
+            {"line_id": "L-DUP", "mark": "source_number_match", "source_ref": "S-1"}]},
+        {"article_id": "A-2", "lines": [
+            {"line_id": "L-10", "mark": "source_number_match", "source_ref": "S-10"},
+            {"line_id": "L-11", "mark": "unverified", "source_ref": "S-11"}]},
+        {"article_id": "A-3", "lines": [{"line_id": "L-DUP", "mark": "source_number_match", "source_ref": "S-1"}]},
+        {"article_id": "A-EMPTY", "lines": []},
+    ]}]}
+    original = {"L-01", "L-02", "L-10", "L-11", "L-DUP", "L-05"}
+    dropped_by = {"L-05": "check7_stop_words"}
+
+    def hyp(hid, article_id="A-1", line_ids=("L-01",), grade="reported", ref=None):
+        return {"hypothesis_id": hid, "company_name": f"社{hid}", "article_id": article_id, "line_ids": list(line_ids),
+                "evidence_grade": grade, "evidence_source_ref": ref}
+
+    hyps = [
+        hyp("OK-same", line_ids=("L-01", "L-02")),                       # 同じ記事の行だけ → 残る
+        hyp("NG-other", line_ids=("L-10",)),                              # 他の記事の行だけ → 消える
+        hyp("NG-mixed", line_ids=("L-01", "L-10")),                       # 同じ記事の行と他の記事の行が混ざる → 消える
+        hyp("OK-dup-in-own", article_id="A-1", line_ids=("L-DUP",)),      # 行IDが2つの記事にある: 仮説の記事(A-1)にあるので残る
+        hyp("OK-dup-in-own-2", article_id="A-3", line_ids=("L-DUP",)),    # 同上(A-3にもある)
+        hyp("NG-dup-elsewhere", article_id="A-2", line_ids=("L-DUP", "L-10")),   # L-DUPはA-1・A-3にあってA-2に無い → 消える
+        hyp("MULTI-never", line_ids=("L-10", "L-999")),                   # 元から無い行 + 他の記事の行
+        hyp("MULTI-removed", line_ids=("L-10", "L-05")),                  # 落とされた行 + 他の記事の行
+        hyp("MULTI-nofact", line_ids=("L-11",)),                          # 他の記事の行 + 事実系でない
+        hyp("MULTI-primary", line_ids=("L-10",), grade="primary", ref="S-1"),   # 他の記事の行 + primaryの出典の食い違い
+        hyp("SKIP-article-missing", article_id="A-99", line_ids=("L-10",)),     # 記事が紙面に無い → 判定しない
+        hyp("SKIP-article-none", article_id=None, line_ids=("L-10",)),
+        hyp("SKIP-article-empty", article_id="", line_ids=("L-10",)),
+        hyp("SKIP-never-only", line_ids=("L-999",)),                      # 元から無い行だけ → この理由は重ねない
+        hyp("SKIP-removed-only", line_ids=("L-05",)),                     # 落とされた行だけ → この理由は重ねない
+        hyp("NG-empty-article", article_id="A-EMPTY", line_ids=("L-01",)),  # 実在する(行が0件の)記事だが、行は別の記事のもの
+    ]
+    result = ve.run_check37(hyps, edition, original, dropped_by)
+    removed = {r["hypothesis_id"]: r for r in result["removed"]}
+    reasons_of = {hid: [x["reason"] for x in r["reasons"]] for hid, r in removed.items()}
+    check("検査37/line_not_in_article: 残るのは、同じ記事の行だけの仮説と、行IDが重複していても仮説の記事にある仮説",
+          [h["hypothesis_id"] for h in result["kept"]], ["OK-same", "OK-dup-in-own", "OK-dup-in-own-2"])
+    check("検査37/line_not_in_article: 他の記事の行だけ・同じ記事の行と混ざる・行IDの重複が仮説の記事に無い・行が0件の記事、の4つはこの理由だけで消える",
+          (reasons_of["NG-other"], reasons_of["NG-mixed"], reasons_of["NG-dup-elsewhere"], reasons_of["NG-empty-article"]),
+          (["line_not_in_article"],) * 4)
+    check("検査37/line_not_in_article: 記録には、当たった行IDと、その行が実際に属している記事IDが入る(混ざる場合は他の記事の行だけ)",
+          [x for x in removed["NG-mixed"]["reasons"] if x["reason"] == "line_not_in_article"],
+          [{"reason": "line_not_in_article", "article_id": "A-1", "line_ids": ["L-10"], "actual_article_ids": {"L-10": ["A-2"]}}])
+    check("検査37/line_not_in_article: 行IDが2つの記事に重複している場合、実際の記事IDは重複した記事すべてを昇順で記録する",
+          [x["actual_article_ids"] for x in removed["NG-dup-elsewhere"]["reasons"] if x["reason"] == "line_not_in_article"],
+          [{"L-DUP": ["A-1", "A-3"]}])
+    check("検査37/他の理由と重なる: 元から無い行・落とされた行・事実系でない・primaryの出典の食い違いと重なれば、全部記録される(CHECK37_REASONSの順)",
+          (reasons_of["MULTI-never"], reasons_of["MULTI-removed"], reasons_of["MULTI-nofact"], reasons_of["MULTI-primary"]),
+          (["line_id_never_existed", "line_not_in_article"], ["line_id_removed_by_check", "line_not_in_article"],
+           ["line_not_in_article", "no_fact_line"], ["line_not_in_article", "primary_ref_mismatch"]))
+    check("検査37/article_not_foundのときは判定しない: 記事が紙面に無い(A-99)・null・空文字なら、理由はarticle_not_foundの1つだけ",
+          (reasons_of["SKIP-article-missing"], reasons_of["SKIP-article-none"], reasons_of["SKIP-article-empty"]),
+          (["article_not_found"],) * 3)
+    check("検査37/元から無い行・落とされた行は、この理由の判定に含めない(別の理由だけが記録される)",
+          (reasons_of["SKIP-never-only"], reasons_of["SKIP-removed-only"]), (["line_id_never_existed"], ["line_id_removed_by_check"]))
+    check("検査37/理由の並び: line_not_in_articleは、line_id_removed_by_checkの次・no_fact_lineの前",
+          ve.CHECK37_REASONS, ("article_not_found", "line_ids_empty", "line_id_never_existed", "line_id_removed_by_check",
+                               "line_not_in_article", "no_fact_line", "primary_ref_mismatch"))
+    check("検査37/理由の並び: 記録される理由の順は、どの仮説でもCHECK37_REASONSの順",
+          all([ve.CHECK37_REASONS.index(r) for r in rs] == sorted(ve.CHECK37_REASONS.index(r) for r in rs) for rs in reasons_of.values()), True)
+    # 表示文: 削除の理由が結果表示(print_report)に日本語の説明つきで出る
+    buffer = io.StringIO()
+    with contextlib.redirect_stdout(buffer):
+        ve.print_report("x.json", {"lines_total": 0, "passed": 0, "unverified": 0, "reported_unverified": 0, "explainer": 0,
+                                   "unverified_reasons": {}}, [], [], 0, 0, 0, 0, 1, {"line_not_in_article": 1}, [], True)
+    check("検査37/表示文: 結果表示にline_not_in_articleの説明(仮説の記事以外の記事の行)が出る",
+          "仮説の記事(article_id)以外の記事の行があった" in buffer.getvalue(), True)
 
 
 def test_record_dropped_lines():
@@ -6788,9 +6866,9 @@ def test_canary_edition_codelist_unavailable():
     check(
         "見本の号(コードリスト無し)/正例(27-2 S8): コードリストが読めない日は、ticker_sourceがedinet_codelistのH-1・H-2・H-4が削除され、"
         "edinet_seccodeで取ったH-3(reported)・H-5(primary)は残る。H-6(証券コードが一覧に無い)・H-7(検査11)・"
-        "H-8〜H-14(検査37の7社)も消え、hypothesis_violationsは12",
+        "H-8〜H-15(検査37の8社)も消え、hypothesis_violationsは13",
         ([h["hypothesis_id"] for h in after_hyp_saved["hypotheses"]], v.get("hypothesis_violations")),
-        (["H-3", "H-5"], 12),
+        (["H-3", "H-5"], 13),
     )
     check(
         "見本の号(コードリスト無し)/正例(27-2 S7): 推論欄の会社名の検査は行われず(skippedが真)、会社名を含む推論も消えない(A-2の5件が残る)",
@@ -6839,8 +6917,8 @@ def test_canary_edition():
             [h["hypothesis_id"] for h in after_hyp.get("hypotheses") or []], ["H-1", "H-2", "H-3", "H-4", "H-5"],
         )
         check(
-            "見本の号/正例: hypothesis_violationsは9(検査11で消えたH-6・H-7の2社と、検査37で消えたH-8〜H-14の7社)",
-            v.get("hypothesis_violations"), 9,
+            "見本の号/正例: hypothesis_violationsは10(検査11で消えたH-6・H-7の2社と、検査37で消えたH-8〜H-15の8社)",
+            v.get("hypothesis_violations"), 10,
         )
         check(
             "見本の号/正例: 検査時点の本文の行は18行(27-2第1回でL-09・L-10、第3回でL-11・L-12、第4回でL-13〜L-16、"
@@ -7087,13 +7165,20 @@ def test_canary_edition():
 
         # --- 改修27-2第8回: S9(検査37) ---
         check(
-            "見本の号/正例(27-2 S9): 検査37で消えるのはH-8〜H-14の7社。理由は、H-8=記事が紙面に無い・H-9=line_idsが空・"
+            "見本の号/正例(27-2 S9): 検査37で消えるのはH-8〜H-15の8社。理由は、H-8=記事が紙面に無い(line_not_in_articleは記録しない。"
+            "行L-01は実在するが、記事が無いので判定しない)・H-9=line_idsが空・"
             "H-10=元から無い行ID・H-11=検査で落とされた行ID・H-12=事実系の行なし・H-13=primaryの出典が行の出典に無い・"
-            "H-14=複数(記事なし・元から無い行・落とされた行)",
+            "H-14=複数(記事なし・元から無い行・落とされた行)・H-15=行が別の記事(A-2)の行(この理由だけ)",
             [(r["hypothesis_id"], [x["reason"] for x in r["reasons"]]) for r in v.get("check37_removed") or []],
             [("H-8", ["article_not_found"]), ("H-9", ["line_ids_empty"]), ("H-10", ["line_id_never_existed"]),
              ("H-11", ["line_id_removed_by_check"]), ("H-12", ["no_fact_line"]), ("H-13", ["primary_ref_mismatch"]),
-             ("H-14", ["article_not_found", "line_id_never_existed", "line_id_removed_by_check"])],
+             ("H-14", ["article_not_found", "line_id_never_existed", "line_id_removed_by_check"]),
+             ("H-15", ["line_not_in_article"])],
+        )
+        check(
+            "見本の号/正例(27-2 S9追加): H-15(article_idがA-1で、line_idsがA-2の行L-07)は、当たった行IDと、その行が属する記事(A-2)を記録して消える",
+            [x for x in {r["hypothesis_id"]: r for r in v.get("check37_removed") or []}["H-15"]["reasons"]],
+            [{"reason": "line_not_in_article", "article_id": "A-1", "line_ids": ["L-07"], "actual_article_ids": {"L-07": ["A-2"]}}],
         )
         removed37 = {r["hypothesis_id"]: r for r in v.get("check37_removed") or []}
         check(
@@ -7556,6 +7641,7 @@ def main():
 
     # 改修27-2(第8回): 検査37(上段の会社の根拠の行・記事・出典)のテスト。
     test_check37_reasons_and_run()
+    test_check37_line_not_in_article()
     test_record_dropped_lines()
     test_run_hypothesis_checks_check37_integration()
 

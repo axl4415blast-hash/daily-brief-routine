@@ -231,6 +231,22 @@
     "L-999",
     "L-13"
    ]
+  },
+  {
+   "hypothesis_id": "H-15",
+   "company_name": "カナリア鉄工株式会社",
+   "relation_text": "検索結果の断片に社名あり（本文は未確認）",
+   "evidence_grade": "reported",
+   "evidence_source_ref": null,
+   "ticker": "3001",
+   "ticker_source": "edinet_seccode",
+   "baseline_date": "2026-09-24",
+   "baseline_price_type": "close",
+   "added_by": "manual",
+   "article_id": "A-1",
+   "line_ids": [
+    "L-07"
+   ]
   }
  ]
 }

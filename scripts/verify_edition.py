@@ -2578,7 +2578,7 @@ def check_hypothesis(hyp, edition, line_ids, business_days, ng_words, sources_by
 LINE_FACT_MARKS = ("source_number_match", "reported_unverified")
 CHECK37_REASONS = (
     "article_not_found", "line_ids_empty", "line_id_never_existed",
-    "line_id_removed_by_check", "no_fact_line", "primary_ref_mismatch",
+    "line_id_removed_by_check", "line_not_in_article", "no_fact_line", "primary_ref_mismatch",
 )
 LINE_DROP_CHECK_NAMES = {
     "stop_words": "check7_stop_words",
@@ -2605,17 +2605,22 @@ def record_dropped_lines(edition, known_line_ids, dropped_by, check_name):
     return newly_dropped
 
 
-def check37_reasons(hyp, article_ids, line_marks, line_refs, original_line_ids, dropped_by):
+def check37_reasons(hyp, article_ids, line_marks, line_refs, original_line_ids, dropped_by, line_articles):
     """検査37(改修27-2第8回・S9): 上段の仮説の根拠が、その記事の行と出典から出ているか。
     次のどれかに当たる理由をすべて返す(空なら合格)。行の検査がすべて終わった後の状態で判定する。
       article_not_found        : article_idが空・null、または紙面に実在しない
       line_ids_empty           : line_idsが空
       line_id_never_existed    : line_idsに、AIが書いた紙面に元から無い行IDが1つでもある
       line_id_removed_by_check : line_idsに、検査で落とされた行IDが1つでもある(どの検査かも記録)
+      line_not_in_article      : article_idが実在し、かつline_idsのうちいま紙面に残っている行に、
+                                 その記事以外の記事の行が1つでもある(当たった行IDと、その行が
+                                 実際に属している記事IDを記録。article_not_foundのときは判定しない)
       no_fact_line             : line_idsの行の確定したmarkが、どれも事実系
                                  (source_number_match・reported_unverified)でない
       primary_ref_mismatch     : evidence_gradeがprimaryなのに、evidence_source_refが、line_idsの
                                  どの行のsource_refにも含まれない
+    line_articles: {行ID: その行が載っている記事IDの集合}(run_check37が作る)。同じ行IDが2つ以上の
+    記事に載っている場合は、そのどれか1つが仮説の記事なら「その記事の行」とみなす。
     no_fact_line・primary_ref_mismatchは、line_idsの行のうちいま紙面に残っているものだけで判定し、
     1つも残っていないときは判定しない(その場合の原因は上の3つの理由で記録済みのため)。
     戻り値: [{"reason": 理由, ...詳細}, ...](CHECK37_REASONSの順)。"""
@@ -2643,6 +2648,13 @@ def check37_reasons(hyp, article_ids, line_marks, line_refs, original_line_ids, 
             "checks": {l: dropped_by.get(l, "unknown") for l in removed},
         })
     surviving = [l for l in line_ids if hashable(l) and l in line_marks]
+    if surviving and article_id in article_ids:   # article_not_foundのときは判定しない(article_idがNoneでも落ちない)
+        elsewhere = [l for l in surviving if article_id not in line_articles.get(l, set())]
+        if elsewhere:
+            reasons.append({
+                "reason": "line_not_in_article", "article_id": article_id, "line_ids": elsewhere,
+                "actual_article_ids": {l: sorted(line_articles.get(l, set())) for l in elsewhere},
+            })
     if surviving:
         if not any(line_marks.get(l) in LINE_FACT_MARKS for l in surviving):
             reasons.append({"reason": "no_fact_line", "line_ids": surviving})
@@ -2664,13 +2676,15 @@ def run_check37(hyps, edition, original_line_ids, dropped_by):
     article_ids = {a.get("article_id") for _s, a, _l in iter_lines_and_empty_articles(edition)}
     line_marks = {}
     line_refs = {}
-    for _section, _article, line in iter_lines(edition):
+    line_articles = {}
+    for _section, article, line in iter_lines(edition):
         line_marks[line.get("line_id")] = line.get("mark")
         line_refs[line.get("line_id")] = line.get("source_ref")
+        line_articles.setdefault(line.get("line_id"), set()).add(article.get("article_id"))
     kept = []
     removed = []
     for hyp in hyps:
-        reasons = check37_reasons(hyp, article_ids, line_marks, line_refs, original_line_ids, dropped_by)
+        reasons = check37_reasons(hyp, article_ids, line_marks, line_refs, original_line_ids, dropped_by, line_articles)
         if reasons:
             removed.append({
                 "hypothesis_id": hyp.get("hypothesis_id"), "company_name": hyp.get("company_name"),
@@ -3167,6 +3181,7 @@ def print_report(edition_path, stats, stop_hits, watch_hits, dropped_inferences,
             "line_ids_empty": "検査37: 仮説の根拠の行(line_ids)が空だった(削除)",
             "line_id_never_existed": "検査37: 仮説の根拠の行に、AIが書いた紙面に元から無い行IDがあった(削除)",
             "line_id_removed_by_check": "検査37: 仮説の根拠の行が、検査(停止語・日付・鮮度)で落とされていた(削除)",
+            "line_not_in_article": "検査37: 仮説の根拠の行に、仮説の記事(article_id)以外の記事の行があった(削除)",
             "no_fact_line": "検査37: 仮説の根拠の行が、どれも事実系(出典と数字が一致・出典を明示した未確認)でなかった(削除)",
             "primary_ref_mismatch": "検査37: 根拠が最上位(primary)なのに、根拠の出典が根拠の行の出典に含まれなかった(削除)",
             "primary_requires_verified_line": "根拠が最上位なのに参照行が未確認だった(削除)",
