@@ -3385,7 +3385,9 @@ def test_check_hypothesis_baseline_late_input():
 
     def result_for(hyp):
         extra_counts = {"codelist_unavailable": True, "baseline_date_check_skipped": 0}
-        reason = ve.check_hypothesis(hyp, {}, line_ids, business_days, ng_words, sources, ".", None, None, extra_counts)
+        # 改修27-2第7回: コードリストが読めない日は上段のedinet_codelistの会社が削除されるため、
+        # 検査17(期限日)だけを確かめるこのテストには、架空のコードリスト(_test_bussan_codelist)を渡す。
+        reason = ve.check_hypothesis(hyp, {}, line_ids, business_days, ng_words, sources, ".", None, _test_bussan_codelist(), extra_counts)
         return reason, extra_counts.get("horizon_recount_mismatch", 0)
 
     # --- 正例1: baseline_observed_atが営業日そのもの ---
@@ -3632,8 +3634,9 @@ def test_required_hypothesis_fields_no_falsifier_or_horizon():
         "horizon_business_days": 20,
         "deadline_date": ve.compute_deadline(business_days, "2026-09-24", 20),
     }
-    extra_counts = {"codelist_unavailable": True, "baseline_date_check_skipped": 0}
-    reason = ve.check_hypothesis(hyp, {}, line_ids, business_days, ng_words, sources, ".", None, None, extra_counts)
+    extra_counts = {"codelist_unavailable": False, "baseline_date_check_skipped": 0}
+    # 改修27-2第7回: 架空のコードリストを渡す(読めない日はedinet_codelistの会社が削除されるため)。
+    reason = ve.check_hypothesis(hyp, {}, line_ids, business_days, ng_words, sources, ".", None, _test_bussan_codelist(), extra_counts)
     check(
         "改修27-1/正例: falsifier・direction・evidence_excerptを書かなくても会社は消えない",
         reason, None,
@@ -4597,7 +4600,10 @@ def test_round2_end_to_end_edinet_published_at_and_tob_side():
 
         calendar_dir = _write_temp_calendar(work_dir, dt.datetime.strptime(today_str, "%Y-%m-%d").date(), 40)
 
-        result = _run_verify(work_dir, edition_path, hyp_path, cache_dir, calendar_dir)
+        # 改修27-2第7回: コードリストが読めない日は上段のedinet_codelistの会社が削除されるため、
+        # テストの中で架空のコードリスト(カナリア工業・証券コード1234)を置き換えて渡す。
+        with _patched_codelist(_fake_codelist_rows([("カナリア工業", "12340", "上場")])):
+            result = _run_verify(work_dir, edition_path, hyp_path, cache_dir, calendar_dir)
         check("改修27-1第2回/統合: 正常終了する(終了コード0)", result.returncode, 0)
 
         after_edition = json.loads(edition_path.read_text(encoding="utf-8"))
@@ -5248,8 +5254,9 @@ def test_check12_removed_direction_not_read():
         return h
 
     def reason_for(hyp):
-        extra = {"codelist_unavailable": True, "baseline_date_check_skipped": 0}
-        return ve.check_hypothesis(hyp, {}, line_ids, business_days, [], {}, ".", None, None, extra)
+        extra = {"codelist_unavailable": False, "baseline_date_check_skipped": 0}
+        # 改修27-2第7回: 架空のコードリストを渡す(読めない日はedinet_codelistの会社が削除されるため)。
+        return ve.check_hypothesis(hyp, {}, line_ids, business_days, [], {}, ".", None, _test_bussan_codelist(), extra)
 
     check(
         "検査12廃止/反応してほしくない例1: directionがminusでもevidence_excerptが無くても、会社は消えない",
@@ -6447,6 +6454,177 @@ def test_inference_company_names_without_hypotheses():
           (True, {"count": 0, "removed": []}, True, 5))
 
 
+def test_check21_codelist_unavailable_removes_upper_codelist_companies():
+    """改修27-2第7回(S8): コードリストが読めない日は、上段のticker_sourceがedinet_codelistの会社を
+    削除する(理由upper_codelist_unavailable。上場でない場合のupper_not_listedとは分ける)。
+    edinet_seccodeで取った会社は消さない。検査31は、読めない日は検査21で先に消えるので
+    「適用しない」のままでよい。"""
+    rows = [_ec_row("テスト検証株式会社", "E-UVERIFY-1", "90010"), _ec_row("テスト非上場株式会社", "E-UVERIFY-3", "80010", listed="非上場")]
+    check("検査21(S8)/正例: コードリストが読めない日は、edinet_codelistの会社はupper_codelist_unavailableで削除される",
+          ve.check_hypothesis_listed(_hyp_base(), None), "upper_codelist_unavailable")
+    check("検査21(S8)/理由の分け方: 読めない日の理由(upper_codelist_unavailable)は、上場でない場合(upper_not_listed)と別",
+          (ve.check_hypothesis_listed(_hyp_base(company_name="テスト非上場株式会社", ticker="8001"), rows),
+           ve.check_hypothesis_listed(_hyp_base(), None)),
+          ("upper_not_listed", "upper_codelist_unavailable"))
+    check("検査21(S8)/負例: 読めない日でも、edinet_seccodeの会社・ticker_sourceが無い会社は消えない",
+          (ve.check_hypothesis_listed(_hyp_base(ticker_source="edinet_seccode"), None),
+           ve.check_hypothesis_listed({"company_name": "テスト検証株式会社", "ticker": "9001"}, None)), (None, None))
+    check("検査21(S8)/負例: コードリストが読めれば、上場の会社は今までどおり合格", ve.check_hypothesis_listed(_hyp_base(), rows), None)
+    check("検査31(S8)/読めない日は適用しない: 検査31単体は、読めない日は何もしない(None)。検査21が先に削除する",
+          ve.check_hypothesis_ticker_match(_hyp_base(ticker="9999"), None), None)
+
+    # check_hypothesis()全体での確認(検査31より先に検査21が削除する)
+    business_days = ve.load_business_days(str(CALENDAR_DIR))
+    deadline = ve.compute_deadline(business_days, "2026-09-24", 5)
+
+    def base(**kw):
+        h = {"company_name": "テスト物産", "relation_text": "業績に影響しうる", "baseline_price_type": "close",
+             "baseline_date": "2026-09-24", "evidence_grade": "reported", "ticker": "8801", "ticker_source": "edinet_codelist",
+             "line_ids": ["L-1"], "added_by": "manual", "horizon_business_days": 5, "deadline_date": deadline}
+        h.update(kw)
+        return h
+
+    def reason(hyp, codelist_rows):
+        extra = {"codelist_unavailable": codelist_rows is None, "baseline_date_check_skipped": 0}
+        return ve.check_hypothesis(hyp, {}, {"L-1": "source_number_match"}, business_days, [], {}, ".", None, codelist_rows, extra)
+
+    check("検査21・31(S8)/全体: 読めない日、edinet_codelistの会社(tickerが食い違っていても)は検査31ではなく検査21の理由で削除される",
+          (reason(base(), None), reason(base(ticker="1111"), None)), ("upper_codelist_unavailable", "upper_codelist_unavailable"))
+    check("検査21・31(S8)/全体: 読めない日でも、edinet_seccodeの会社はコードリスト無しで残る",
+          reason(base(ticker_source="edinet_seccode", ticker="9999"), None), None)
+    check("検査21・31(S8)/全体: 読めれば(架空のコードリストを渡せば)今までどおり残り、証券コードの食い違いは検査31で削除",
+          (reason(base(), [_ec_row("テスト物産", "E-TB", "88010")]), reason(base(ticker="1111"), [_ec_row("テスト物産", "E-TB", "88010")])),
+          (None, "upper_ticker_mismatch"))
+
+    # run_hypothesis_checks()全体: 理由別の件数
+    edition = {"market_open": True, "slot": "evening", "date": "2026-09-24", "sources": [], "sections": [
+        {"section_id": "big", "articles": [{"article_id": "A-1", "lines": [{"line_id": "L-1", "mark": "source_number_match"}]}]}]}
+    doc = {"hypotheses": [base(hypothesis_id="H-1"), base(hypothesis_id="H-2", ticker_source="edinet_seccode", company_name="テスト物産", ticker="9999")]}
+    violations, reasons, extra = ve.run_hypothesis_checks(doc, edition, business_days, [], ".", None, None)
+    check("検査21(S8)/統合: 読めない日、run_hypothesis_checksはedinet_codelistの会社だけを理由upper_codelist_unavailableで数え、codelist_unavailableは真",
+          (reasons.get("upper_codelist_unavailable"), extra["codelist_unavailable"]), (1, True))
+    check("検査21(S8)/統合: edinet_seccodeの会社(H-2)は消えずに残り、消えたのはedinet_codelistのH-1だけ",
+          ([h["hypothesis_id"] for h in doc["hypotheses"]], violations), (["H-2"], 1))
+
+
+def test_lower_section_codelist_unavailable_already_removed():
+    """改修27-2第7回(S8の確認): 下段は、コードリストが読めない日に、すでに削除される作りになっている
+    (check_lower_listed・check_lower_ticker_match。コードは変えていない)。"""
+    example = {"company_name": "テスト検証株式会社", "ticker": "9001", "ticker_source": "edinet_codelist"}
+    check("下段の検査21/読めない日: 下段のedinet_codelistの会社はlower_not_listedで削除される(今までどおり)",
+          ve.check_lower_listed(example, None), "lower_not_listed")
+    check("下段の検査31/読めない日: 下段はlower_ticker_mismatchで削除される(今までどおり)",
+          ve.check_lower_ticker_match(example, None), "lower_ticker_mismatch")
+    with tempfile.TemporaryDirectory() as d:
+        prev_cwd = os.getcwd()
+        os.chdir(d)  # コードリスト(.cache/reference)が無い場所から実行する
+        try:
+            result = pic.run(
+                {"industry_picks": [{"article_id": "A-1", "industry": "電気機器", "industry_line_ids": ["L-1"]}]},
+                {"A-1": {"line_ids": {"L-1"}, "text_blob": ""}}, {}, set(),
+            )
+        finally:
+            os.chdir(prev_cwd)
+    check("下段/読めない日: 下段の会社を選ぶ処理(pick_industry_companies.run)は、コードリストが無ければ選定自体が空になる(fatal_error)",
+          ("fatal_error" in result, "examples" in result), (True, False))
+
+
+def test_inference_accept_end_skips_normalized_away_chars():
+    """改修27-2第7回: 規則1・3を元の文で確かめるとき、正規化で消える文字(長音・ハイフン・空白・
+    結合文字・半角の濁点)を先に読み飛ばしてから、法人格・「グループ」を見る。「・」は読み飛ばさない。"""
+    rows = _fake_codelist_rows([
+        ("サンプラー株式会社", "11110", "上場"),      # 長音で終わる社名(照合名は「サンプラ」)
+        ("兼松株式会社", "22220", "上場"),
+    ])
+    matcher = ve.build_listed_company_matcher(rows)
+
+    def hits(text):
+        return sorted({m["company_name"] for m in ve.find_listed_company_mentions(text, matcher)})
+
+    check("直後の読み飛ばし/長音で終わる社名: 「サンプラー株式会社及び」(規則1)は当たる", hits("サンプラー株式会社及び関係会社"), ["サンプラー株式会社"])
+    check("直後の読み飛ばし/長音で終わる社名: 「サンプラーグループの」(規則3)は当たる", hits("サンプラーグループの方針"), ["サンプラー株式会社"])
+    check("直後の読み飛ばし/長音で終わる社名: 「サンプラー・兼松」(規則1の「・」)は両方当たる", hits("サンプラー・兼松の決算"), ["サンプラー株式会社", "兼松株式会社"])
+    check("直後の読み飛ばし/長音で終わる社名: 半角の長音(ｰ)でも同じ", (hits("サンプラｰ株式会社及び"), hits("サンプラｰグループの")), (["サンプラー株式会社"], ["サンプラー株式会社"]))
+    check("直後の読み飛ばし/負例: 「サンプラーズ」(直後がカタカナ)は当たらない", hits("サンプラーズの方針"), [])
+    check("直後の読み飛ばし/負例: 「サンプラーグループ会社」以外のカタカナ(サンプラーソフト)は当たらない", hits("サンプラーソフトの開発"), [])
+    check("直後の読み飛ばし/空白: 「兼松　株式会社及び」(全角空白)・「兼松 株式会社及び」(半角空白)は当たる",
+          (hits("兼松　株式会社及び関係会社"), hits("兼松 株式会社及び関係会社")), (["兼松株式会社"], ["兼松株式会社"]))
+    check("直後の読み飛ばし/空白: 空白を挟んだグループ・「・」も当たる", (hits("兼松 グループの事業"), hits("兼松　・サンプラーの決算")), (["兼松株式会社"], ["サンプラー株式会社", "兼松株式会社"]))
+    check("直後の読み飛ばし/ハイフン: 「兼松-株式会社及び」(ハイフン)も当たる", hits("兼松-株式会社及び"), ["兼松株式会社"])
+    check("直後の読み飛ばし/負例: 空白の後が法人格・グループ・「・」以外のカタカナ(兼松 ソフト)は当たらない", hits("兼松 ソフトの開発"), [])
+    check("直後の読み飛ばし/今までの当たり: 直後がひらがな・読点は今までどおり当たる", (hits("兼松は発表した"), hits("サンプラーは発表した"), hits("兼松、サンプラー")),
+          (["兼松株式会社"], ["サンプラー株式会社"], ["サンプラー株式会社", "兼松株式会社"]))
+    check("直後の読み飛ばし関数: 長音・空白・半角濁点・結合文字だけを飛ばし、「・」は飛ばさない",
+          (ve._skip_normalized_away_chars("ー 　株式会社"), ve._skip_normalized_away_chars("ｰ-・兼松"), ve._skip_normalized_away_chars("ﾞ\u3099グループ"),
+           ve._skip_normalized_away_chars(""), ve._skip_normalized_away_chars("株式会社")),
+          ("株式会社", "・兼松", "グループ", "", "株式会社"))
+
+
+def test_generic_words_added_in_27_2_round7():
+    """改修27-2第7回: 一般語辞書(scripts/generic_words.txt)に17語を足した。足した語は、推論欄の会社名の検査・
+    下段の選定(本文に社名が出ている会社を優先する照合)・検査11の照合名の段階で、当たらなくなる。
+    兼松のような固有名詞は、今までどおり当たる。"""
+    added = {  # 語: (社名, 普通の言葉としての使われ方の例)
+        "ポート": ("ポート株式会社", "サポート"), "IC": ("株式会社ＩＣ", "集積回路(IC)"), "ズーム": ("株式会社ズーム", "メカニズム"),
+        "フラー": ("フラー株式会社", "インフラ"), "高速": ("株式会社高速", "データを高速に"), "ベース": ("ベース株式会社", "数量ベース"),
+        "ビジョン": ("株式会社ビジョン", "長期のビジョン"), "電算": ("株式会社電算", "電算機類"), "平和": ("株式会社平和", "平和的"),
+        "ゼロ": ("株式会社ゼロ", "ゼロ金利"), "ハブ": ("株式会社ハブ", "ハブ空港"), "フリー": ("フリー株式会社", "フリーランス"),
+        "カバー": ("カバー株式会社", "カバーする"), "リード": ("株式会社リード", "リードタイム"), "シード": ("株式会社シード", "シード権"),
+        "地主": ("地主株式会社", "地主の土地"), "大和": ("株式会社大和", "大和地方"),
+    }
+    not_added = ["松屋", "フジ", "東宝", "鈴木", "レイ", "アル", "エン", "ニックス"]
+    words = pic.load_generic_words()
+    check("一般語辞書(27-2第7回)/足した17語: どれも一般語辞書(正規化後)に載っている",
+          [w for w in added if pic._normalize_match_name(w) not in words], [])
+    check("一般語辞書(27-2第7回)/足さない語: 松屋・フジ・東宝・鈴木・レイ・アル・エン・ニックスは載っていない",
+          [w for w in not_added if pic._normalize_match_name(w) in words], [])
+    check("一般語辞書(27-2第7回)/固有名詞: 兼松・清水建設・フェローテックは載っていない",
+          [w for w in ("兼松", "清水建設", "フェローテック") if pic._normalize_match_name(w) in words], [])
+    # 辞書を空にした場合(足す前と同じ状態)と、実物の辞書の場合を比べる
+    with tempfile.TemporaryDirectory() as d:
+        empty_path = Path(d) / "empty.txt"
+        empty_path.write_text("", encoding="utf-8")
+        original = pic.GENERIC_WORDS_PATH
+        pic.GENERIC_WORDS_PATH = empty_path
+        try:
+            empty_words = pic.load_generic_words()
+        finally:
+            pic.GENERIC_WORDS_PATH = original
+    check("一般語辞書(27-2第7回)/比較の前提: 空の辞書は本当に空", empty_words, set())
+    rows = _fake_codelist_rows([(name, "11110", "上場") for name, _ in added.values()] + [("兼松株式会社", "22220", "上場")])
+    for word, (company, usage) in added.items():
+        # 推論欄の検査(実物の辞書)
+        matcher = ve.build_listed_company_matcher(rows)
+        text = f"{word}が発表した内容"
+        actual = [m["company_name"] for m in ve.find_listed_company_mentions(text, matcher)]
+        check(f"一般語辞書/推論欄: 「{word}」({company}。{usage})は、推論欄の会社名の検査で当たらない", actual, [])
+        # 辞書が無ければ当たる(この試験が空振りでないことの確認)
+        pic.GENERIC_WORDS_PATH = empty_path
+        try:
+            matcher_empty = ve.build_listed_company_matcher(rows)
+        finally:
+            pic.GENERIC_WORDS_PATH = original
+        check(f"一般語辞書/推論欄(対照): 辞書が無ければ「{word}」は当たる(辞書の効果であること)",
+              [m["company_name"] for m in ve.find_listed_company_mentions(text, matcher_empty)], [company])
+        # 下段の選定
+        cand = [{"company_name": company, "edinet_code": "E-X"}]
+        dropped = {}
+        entries = pic._build_entries(cand, {}, generic_words=words, dropped=dropped)
+        check(f"一般語辞書/下段の選定: 「{word}」は本文に社名が出ている会社を優先する照合の候補(entries)に入らない(資本金順の選定からは外れない)",
+              (entries, dropped), ([], {"E-X": company}))
+        # 検査11の照合名の段階
+        stage_with_dictionary = ve.find_company_name_stage(company, f"{word}の発表。", None, words)
+        stage_without = ve.find_company_name_stage(company, f"{word}の発表。", None, empty_words)
+        check(f"一般語辞書/検査11: 「{word}」は照合名の段階で見つからない(辞書が無ければ見つかる)",
+              (stage_with_dictionary, stage_without[0] in ("nfkc", "match_name", "raw")), ((None, False), True))
+    matcher = ve.build_listed_company_matcher(rows)
+    check("一般語辞書(27-2第7回)/兼松: 兼松は今までどおり当たる(推論欄・下段の照合・検査11)",
+          ([m["company_name"] for m in ve.find_listed_company_mentions("兼松が発表した", matcher)],
+           len(pic._build_entries([{"company_name": "兼松株式会社", "edinet_code": "E-K"}], {}, generic_words=words)),
+           ve.find_company_name_stage("兼松株式会社", "兼松が発表した。", None, words)[0]),
+          (["兼松株式会社"], 1, "match_name"))
+
+
 def test_canary_edition_codelist_unavailable():
     """改修27-2第5回(Q6): 見本の号を、コードリストが読めない日(load_codelistがNoneを返す)として
     通す。検査11の「より長い別の社名の一部」の判定だけを飛ばし、そのことを記録する
@@ -6463,6 +6641,7 @@ def test_canary_edition_codelist_unavailable():
         after_edition_saved = json.loads(edition_path.read_text(encoding="utf-8"))
         v = after_edition_saved.get("verification") or {}
         after_edition_inferences = after_edition_saved["sections"][1]["articles"][0]["inferences"]
+        after_hyp_saved = json.loads(hyp_path.read_text(encoding="utf-8"))
     check(
         "見本の号(コードリスト無し)/正例(Q6): 長い社名の判定を飛ばした件数は、検査したprimary(H-5・H-6・H-7)の3件で、"
         "codelist_unavailableが真",
@@ -6475,6 +6654,12 @@ def test_canary_edition_codelist_unavailable():
         [("H-7", "evidence_company_name_not_found")],
     )
     check("見本の号(コードリスト無し)/正例: 段階の件数はraw 2(H-5・H-6)", v.get("name_match_stage"), {"raw": 2, "nfkc": 0, "match_name": 0})
+    check(
+        "見本の号(コードリスト無し)/正例(27-2 S8): コードリストが読めない日は、ticker_sourceがedinet_codelistのH-1・H-2・H-4が削除され、"
+        "edinet_seccodeで取ったH-3(reported)・H-5(primary)は残る。H-6(証券コードが一覧に無い)・H-7(検査11)も消える",
+        ([h["hypothesis_id"] for h in after_hyp_saved["hypotheses"]], v.get("hypothesis_violations")),
+        (["H-3", "H-5"], 5),
+    )
     check(
         "見本の号(コードリスト無し)/正例(27-2 S7): 推論欄の会社名の検査は行われず(skippedが真)、会社名を含む推論も消えない(A-2の5件が残る)",
         (v.get("inference_company_name_check_skipped"), v.get("inference_company_name_removed"), len(after_edition_inferences)),
@@ -6776,6 +6961,12 @@ def test_canary_edition():
     _assert_testdata_untouched("見本の号(canary)テスト")
 
 
+def _test_bussan_codelist():
+    """改修27-2第7回: コードリストが読めない日は上段のedinet_codelistの会社が削除されるようになったため、
+    コードリスト無しで呼んでいた既存のテストに渡す、架空のコードリスト(テスト物産・証券コード8801)。"""
+    return [_ec_row("テスト物産", "E-TB-1", "88010", capital="1000")]
+
+
 def _hyp_base(**kw):
     h = {"company_name": "テスト検証株式会社", "ticker": "9001", "ticker_source": "edinet_codelist"}
     h.update(kw)
@@ -6816,9 +7007,10 @@ def test_check_hypothesis_listed_and_ticker_match():
         None,
     )
     check(
-        "検査21(上段)/負例4: コードリストが読めない(None)場合は検査21を適用しない",
+        "検査21(上段)/読めない日(27-2第7回で「適用しない」から「削除」に変更): コードリストが読めない(None)場合は、"
+        "edinet_codelistの会社を削除する(理由upper_codelist_unavailable)",
         ve.check_hypothesis_listed(_hyp_base(company_name="テスト非上場株式会社", ticker="8001"), None),
-        None,
+        "upper_codelist_unavailable",
     )
     check(
         "検査21(上段)/負例5: 別の上場会社でも社名が完全一致すれば合格",
@@ -7198,6 +7390,12 @@ def main():
     test_normalize_match_name_with_positions()
     test_find_mentions_default_unchanged_and_accept_end()
     test_inference_company_names_without_hypotheses()
+
+    # 改修27-2(第7回): コードリストが読めない日の上段の削除(S8)・辞書の追加・直後の判定の小さな修正のテスト。
+    test_check21_codelist_unavailable_removes_upper_codelist_companies()
+    test_lower_section_codelist_unavailable_already_removed()
+    test_inference_accept_end_skips_normalized_away_chars()
+    test_generic_words_added_in_27_2_round7()
 
     # 改修27-1(4-15): 見本の号(Canary)。
     test_canary_edition()

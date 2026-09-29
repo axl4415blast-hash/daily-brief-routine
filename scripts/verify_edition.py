@@ -936,12 +936,29 @@ def _is_kanji(ch):
     return 0x4E00 <= code <= 0x9FFF or 0x3400 <= code <= 0x4DBF
 
 
+def _skip_normalized_away_chars(tail):
+    """照合用の正規化で消える文字(長音「ー」「ｰ」・ハイフン・空白(全角を含む)・結合文字・半角の濁点)を、
+    先頭から読み飛ばした残りを返す。元の文で、照合名の直後の法人格・「グループ」を見るときに、
+    正規化で消えた文字が間に挟まって見逃さないため(「カバー株式会社」「兼松　株式会社」)。
+    「・」は読み飛ばさない(規則1そのものなので、あとで判定に使う)。"""
+    i = 0
+    while i < len(tail):
+        ch = tail[i]
+        folded = unicodedata.normalize("NFKC", ch)
+        if ch.isspace() or folded.isspace() or unicodedata.combining(ch) or ch in "\uff9e\uff9f" or folded in ("ー", "-"):
+            i += 1
+        else:
+            break
+    return tail[i:]
+
+
 def make_inference_accept_end(text, norm, positions):
     """推論欄の会社名の検査で、pick_industry_companies._find_mentions()に渡す判定を作る
     (照合名の直後の判定。text=元の文、norm・positions=正規化した文と元の位置の対応)。
     次のどれかなら、その出現を会社名として当てる。
       ・今までの規則で当たるもの(直後がひらがな・記号・文の終わりなど、語の続きでない)
-      ・規則1: 元の文で、直後が法人格の表記(株式会社・(株)など)か「・」
+      ・規則1: 元の文で、直後(正規化で消える長音・ハイフン・空白を読み飛ばしたあと)が
+        法人格の表記(株式会社・(株)など)か「・」
         (「兼松株式会社及び」「トヨタ自動車・清水建設」。正規化で法人格と「・」が消えて
         区切りが見えなくなるため、元の文で見る)
       ・規則3: 直後が「グループ」(正規化で長音が消えて「グルプ」になるため、元の文で見る)
@@ -954,7 +971,7 @@ def make_inference_accept_end(text, norm, positions):
             return True
         if positions is None:
             return False
-        tail = text[positions[end - 1] + 1:]
+        tail = _skip_normalized_away_chars(text[positions[end - 1] + 1:])
         tail_nfkc = unicodedata.normalize("NFKC", tail)
         if tail.startswith(("・", "･")) or any(
             tail.startswith(d) or tail_nfkc.startswith(d) for d in _CORPORATE_DESIGNATOR_FORMS
@@ -2374,13 +2391,19 @@ def first_business_day_after(business_days, date_str):
 
 def check_hypothesis_listed(hyp, codelist_rows):
     """検査21(上段): ticker_sourceがedinet_codelistなのに、コードリスト上その会社が
-    「上場」で証券コードありの行として見つからない場合は不合格。コードリストが
-    読めない(codelist_rowsがNone)場合はこの検査を適用しない(呼び出し側で
-    codelist_unavailableをverificationに記録する)。"""
+    「上場」で証券コードありの行として見つからない場合は不合格(upper_not_listed)。
+
+    改修27-2第7回(S8): コードリストが読めない(codelist_rowsがNone)日は、上場かどうかを
+    確かめられないので、ticker_sourceがedinet_codelistの上段の会社を削除する
+    (理由はupper_codelist_unavailable。upper_not_listedとは分けて記録する。
+    codelist_unavailableは今までどおりverificationに記録する)。
+    ticker_sourceがedinet_seccodeなどの会社は、コードリストを使わないので消さない。
+    検査31(check_hypothesis_ticker_match)は、この検査より先に呼ばれるため、読めない日は
+    ここで先に削除され、検査31の「適用しない」に届くのは上段のedinet_codelist以外の会社だけ。"""
     if hyp.get("ticker_source") != "edinet_codelist":
         return None
     if codelist_rows is None:
-        return None
+        return "upper_codelist_unavailable"
     match = edinet_codelist.find_company_by_name(hyp.get("company_name"), codelist_rows, [])
     if match is None:
         return "upper_not_listed"
@@ -3028,6 +3051,8 @@ def print_report(edition_path, stats, stop_hits, watch_hits, dropped_inferences,
             "ticker_missing": "証券コードが無い、または証券コードの形に合わなかった(削除)",
             "ticker_source_missing": "証券コードの出典(ticker_source)が空だった(削除)",
             "ticker_mismatch": "証券コードがEDINET書類一覧の記録と一致しなかった(削除)",
+            "upper_not_listed": "コードリスト上「上場」として見つからなかった(削除)",
+            "upper_codelist_unavailable": "コードリストが読めない日で、証券コードの出典がコードリストの会社は上場かどうかを確かめられなかった(削除)",
         }
         for reason, count in hypothesis_reasons.items():
             print(f"  ・{reason_text.get(reason, reason)}: {count}件")
