@@ -190,13 +190,6 @@
     line-height:1.7;
   }
   .notice-box p{ margin:2px 0; }
-  /* 改修27-3の確認用(?preview=1)の帯。第2回で消す */
-  .notice-box.preview-box{
-    background:var(--warn-bg);
-    color:var(--warn);
-    border-color:var(--warn);
-    font-weight:700;
-  }
   .notice[hidden]{ display:none; }
 
   /* ============ 印の説明 ============ */
@@ -692,7 +685,6 @@
 
 <nav class="datebar wrap" id="dateBar"></nav>
 
-<div class="notice" id="previewNotice" hidden></div>
 <div class="notice" id="errorNotice" hidden></div>
 <div class="notice" id="delayNotice" hidden></div>
 
@@ -779,15 +771,6 @@
   var ASK_EXCLUDED_PUBLISHER_TYPES = { news: true };
   var COPY_BUTTON_LABEL = "質問文をコピー";
   var COPY_DONE_LABEL = "コピーしました";
-
-  // 改修27-3の確認用: ?preview=1 のときだけ、決まった場所(preview-27-3/)の見本の号を読む。
-  // 第2回で、この処理とpreview-27-3/を消す。
-  var PREVIEW_DIR = "preview-27-3/";
-  var PREVIEW_MODE = (function(){
-    try{ return new URLSearchParams(window.location.search).get("preview") === "1"; }
-    catch(e){ return false; }
-  })();
-  var INDEX_PATH = PREVIEW_MODE ? PREVIEW_DIR + "index.json" : "editions/index.json";
 
   var indexData = null;
   var currentKey = null;
@@ -1868,18 +1851,6 @@
     var entry = indexData.editions.find(function(e){ return e.date === date && e.slot === slot; });
     if(!entry) return;
 
-    // 確認用(?preview=1)では、決まった場所(preview-27-3/)の外のファイルを読まない。
-    if(PREVIEW_MODE){
-      var outside = [entry.edition_path, entry.hypotheses_path].filter(function(p){
-        return typeof p !== "string" || p.indexOf(PREVIEW_DIR) !== 0 || p.indexOf("..") !== -1;
-      });
-      if(outside.length > 0){
-        showContentError(String(outside[0]));
-        renderFooter(null);
-        return;
-      }
-    }
-
     var main = document.getElementById("content");
     clear(main);
     main.appendChild(el("p", { class: "empty", text: "読み込み中…" }));
@@ -1913,23 +1884,12 @@
 
   // ---------- 起動 ----------
 
-  function renderPreviewNotice(){
-    var box = document.getElementById("previewNotice");
-    clear(box);
-    if(!PREVIEW_MODE){ box.hidden = true; return; }
-    box.appendChild(el("div", { class: "notice-box preview-box" }, [
-      el("p", { text: "確認用の見本です（実際の出来事ではありません）" })
-    ]));
-    box.hidden = false;
-  }
-
   async function init(){
-    renderPreviewNotice();
     try{
-      indexData = await fetchJson(INDEX_PATH + "?t=" + Date.now());
+      indexData = await fetchJson("editions/index.json?t=" + Date.now());
       hideFatalError();
     }catch(e){
-      showFatalError(INDEX_PATH, e);
+      showFatalError("editions/index.json", e);
       return;
     }
 
@@ -1939,8 +1899,7 @@
       return;
     }
 
-    // 見本の号では「号は作成されていません」の知らせを出さない。
-    if(!PREVIEW_MODE) renderDelayBanner();
+    renderDelayBanner();
 
     var first = indexData.editions[0];
     selectEdition(first.date, first.slot);
