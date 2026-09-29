@@ -19,7 +19,8 @@
    "added_by": "manual",
    "line_ids": [
     "L-07"
-   ]
+   ],
+   "article_id": "A-2"
   },
   {
    "hypothesis_id": "H-2",
@@ -35,7 +36,8 @@
    "added_by": "manual",
    "line_ids": [
     "L-01"
-   ]
+   ],
+   "article_id": "A-1"
   },
   {
    "hypothesis_id": "H-3",
@@ -50,7 +52,8 @@
    "added_by": "manual",
    "line_ids": [
     "L-03"
-   ]
+   ],
+   "article_id": "A-1"
   },
   {
    "hypothesis_id": "H-4",
@@ -66,7 +69,8 @@
    "added_by": "manual",
    "line_ids": [
     "L-08"
-   ]
+   ],
+   "article_id": "A-2"
   },
   {
    "hypothesis_id": "H-5",
@@ -81,7 +85,8 @@
    "added_by": "manual",
    "line_ids": [
     "L-17"
-   ]
+   ],
+   "article_id": "A-3"
   },
   {
    "hypothesis_id": "H-6",
@@ -96,7 +101,8 @@
    "added_by": "manual",
    "line_ids": [
     "L-18"
-   ]
+   ],
+   "article_id": "A-3"
   },
   {
    "hypothesis_id": "H-7",
@@ -111,6 +117,119 @@
    "added_by": "manual",
    "line_ids": [
     "L-17"
+   ],
+   "article_id": "A-3"
+  },
+  {
+   "hypothesis_id": "H-8",
+   "company_name": "カナリア商会株式会社",
+   "relation_text": "検索結果の断片に社名あり（本文は未確認）",
+   "evidence_grade": "reported",
+   "evidence_source_ref": null,
+   "ticker": "3001",
+   "ticker_source": "edinet_seccode",
+   "baseline_date": "2026-09-24",
+   "baseline_price_type": "close",
+   "added_by": "manual",
+   "article_id": "A-99",
+   "line_ids": [
+    "L-01"
+   ]
+  },
+  {
+   "hypothesis_id": "H-9",
+   "company_name": "カナリア工房株式会社",
+   "relation_text": "検索結果の断片に社名あり（本文は未確認）",
+   "evidence_grade": "reported",
+   "evidence_source_ref": null,
+   "ticker": "3001",
+   "ticker_source": "edinet_seccode",
+   "baseline_date": "2026-09-24",
+   "baseline_price_type": "close",
+   "added_by": "manual",
+   "article_id": "A-1",
+   "line_ids": []
+  },
+  {
+   "hypothesis_id": "H-10",
+   "company_name": "カナリア産業株式会社",
+   "relation_text": "検索結果の断片に社名あり（本文は未確認）",
+   "evidence_grade": "reported",
+   "evidence_source_ref": null,
+   "ticker": "3001",
+   "ticker_source": "edinet_seccode",
+   "baseline_date": "2026-09-24",
+   "baseline_price_type": "close",
+   "added_by": "manual",
+   "article_id": "A-1",
+   "line_ids": [
+    "L-999"
+   ]
+  },
+  {
+   "hypothesis_id": "H-11",
+   "company_name": "カナリア運輸株式会社",
+   "relation_text": "検索結果の断片に社名あり（本文は未確認）",
+   "evidence_grade": "reported",
+   "evidence_source_ref": null,
+   "ticker": "3001",
+   "ticker_source": "edinet_seccode",
+   "baseline_date": "2026-09-24",
+   "baseline_price_type": "close",
+   "added_by": "manual",
+   "article_id": "A-1",
+   "line_ids": [
+    "L-01",
+    "L-13"
+   ]
+  },
+  {
+   "hypothesis_id": "H-12",
+   "company_name": "カナリア製菓株式会社",
+   "relation_text": "検索結果の断片に社名あり（本文は未確認）",
+   "evidence_grade": "reported",
+   "evidence_source_ref": null,
+   "ticker": "3001",
+   "ticker_source": "edinet_seccode",
+   "baseline_date": "2026-09-24",
+   "baseline_price_type": "close",
+   "added_by": "manual",
+   "article_id": "A-1",
+   "line_ids": [
+    "L-04"
+   ]
+  },
+  {
+   "hypothesis_id": "H-13",
+   "company_name": "カナリア化学株式会社",
+   "relation_text": "検索結果の断片に社名あり（本文は未確認）",
+   "evidence_grade": "primary",
+   "evidence_source_ref": "C03",
+   "ticker": "3001",
+   "ticker_source": "edinet_seccode",
+   "baseline_date": "2026-09-24",
+   "baseline_price_type": "close",
+   "added_by": "manual",
+   "article_id": "A-1",
+   "line_ids": [
+    "L-01"
+   ]
+  },
+  {
+   "hypothesis_id": "H-14",
+   "company_name": "カナリア海運株式会社",
+   "relation_text": "検索結果の断片に社名あり（本文は未確認）",
+   "evidence_grade": "reported",
+   "evidence_source_ref": null,
+   "ticker": "3001",
+   "ticker_source": "edinet_seccode",
+   "baseline_date": "2026-09-24",
+   "baseline_price_type": "close",
+   "added_by": "manual",
+   "article_id": null,
+   "line_ids": [
+    "L-999",
+    "L-13"
    ]
   }
  ]

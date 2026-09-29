@@ -2398,7 +2398,7 @@ def check_hypothesis_listed(hyp, codelist_rows):
     (理由はupper_codelist_unavailable。upper_not_listedとは分けて記録する。
     codelist_unavailableは今までどおりverificationに記録する)。
     ticker_sourceがedinet_seccodeなどの会社は、コードリストを使わないので消さない。
-    検査31(check_hypothesis_ticker_match)は、この検査より先に呼ばれるため、読めない日は
+    検査21(この検査)は検査31(check_hypothesis_ticker_match)より先に呼ばれるため、読めない日は
     ここで先に削除され、検査31の「適用しない」に届くのは上段のedinet_codelist以外の会社だけ。"""
     if hyp.get("ticker_source") != "edinet_codelist":
         return None
@@ -2503,12 +2503,10 @@ def check_hypothesis(hyp, edition, line_ids, business_days, ng_words, sources_by
         if value is None or value == "":
             return "missing_field"
 
+    # 改修27-2第8回(S9): line_idsが空・紙面に無い行IDを含む(line_id_not_found)の判定は、
+    # 検査37(run_check37)に移した(同じ条件を2か所で判定しないため)。ここには、検査37を
+    # 通った仮説だけが来る。
     hyp_line_ids = hyp.get("line_ids") or []
-    if not hyp_line_ids:
-        return "missing_field"
-    for lid in hyp_line_ids:
-        if lid not in line_ids:
-            return "line_id_not_found"
 
     if hyp.get("evidence_grade") == "primary":
         for lid in hyp_line_ids:
@@ -2577,7 +2575,126 @@ def check_hypothesis(hyp, edition, line_ids, business_days, ng_words, sources_by
     return None
 
 
-def run_hypothesis_checks(hypotheses_doc, edition, business_days, ng_words, cache_dir, edinet_companies, codelist_rows):
+LINE_FACT_MARKS = ("source_number_match", "reported_unverified")
+CHECK37_REASONS = (
+    "article_not_found", "line_ids_empty", "line_id_never_existed",
+    "line_id_removed_by_check", "no_fact_line", "primary_ref_mismatch",
+)
+LINE_DROP_CHECK_NAMES = {
+    "stop_words": "check7_stop_words",
+    "published_date_not_found": "check36_published_date_not_found",
+    "stale_source": "check10_stale_or_unknown_published_at",
+}
+
+
+def line_id_set(edition):
+    """紙面にいま載っている行のline_idの集合。"""
+    return {line.get("line_id") for _s, _a, line in iter_lines(edition)}
+
+
+def record_dropped_lines(edition, known_line_ids, dropped_by, check_name):
+    """改修27-2第8回(S9): 行を落とす検査(検査7・検査36・検査10)の直後に呼ぶ。known_line_ids
+    (まだ紙面にあると分かっている行ID。更新される)のうち、いま紙面から無くなった行IDを、
+    どの検査で落ちたか(check_name)とともにdropped_byに記録する。検査37が、仮説のline_idsの
+    「元から無い行ID」と「検査で落とされた行ID」を区別するために使う。"""
+    now = line_id_set(edition)
+    newly_dropped = known_line_ids - now
+    for line_id in newly_dropped:
+        dropped_by[line_id] = check_name
+    known_line_ids -= newly_dropped
+    return newly_dropped
+
+
+def check37_reasons(hyp, article_ids, line_marks, line_refs, original_line_ids, dropped_by):
+    """検査37(改修27-2第8回・S9): 上段の仮説の根拠が、その記事の行と出典から出ているか。
+    次のどれかに当たる理由をすべて返す(空なら合格)。行の検査がすべて終わった後の状態で判定する。
+      article_not_found        : article_idが空・null、または紙面に実在しない
+      line_ids_empty           : line_idsが空
+      line_id_never_existed    : line_idsに、AIが書いた紙面に元から無い行IDが1つでもある
+      line_id_removed_by_check : line_idsに、検査で落とされた行IDが1つでもある(どの検査かも記録)
+      no_fact_line             : line_idsの行の確定したmarkが、どれも事実系
+                                 (source_number_match・reported_unverified)でない
+      primary_ref_mismatch     : evidence_gradeがprimaryなのに、evidence_source_refが、line_idsの
+                                 どの行のsource_refにも含まれない
+    no_fact_line・primary_ref_mismatchは、line_idsの行のうちいま紙面に残っているものだけで判定し、
+    1つも残っていないときは判定しない(その場合の原因は上の3つの理由で記録済みのため)。
+    戻り値: [{"reason": 理由, ...詳細}, ...](CHECK37_REASONSの順)。"""
+    reasons = []
+    article_id = hyp.get("article_id")
+    if not isinstance(article_id, str) or not article_id or article_id not in article_ids:
+        reasons.append({"reason": "article_not_found", "article_id": article_id})
+
+    raw_line_ids = hyp.get("line_ids")
+    line_ids = raw_line_ids if isinstance(raw_line_ids, list) else []
+    if not line_ids:
+        reasons.append({"reason": "line_ids_empty"})
+        return reasons
+
+    def hashable(value):
+        return isinstance(value, str)
+
+    never_existed = [l for l in line_ids if not hashable(l) or l not in original_line_ids]
+    removed = [l for l in line_ids if hashable(l) and l in original_line_ids and l not in line_marks]
+    if never_existed:
+        reasons.append({"reason": "line_id_never_existed", "line_ids": never_existed})
+    if removed:
+        reasons.append({
+            "reason": "line_id_removed_by_check", "line_ids": removed,
+            "checks": {l: dropped_by.get(l, "unknown") for l in removed},
+        })
+    surviving = [l for l in line_ids if hashable(l) and l in line_marks]
+    if surviving:
+        if not any(line_marks.get(l) in LINE_FACT_MARKS for l in surviving):
+            reasons.append({"reason": "no_fact_line", "line_ids": surviving})
+        if hyp.get("evidence_grade") == "primary":
+            source_refs = {line_refs.get(l) for l in surviving if line_refs.get(l)}
+            if hyp.get("evidence_source_ref") not in source_refs:
+                reasons.append({
+                    "reason": "primary_ref_mismatch", "evidence_source_ref": hyp.get("evidence_source_ref"),
+                    "line_ids": surviving,
+                })
+    return reasons
+
+
+def run_check37(hyps, edition, original_line_ids, dropped_by):
+    """検査37を上段の仮説すべてにかけ、1つでも理由に当たった仮説を削除する。複数の理由に当たる仮説は、
+    すべての理由を記録し、削除は1件と数える。
+    戻り値: {"kept": 残す仮説, "removed": [{"hypothesis_id", "company_name", "article_id", "line_ids",
+             "reasons": [check37_reasons()の各理由]}, ...]}。"""
+    article_ids = {a.get("article_id") for _s, a, _l in iter_lines_and_empty_articles(edition)}
+    line_marks = {}
+    line_refs = {}
+    for _section, _article, line in iter_lines(edition):
+        line_marks[line.get("line_id")] = line.get("mark")
+        line_refs[line.get("line_id")] = line.get("source_ref")
+    kept = []
+    removed = []
+    for hyp in hyps:
+        reasons = check37_reasons(hyp, article_ids, line_marks, line_refs, original_line_ids, dropped_by)
+        if reasons:
+            removed.append({
+                "hypothesis_id": hyp.get("hypothesis_id"), "company_name": hyp.get("company_name"),
+                "article_id": hyp.get("article_id"), "line_ids": hyp.get("line_ids"), "reasons": reasons,
+            })
+        else:
+            kept.append(hyp)
+    return {"kept": kept, "removed": removed}
+
+
+def iter_lines_and_empty_articles(edition):
+    """行が0件の記事も含めて、(section, article, None)を返す(article_idの実在確認用)。"""
+    for section in edition.get("sections", []):
+        for article in section.get("articles", []):
+            yield section, article, None
+
+
+def run_hypothesis_checks(hypotheses_doc, edition, business_days, ng_words, cache_dir, edinet_companies, codelist_rows,
+                          line_drop_info=None):
+    """line_drop_info: 検査37用。{"original_line_ids": AIが書いた紙面の行ID全部, "dropped_by":
+    {行ID: 落とした検査の名前}}。省略したときは、いま紙面にある行IDだけを「元からあった行」とみなす
+    (検査で落とされた行は無かったことになる)。"""
+    if line_drop_info is None:
+        line_drop_info = {"original_line_ids": line_id_set(edition), "dropped_by": {}}
     line_ids = {}
     for section, article, line in iter_lines(edition):
         line_ids[line.get("line_id")] = line.get("mark")
@@ -2616,6 +2733,8 @@ def run_hypothesis_checks(hypotheses_doc, edition, business_days, ng_words, cach
         "check11_removed": [],
         "name_match_stage": {stage: 0 for stage in NAME_MATCH_STAGES},
         "check11_longer_name_check_skipped": 0,
+        # 改修27-2第8回(S9): 検査37で削除した会社(社名・理由・記事ID・行ID)。
+        "check37_removed": [],
     }
 
     market_open = edition.get("market_open", True)
@@ -2641,6 +2760,16 @@ def run_hypothesis_checks(hypotheses_doc, edition, business_days, ng_words, cach
     extra_counts["check11_removed"] = check11["removed"]
     extra_counts["name_match_stage"] = check11["name_match_stage"]
     extra_counts["check11_longer_name_check_skipped"] = check11["longer_name_check_skipped"]
+
+    # 改修27-2第8回(S9): 検査37(上段の会社の根拠の行・記事・出典)。行を落とす検査がすべて終わった
+    # 後(この関数が呼ばれる時点)の紙面で判定する。複数の理由に当たる仮説は、すべての理由を
+    # check37_removedに記録し、削除は1件と数える(reasonsには最初の理由で1件だけ数える)。
+    check37 = run_check37(hyps, edition, set(line_drop_info["original_line_ids"]), line_drop_info["dropped_by"])
+    hyps = check37["kept"]
+    for item in check37["removed"]:
+        first = item["reasons"][0]["reason"]
+        reasons[first] = reasons.get(first, 0) + 1
+    extra_counts["check37_removed"] = check37["removed"]
 
     # 修正2・3(要件定義書v12 3.4(2)・5.4)、および2026年9月21日の追加指示: evidence_filer_name/
     # evidence_doc_type/evidence_role/impact_kind/impact_kind_source/auto_check_targetはAIには
@@ -3034,7 +3163,12 @@ def print_report(edition_path, stats, stop_hits, watch_hits, dropped_inferences,
         print(f"仮説に関する指摘件数: {hypothesis_violations}")
         reason_text = {
             "missing_field": "必須項目が空だった(削除)",
-            "line_id_not_found": "紙面に存在しない行を参照していた(削除)",
+            "article_not_found": "検査37: 仮説の記事ID(article_id)が空、または紙面に無かった(削除。他の理由もcheck37_removedに記録)",
+            "line_ids_empty": "検査37: 仮説の根拠の行(line_ids)が空だった(削除)",
+            "line_id_never_existed": "検査37: 仮説の根拠の行に、AIが書いた紙面に元から無い行IDがあった(削除)",
+            "line_id_removed_by_check": "検査37: 仮説の根拠の行が、検査(停止語・日付・鮮度)で落とされていた(削除)",
+            "no_fact_line": "検査37: 仮説の根拠の行が、どれも事実系(出典と数字が一致・出典を明示した未確認)でなかった(削除)",
+            "primary_ref_mismatch": "検査37: 根拠が最上位(primary)なのに、根拠の出典が根拠の行の出典に含まれなかった(削除)",
             "primary_requires_verified_line": "根拠が最上位なのに参照行が未確認だった(削除)",
             "deadline_date_mismatch": "確認期限の日付が営業日計算と合わなかった(削除)",
             "relation_text_conclusive_word": "断定的な言葉(プラス/マイナス/好材料/悪材料)が入っていた(削除)",
@@ -3208,6 +3342,12 @@ def run_verification(edition_file, hypotheses_file, cache_dir_arg, calendar_dir_
         check_a_structure(edition)
         check_b_edition_id(edition, edition_path)
 
+        # 改修27-2第8回(S9): AIが書いた紙面の行ID全部と、検査で行を落とすたびに「どの検査で
+        # 落ちたか」を控える(検査37が、元から無い行IDと落とされた行IDを区別するため)。
+        original_line_ids = line_id_set(edition)
+        known_line_ids = set(original_line_ids)
+        dropped_by = {}
+
         # 改修27-1(4-1): generated_atはAIの自己申告ではなく、照合スクリプトの実行時刻で
         # 上書きする。AIの値(nullを含む)はfirst_run.generated_at_reportedに今までどおり
         # 記録する(上書きする前に控えておく)。
@@ -3293,6 +3433,7 @@ def run_verification(edition_file, hypotheses_file, cache_dir_arg, calendar_dir_
 
         # 検査7: 停止語を含む行はその行だけを削除する(号全体は保存する)。
         stop_hits = check_c_stop_words(edition, ng_words)
+        record_dropped_lines(edition, known_line_ids, dropped_by, LINE_DROP_CHECK_NAMES["stop_words"])
 
         watch_hits = check_watch_proximity(edition, ng_words_exclude)
 
@@ -3314,8 +3455,10 @@ def run_verification(edition_file, hypotheses_file, cache_dir_arg, calendar_dir_
         # 見つからなければ日付不明としてchangeの行をここで落とし(検査10に届かないので
         # 二重に数えない)、時刻付きの出典は今までどおり記録だけ(行は落とさない)。
         published_date_not_found = run_check_published_date_only_required(edition, cache_dir_arg)
+        record_dropped_lines(edition, known_line_ids, dropped_by, LINE_DROP_CHECK_NAMES["published_date_not_found"])
         published_at_unverified_hits, published_at_unverified_sources = run_check_published_at(edition, cache_dir_arg)
         stale_hits, unknown_published_at_hits, stale_source_hits_by_kind = run_check_e_stale_sources(edition, run_at_dt)
+        record_dropped_lines(edition, known_line_ids, dropped_by, LINE_DROP_CHECK_NAMES["stale_source"])
         stale_check_skipped = 0  # run_at_dtは常に読み取れるため、判定を飛ばす理由が無い。
         # 修正5: 枠(change)に関係なく、出典そのものでpublished_atが無いものを数える。
         sources_published_at_null = count_sources_published_at_null(edition)
@@ -3358,6 +3501,8 @@ def run_verification(edition_file, hypotheses_file, cache_dir_arg, calendar_dir_
             "check11_removed": [],
             "name_match_stage": {stage: 0 for stage in NAME_MATCH_STAGES},
             "check11_longer_name_check_skipped": 0,
+            # 改修27-2第8回(S9): --hypotheses未指定でもキーがそろうよう、既定値にしておく。
+            "check37_removed": [],
         }
         hypotheses_doc = None
         hypotheses_generated_at_raw = None
@@ -3389,7 +3534,8 @@ def run_verification(edition_file, hypotheses_file, cache_dir_arg, calendar_dir_
             )
 
             hypothesis_violations, hypothesis_reasons, hypothesis_extra = run_hypothesis_checks(
-                hypotheses_doc, edition, business_days, ng_words, cache_dir_arg, edinet_companies, codelist_rows
+                hypotheses_doc, edition, business_days, ng_words, cache_dir_arg, edinet_companies, codelist_rows,
+                line_drop_info={"original_line_ids": original_line_ids, "dropped_by": dropped_by},
             )
 
             # 検査14: 休場日(market_openがfalse)、または遅延号(baseline_lateがtrue)の号は、
@@ -3575,6 +3721,9 @@ def run_verification(edition_file, hypotheses_file, cache_dir_arg, calendar_dir_
             "check11_removed": hypothesis_extra["check11_removed"],
             "name_match_stage": hypothesis_extra["name_match_stage"],
             "check11_longer_name_check_skipped": hypothesis_extra["check11_longer_name_check_skipped"],
+            # 改修27-2第8回(S9): 検査37(上段の会社の根拠の行・記事・出典)で削除した会社。
+            # 社名・記事ID・行ID・当たった理由すべて(複数の理由に当たれば全部)。
+            "check37_removed": hypothesis_extra["check37_removed"],
             # 改修27-2第4回(S2): 日付だけの出典で、本文に日付が見つからず(または本文が読めず)
             # 日付不明にした出典と、そのためにchangeの枠から落とした行。
             "published_date_not_found": published_date_not_found,

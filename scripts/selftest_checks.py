@@ -3752,6 +3752,7 @@ def test_round1_end_to_end_missing_ai_fields():
                 "baseline_price_type": "close",
                 "added_by": "manual",
                 "line_ids": ["L-1"],
+                "article_id": "A-1",   # 改修27-2第8回: 検査37(article_idが実在すること)のため
                 # falsifier・horizon_business_days・deadline_date・direction・
                 # evidence_excerptはキーごと省略する(第7.1版9.4の(1)(2))。
             }],
@@ -4585,6 +4586,7 @@ def test_round2_end_to_end_edinet_published_at_and_tob_side():
                 "baseline_price_type": "close",
                 "added_by": "manual",
                 "line_ids": ["L-1"],
+                "article_id": "A-1",   # 改修27-2第8回: 検査37(article_idが実在すること)のため
             }],
         }
 
@@ -6480,7 +6482,7 @@ def test_check21_codelist_unavailable_removes_upper_codelist_companies():
     def base(**kw):
         h = {"company_name": "テスト物産", "relation_text": "業績に影響しうる", "baseline_price_type": "close",
              "baseline_date": "2026-09-24", "evidence_grade": "reported", "ticker": "8801", "ticker_source": "edinet_codelist",
-             "line_ids": ["L-1"], "added_by": "manual", "horizon_business_days": 5, "deadline_date": deadline}
+             "line_ids": ["L-1"], "article_id": "A-1", "added_by": "manual", "horizon_business_days": 5, "deadline_date": deadline}
         h.update(kw)
         return h
 
@@ -6625,6 +6627,135 @@ def test_generic_words_added_in_27_2_round7():
           (["兼松株式会社"], 1, "match_name"))
 
 
+def test_check37_reasons_and_run():
+    """改修27-2第8回(S9): 検査37(上段の会社の根拠の行・記事・出典)。6つの理由それぞれで消える例と、
+    全部を満たして残る例。複数の理由に当たれば全部記録し、削除は1件と数える。"""
+    edition = {"sections": [
+        {"section_id": "change", "articles": [
+            {"article_id": "A-1", "lines": [
+                {"line_id": "L-01", "mark": "source_number_match", "source_ref": "S-1"},
+                {"line_id": "L-02", "mark": "reported_unverified", "source_ref": "S-2"},
+                {"line_id": "L-03", "mark": "unverified", "source_ref": "S-3"},
+                {"line_id": "L-04", "mark": "explainer"},
+            ]},
+            {"article_id": "A-EMPTY", "lines": []},
+        ]},
+    ]}
+    original = {"L-01", "L-02", "L-03", "L-04", "L-05", "L-06"}   # L-05・L-06はAIが書いたが、検査で落とされた行
+    dropped_by = {"L-05": "check7_stop_words", "L-06": "check10_stale_or_unknown_published_at"}
+
+    def hyp(hid="H-1", article_id="A-1", line_ids=("L-01",), grade="reported", ref=None):
+        return {"hypothesis_id": hid, "company_name": f"社{hid}", "article_id": article_id, "line_ids": list(line_ids) if line_ids is not None else None,
+                "evidence_grade": grade, "evidence_source_ref": ref}
+
+    hyps = [
+        hyp("OK-reported"),                                                              # 残る(reported、事実系の行あり)
+        hyp("OK-primary", line_ids=("L-01", "L-03"), grade="primary", ref="S-1"),        # 残る(primaryで、出典が行の出典に含まれる)
+        hyp("OK-reported-unverified", line_ids=("L-02",)),                               # 残る(reported_unverifiedも事実系)
+        hyp("NG-article-empty-article", article_id="A-EMPTY"),                            # 記事は実在する(行が0件でも)ので残る
+        hyp("R1-none", article_id=None),
+        hyp("R1-empty-str", article_id=""),
+        hyp("R1-missing", article_id="A-99"),
+        hyp("R2-empty", line_ids=()),
+        hyp("R2-null", line_ids=None),
+        hyp("R3-never", line_ids=("L-999",)),
+        hyp("R3-never-plus-ok", line_ids=("L-01", "L-999")),
+        hyp("R4-removed", line_ids=("L-05",)),
+        hyp("R4-removed-plus-ok", line_ids=("L-01", "L-06", "L-05")),
+        hyp("R5-nofact", line_ids=("L-03",)),
+        hyp("R5-nofact-explainer", line_ids=("L-03", "L-04")),
+        hyp("R6-primary-mismatch", line_ids=("L-01",), grade="primary", ref="S-2"),
+        hyp("R6-primary-noref", line_ids=("L-01",), grade="primary", ref=None),
+        hyp("MULTI", article_id=None, line_ids=("L-999", "L-05")),
+        hyp("MULTI2", article_id="A-99", line_ids=("L-03", "L-999", "L-06"), grade="primary", ref="S-9"),
+    ]
+    result = ve.run_check37(hyps, edition, original, dropped_by)
+    removed = {r["hypothesis_id"]: [x["reason"] for x in r["reasons"]] for r in result["removed"]}
+    check("検査37/残る例: 全部を満たす仮説(reported・primary・reported_unverified・行が0件でも実在する記事)は残る",
+          [h["hypothesis_id"] for h in result["kept"]], ["OK-reported", "OK-primary", "OK-reported-unverified", "NG-article-empty-article"])
+    check("検査37/article_not_found: article_idがnull・空文字・紙面に無いIDなら消える",
+          (removed["R1-none"], removed["R1-empty-str"], removed["R1-missing"]), (["article_not_found"],) * 3)
+    check("検査37/line_ids_empty: line_idsが空・nullなら消える(他の理由は重ねない)", (removed["R2-empty"], removed["R2-null"]), (["line_ids_empty"],) * 2)
+    check("検査37/line_id_never_existed: 元から無い行IDが1つでもあれば消える(他の行が正常でも)",
+          (removed["R3-never"], removed["R3-never-plus-ok"]), (["line_id_never_existed"],) * 2)
+    check("検査37/line_id_removed_by_check: 検査で落とされた行IDが1つでもあれば消える(他の行が正常でも)",
+          (removed["R4-removed"], removed["R4-removed-plus-ok"]), (["line_id_removed_by_check"],) * 2)
+    check("検査37/no_fact_line: 行のmarkがどれも事実系でなければ消える(unverifiedだけ・unverifiedと解説だけ)",
+          (removed["R5-nofact"], removed["R5-nofact-explainer"]), (["no_fact_line"],) * 2)
+    check("検査37/primary_ref_mismatch: primaryで、根拠の出典が行の出典に含まれない・根拠の出典が空なら消える",
+          (removed["R6-primary-mismatch"], removed["R6-primary-noref"]), (["primary_ref_mismatch"],) * 2)
+    check("検査37/複数の理由: 当たった理由をすべて記録する(削除は1件)。行が1つも残っていないときno_fact_line・primary_ref_mismatchは重ねない",
+          removed["MULTI"], ["article_not_found", "line_id_never_existed", "line_id_removed_by_check"])
+    check("検査37/複数の理由: 記事なし・元から無い行・落とされた行・(残る行がunverifiedだけなので)事実系の行なし・primaryの出典の食い違いの5つ",
+          removed["MULTI2"], ["article_not_found", "line_id_never_existed", "line_id_removed_by_check", "no_fact_line", "primary_ref_mismatch"])
+    detail = {r["hypothesis_id"]: r for r in result["removed"]}
+    check("検査37/記録: 落とされた行IDには、どの検査で落ちたかが記録される",
+          [x for x in detail["R4-removed-plus-ok"]["reasons"] if x["reason"] == "line_id_removed_by_check"],
+          [{"reason": "line_id_removed_by_check", "line_ids": ["L-06", "L-05"], "checks": {"L-06": "check10_stale_or_unknown_published_at", "L-05": "check7_stop_words"}}])
+    check("検査37/記録: 社名・記事ID・行IDも記録される",
+          {k: detail["R3-never"][k] for k in ("hypothesis_id", "company_name", "article_id", "line_ids")},
+          {"hypothesis_id": "R3-never", "company_name": "社R3-never", "article_id": "A-1", "line_ids": ["L-999"]})
+    unknown = ve.check37_reasons(hyp(line_ids=("L-05",)), {"A-1"}, {}, {}, {"L-05"}, {})
+    check("検査37/記録: 落とした検査の記録が無い行は、checksがunknownになる(落ちたことは分かる)", unknown[0]["checks"], {"L-05": "unknown"})
+    check("検査37/事実系の行が1つでもあれば通る: 事実系の行とunverifiedの行が混ざる場合は残る(unverifiedの扱いは別の検査)",
+          ve.check37_reasons(hyp(line_ids=("L-01", "L-03")), {"A-1"}, {"L-01": "source_number_match", "L-03": "unverified"}, {"L-01": "S-1"}, {"L-01", "L-03"}, {}), [])
+
+
+def test_record_dropped_lines():
+    """改修27-2第8回(S9): 行を落とす検査の直後に、どの行がどの検査で落ちたかを控える。"""
+    edition = {"sections": [{"section_id": "change", "articles": [{"article_id": "A-1", "lines": [
+        {"line_id": "L-1"}, {"line_id": "L-2"}, {"line_id": "L-3"}, {"line_id": "L-4"}]}]}]}
+    known = ve.line_id_set(edition)
+    dropped_by = {}
+    lines = edition["sections"][0]["articles"][0]["lines"]
+    lines.pop(1)   # 検査7でL-2が落ちた
+    a = ve.record_dropped_lines(edition, known, dropped_by, "check7_stop_words")
+    lines.pop(1)   # 検査36でL-3が落ちた
+    b = ve.record_dropped_lines(edition, known, dropped_by, "check36_published_date_not_found")
+    c = ve.record_dropped_lines(edition, known, dropped_by, "check10_stale_or_unknown_published_at")   # 何も落ちない
+    check("行の控え/検査ごと: 検査7でL-2、検査36でL-3が落ちたことが、それぞれの検査の名前で記録され、何も落ちない検査は何も足さない",
+          (a, b, c, dropped_by, known), ({"L-2"}, {"L-3"}, set(), {"L-2": "check7_stop_words", "L-3": "check36_published_date_not_found"}, {"L-1", "L-4"}))
+
+
+def test_run_hypothesis_checks_check37_integration():
+    """改修27-2第8回(S9): run_hypothesis_checksが検査37で削除した会社をcheck37_removedに記録し、
+    reasonsには最初の理由で1件だけ数える。line_drop_infoを省略した場合は、落とされた行が無かったことになる。
+    line_id_not_foundは検査37に統合したので、もう出ない。"""
+    business_days = ve.load_business_days(str(CALENDAR_DIR))
+    deadline = ve.compute_deadline(business_days, "2026-09-24", 5)
+    edition = {"market_open": True, "slot": "evening", "date": "2026-09-24", "sources": [], "sections": [
+        {"section_id": "big", "articles": [{"article_id": "A-1", "lines": [{"line_id": "L-1", "mark": "source_number_match"}]}]}]}
+
+    def hyp(hid, **kw):
+        h = {"hypothesis_id": hid, "company_name": "テスト物産", "relation_text": "業績に影響しうる", "baseline_price_type": "close",
+             "baseline_date": "2026-09-24", "evidence_grade": "reported", "ticker": "8801", "ticker_source": "edinet_seccode",
+             "line_ids": ["L-1"], "article_id": "A-1", "added_by": "manual", "horizon_business_days": 5, "deadline_date": deadline}
+        h.update(kw)
+        return h
+
+    doc = {"hypotheses": [hyp("H-ok"), hyp("H-gone-line", line_ids=["L-9"]), hyp("H-multi", article_id=None, line_ids=["L-9", "L-8"]),
+                          hyp("H-noline", line_ids=[])]}
+    info = {"original_line_ids": {"L-1", "L-8"}, "dropped_by": {"L-8": "check7_stop_words"}}
+    violations, reasons, extra = ve.run_hypothesis_checks(doc, edition, business_days, [], ".", None, None, line_drop_info=info)
+    check("検査37/統合: 残るのはH-okだけ。3社が消え、hypothesis_violationsは3(複数の理由の会社も1件)",
+          ([h["hypothesis_id"] for h in doc["hypotheses"]], violations), (["H-ok"], 3))
+    check("検査37/統合: reasonsには最初の理由で1件ずつ数える(記事なし1・元から無い行1・行が空1)。line_id_not_foundは出ない",
+          reasons, {"line_id_never_existed": 1, "article_not_found": 1, "line_ids_empty": 1})
+    by_id = {r["hypothesis_id"]: [x["reason"] for x in r["reasons"]] for r in extra["check37_removed"]}
+    check("検査37/統合: check37_removedに全部の理由が記録される(H-multiは記事なし・元から無い行・落とされた行の3つ)",
+          by_id, {"H-gone-line": ["line_id_never_existed"], "H-multi": ["article_not_found", "line_id_never_existed", "line_id_removed_by_check"],
+                  "H-noline": ["line_ids_empty"]})
+    doc2 = {"hypotheses": [hyp("H-a", line_ids=["L-8"])]}
+    _, reasons2, extra2 = ve.run_hypothesis_checks(doc2, edition, business_days, [], ".", None, None)
+    check("検査37/統合(line_drop_info省略): 落とされた行の情報が無ければ、L-8は元から無かった行として扱う",
+          (reasons2, [x["reason"] for x in extra2["check37_removed"][0]["reasons"]]), ({"line_id_never_existed": 1}, ["line_id_never_existed"]))
+    check("検査37/統合: 市場休場で全件削除する号でも、check37_removedのキーはそろう(空)",
+          ve.run_hypothesis_checks({"hypotheses": [hyp("H-x")]}, dict(edition, market_open=False), business_days, [], ".", None, None)[2]["check37_removed"], [])
+    check("検査37/統合: check_hypothesis単体は、行の条件(line_ids空・紙面に無い行ID)を判定しない(検査37に移した。同じ条件を2か所で判定しない)",
+          ve.check_hypothesis(hyp("H-x", line_ids=["L-nowhere"]), edition, {"L-1": "source_number_match"}, business_days, [], {}, ".", None, None, {"codelist_unavailable": False, "baseline_date_check_skipped": 0}),
+          None)
+
+
 def test_canary_edition_codelist_unavailable():
     """改修27-2第5回(Q6): 見本の号を、コードリストが読めない日(load_codelistがNoneを返す)として
     通す。検査11の「より長い別の社名の一部」の判定だけを飛ばし、そのことを記録する
@@ -6643,9 +6774,9 @@ def test_canary_edition_codelist_unavailable():
         after_edition_inferences = after_edition_saved["sections"][1]["articles"][0]["inferences"]
         after_hyp_saved = json.loads(hyp_path.read_text(encoding="utf-8"))
     check(
-        "見本の号(コードリスト無し)/正例(Q6): 長い社名の判定を飛ばした件数は、検査したprimary(H-5・H-6・H-7)の3件で、"
+        "見本の号(コードリスト無し)/正例(Q6): 長い社名の判定を飛ばした件数は、検査したprimary(H-5・H-6・H-7・H-13)の4件で、"
         "codelist_unavailableが真",
-        (v.get("check11_longer_name_check_skipped"), v.get("codelist_unavailable")), (3, True),
+        (v.get("check11_longer_name_check_skipped"), v.get("codelist_unavailable")), (4, True),
     )
     check(
         "見本の号(コードリスト無し)/正例(Q6): 長い社名の判定を飛ばすので、H-6(カナリア食品)は検査11では消えない。"
@@ -6653,12 +6784,13 @@ def test_canary_edition_codelist_unavailable():
         [(r["hypothesis_id"], r["reason"]) for r in v.get("check11_removed") or []],
         [("H-7", "evidence_company_name_not_found")],
     )
-    check("見本の号(コードリスト無し)/正例: 段階の件数はraw 2(H-5・H-6)", v.get("name_match_stage"), {"raw": 2, "nfkc": 0, "match_name": 0})
+    check("見本の号(コードリスト無し)/正例: 段階の件数はraw 3(H-5・H-6・H-13)", v.get("name_match_stage"), {"raw": 3, "nfkc": 0, "match_name": 0})
     check(
         "見本の号(コードリスト無し)/正例(27-2 S8): コードリストが読めない日は、ticker_sourceがedinet_codelistのH-1・H-2・H-4が削除され、"
-        "edinet_seccodeで取ったH-3(reported)・H-5(primary)は残る。H-6(証券コードが一覧に無い)・H-7(検査11)も消える",
+        "edinet_seccodeで取ったH-3(reported)・H-5(primary)は残る。H-6(証券コードが一覧に無い)・H-7(検査11)・"
+        "H-8〜H-14(検査37の7社)も消え、hypothesis_violationsは12",
         ([h["hypothesis_id"] for h in after_hyp_saved["hypotheses"]], v.get("hypothesis_violations")),
-        (["H-3", "H-5"], 5),
+        (["H-3", "H-5"], 12),
     )
     check(
         "見本の号(コードリスト無し)/正例(27-2 S7): 推論欄の会社名の検査は行われず(skippedが真)、会社名を含む推論も消えない(A-2の5件が残る)",
@@ -6707,8 +6839,8 @@ def test_canary_edition():
             [h["hypothesis_id"] for h in after_hyp.get("hypotheses") or []], ["H-1", "H-2", "H-3", "H-4", "H-5"],
         )
         check(
-            "見本の号/正例: hypothesis_violationsは2(検査11で消えたH-6・H-7の2社)",
-            v.get("hypothesis_violations"), 2,
+            "見本の号/正例: hypothesis_violationsは9(検査11で消えたH-6・H-7の2社と、検査37で消えたH-8〜H-14の7社)",
+            v.get("hypothesis_violations"), 9,
         )
         check(
             "見本の号/正例: 検査時点の本文の行は18行(27-2第1回でL-09・L-10、第3回でL-11・L-12、第4回でL-13〜L-16、"
@@ -6908,10 +7040,11 @@ def test_canary_edition():
 
         # --- 改修27-2第5回: S5(検査11を削除にする)・Q6(長い社名の一部)・Q5(EDINETの書類から出したprimary) ---
         check(
-            "見本の号/正例(27-2 S5): EDINETの書類(C14)に社名がそのまま書かれているprimaryのH-5は残り、見つかった段階はraw(1件)。"
-            "reportedの4社(H-1〜H-4)は検査11の対象外で、段階の件数にも入らない",
+            "見本の号/正例(27-2 S5): EDINETの書類(C14)に社名がそのまま書かれているprimaryのH-5は残り、見つかった段階はraw。"
+            "第8回で足したH-13(カナリア化学。C03に社名があるprimary)も検査11は通るのでrawは2件(H-13は検査37で消える)。"
+            "reportedの会社は検査11の対象外で、段階の件数にも入らない",
             (v.get("name_match_stage"), by_hyp["H-5"].get("evidence_grade"), by_hyp["H-5"].get("evidence_role")),
-            ({"raw": 1, "nfkc": 0, "match_name": 0}, "primary", "filer_self"),
+            ({"raw": 2, "nfkc": 0, "match_name": 0}, "primary", "filer_self"),
         )
         check(
             "見本の号/正例(27-2 S5): H-6(カナリア食品)は、本文ではカナリア食品開発株式会社(コードリストの長い社名)の中にしか出ないので削除、"
@@ -6950,6 +7083,30 @@ def test_canary_edition():
         check(
             "見本の号/正例(27-2 S7): コードリストがあるので検査は行われる(skippedは偽)。空の項目で消えた推論(A-1の1件)は今までどおり別に数える",
             (v.get("inference_company_name_check_skipped"), v.get("inference_dropped")), (False, 1),
+        )
+
+        # --- 改修27-2第8回: S9(検査37) ---
+        check(
+            "見本の号/正例(27-2 S9): 検査37で消えるのはH-8〜H-14の7社。理由は、H-8=記事が紙面に無い・H-9=line_idsが空・"
+            "H-10=元から無い行ID・H-11=検査で落とされた行ID・H-12=事実系の行なし・H-13=primaryの出典が行の出典に無い・"
+            "H-14=複数(記事なし・元から無い行・落とされた行)",
+            [(r["hypothesis_id"], [x["reason"] for x in r["reasons"]]) for r in v.get("check37_removed") or []],
+            [("H-8", ["article_not_found"]), ("H-9", ["line_ids_empty"]), ("H-10", ["line_id_never_existed"]),
+             ("H-11", ["line_id_removed_by_check"]), ("H-12", ["no_fact_line"]), ("H-13", ["primary_ref_mismatch"]),
+             ("H-14", ["article_not_found", "line_id_never_existed", "line_id_removed_by_check"])],
+        )
+        removed37 = {r["hypothesis_id"]: r for r in v.get("check37_removed") or []}
+        check(
+            "見本の号/正例(27-2 S9): H-11のL-13は検査36(日付不明)で落ちた行として記録される。H-14のL-13も同じ。"
+            "H-8の記事ID・社名・行IDも記録される",
+            (removed37["H-11"]["reasons"][0]["checks"], removed37["H-14"]["reasons"][2]["checks"],
+             (removed37["H-8"]["company_name"], removed37["H-8"]["article_id"], removed37["H-8"]["line_ids"])),
+            ({"L-13": "check36_published_date_not_found"}, {"L-13": "check36_published_date_not_found"},
+             ("カナリア商会株式会社", "A-99", ["L-01"])),
+        )
+        check(
+            "見本の号/負例(27-2 S9): 全部を満たす(article_idが実在・行が事実系・primaryの出典が行の出典と一致)H-1〜H-5は、検査37で消えない",
+            [h["hypothesis_id"] for h in after_hyp["hypotheses"]], ["H-1", "H-2", "H-3", "H-4", "H-5"],
         )
 
         # --- 4-11: RECENT-HEADLINES.jsonを置いていないので失敗として記録される(号は止まらない) ---
@@ -7396,6 +7553,11 @@ def main():
     test_lower_section_codelist_unavailable_already_removed()
     test_inference_accept_end_skips_normalized_away_chars()
     test_generic_words_added_in_27_2_round7()
+
+    # 改修27-2(第8回): 検査37(上段の会社の根拠の行・記事・出典)のテスト。
+    test_check37_reasons_and_run()
+    test_record_dropped_lines()
+    test_run_hypothesis_checks_check37_integration()
 
     # 改修27-1(4-15): 見本の号(Canary)。
     test_canary_edition()
