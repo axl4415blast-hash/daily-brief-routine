@@ -190,6 +190,13 @@
     line-height:1.7;
   }
   .notice-box p{ margin:2px 0; }
+  /* 改修27-3の確認用(?preview=1)の帯。第2回で消す */
+  .notice-box.preview-box{
+    background:var(--warn-bg);
+    color:var(--warn);
+    border-color:var(--warn);
+    font-weight:700;
+  }
   .notice[hidden]{ display:none; }
 
   /* ============ 印の説明 ============ */
@@ -256,6 +263,19 @@
     line-height:1.5;
     color:var(--fg);
     margin:0 0 14px;
+  }
+  /* 続報の印。「新しい出典あり」「なし」は同じ見た目にし、文字だけで区別する */
+  .followup-tag{
+    display:inline-block;
+    font-family:'Noto Sans JP', sans-serif;
+    font-weight:500;
+    font-size:12px;
+    line-height:1.6;
+    color:var(--fg2);
+    background:var(--panel);
+    border:1px solid var(--border);
+    padding:2px 8px;
+    margin:0 0 6px;
   }
 
   /* ============ 事実の行 ============ */
@@ -401,6 +421,67 @@
     margin-top:4px;
   }
 
+  /* ============ Claudeに聞く／質問文をコピー ============ */
+  .ask-box{ margin:0 0 24px; }
+  .ask-buttons{
+    display:flex;
+    gap:8px;
+  }
+  .ask-btn{
+    flex:1 1 0;
+    min-width:0;
+    min-height:44px;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    padding:8px 10px;
+    font-family:'Noto Sans JP', sans-serif;
+    font-weight:500;
+    font-size:14px;
+    line-height:1.4;
+    text-align:center;
+    text-decoration:none;
+    color:var(--accent);
+    background:transparent;
+    border:1px solid var(--accent);
+    border-radius:0;
+    -webkit-appearance:none;
+    appearance:none;
+    cursor:pointer;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .ask-note{
+    font-size:12px;
+    line-height:1.6;
+    color:var(--muted);
+    margin:6px 0 0;
+  }
+  .ask-note + .ask-note{ margin-top:2px; }
+  .ask-manual[hidden]{ display:none; }
+  .ask-manual textarea{
+    display:block;
+    width:100%;
+    margin-top:6px;
+    padding:8px;
+    font-family:'Noto Sans JP', sans-serif;
+    font-size:13px;
+    line-height:1.6;
+    color:var(--fg);
+    background:var(--bg);
+    border:1px solid var(--border);
+    border-radius:0;
+    resize:vertical;
+  }
+  .sr-only{
+    position:absolute;
+    width:1px; height:1px;
+    padding:0; margin:-1px;
+    overflow:hidden;
+    clip:rect(0,0,0,0);
+    white-space:nowrap;
+    border:0;
+  }
+
   /* ============ 企業欄（記事ごと） ============ */
   .article-companies{ margin:20px 0 0; }
   .companies-tier{ margin:0 0 18px; }
@@ -450,6 +531,14 @@
     line-height:1.6;
     color:var(--muted);
     margin:0 0 6px;
+  }
+  .company-duplicate-note{
+    font-size:12px;
+    line-height:1.6;
+    color:var(--fg2);
+    background:var(--panel);
+    padding:6px 8px;
+    margin:0 0 10px;
   }
   .industry-group{ margin:0 0 16px; }
   .industry-group:last-child{ margin-bottom:0; }
@@ -603,6 +692,7 @@
 
 <nav class="datebar wrap" id="dateBar"></nav>
 
+<div class="notice" id="previewNotice" hidden></div>
 <div class="notice" id="errorNotice" hidden></div>
 <div class="notice" id="delayNotice" hidden></div>
 
@@ -661,6 +751,43 @@
     next_open: "次の取引日の始値"
   };
   var SECTION_ORDER = ["big", "change", "ripple", "deep"];
+
+  // 改修27-3(3-1): 読者が開ける出典のURL。scripts/verify_edition.pyの
+  // compute_edinet_view_url()・extract_edinet_doc_id()と同じ規則で、view_urlを持たない
+  // 過去の号のEDINETのURLを画面側で直す(号のファイルは書き換えない)。
+  var EDINET_DOC_API_RE = /^https:\/\/disclosure2\.edinet-fsa\.go\.jp\/api\/v2\/documents\/([^\/?]+)(?:\?|$)/;
+  var EDINET_DOCLIST_API_RE = /^https:\/\/api\.edinet-fsa\.go\.jp\/api\/v2\/documents\.json(?:\?|$)/;
+  var EDINET_DOCLIST_SOURCE_IDS = { "SRC-EDINET-LIST": true, "SRC-EDINET-LIST-PREV": true };
+  var EDINET_DOC_VIEW_URL_PREFIX = "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?";
+  var EDINET_VIEW_TOP_URL = "https://disclosure2.edinet-fsa.go.jp/";
+
+  // 改修27-3(3-3): 「Claudeに聞く」の質問文。文言は変えない({…}の部分だけを埋める)。
+  var ASK_CLAUDE_URL = "https://claude.ai/new?q=";
+  var ASK_QUESTION_HEAD = [
+    "次の出来事について、日本と海外の複数の報道と、一次情報（政府・中央銀行・企業の発表）を検索して突き合わせ、次の5つに分けて整理してください。",
+    "① 確認できた事実",
+    "② 報道によって食い違っている点",
+    "③ まだ確認されていない点",
+    "④ 背景となる経緯と、分かりにくい用語の説明",
+    "⑤ 使った出典のURL",
+    "売買の判断、銘柄の評価、株価の予想はしないでください。",
+    ""
+  ].join("\n");
+  var ASK_MAX_SOURCES = 3;
+  var ASK_NO_SOURCES_TEXT = "（なし）";
+  // 質問文の出典から外す出典の種類(報道)。
+  var ASK_EXCLUDED_PUBLISHER_TYPES = { news: true };
+  var COPY_BUTTON_LABEL = "質問文をコピー";
+  var COPY_DONE_LABEL = "コピーしました";
+
+  // 改修27-3の確認用: ?preview=1 のときだけ、決まった場所(preview-27-3/)の見本の号を読む。
+  // 第2回で、この処理とpreview-27-3/を消す。
+  var PREVIEW_DIR = "preview-27-3/";
+  var PREVIEW_MODE = (function(){
+    try{ return new URLSearchParams(window.location.search).get("preview") === "1"; }
+    catch(e){ return false; }
+  })();
+  var INDEX_PATH = PREVIEW_MODE ? PREVIEW_DIR + "index.json" : "editions/index.json";
 
   var indexData = null;
   var currentKey = null;
@@ -730,6 +857,13 @@
     var m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(iso);
     if(!m) return iso;
     return m[1] + "年" + parseInt(m[2], 10) + "月" + parseInt(m[3], 10) + "日 " + parseInt(m[4], 10) + ":" + m[5];
+  }
+
+  // "2026-09-18" → "9/18"(続報の印の初出の日付。年は付けない)
+  function formatSlashMonthDay(s){
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(typeof s === "string" ? s : "");
+    if(!m) return null;
+    return parseInt(m[2], 10) + "/" + parseInt(m[3], 10);
   }
 
   function formatHHMM(iso){
@@ -1070,6 +1204,27 @@
     return map;
   }
 
+  function isEdinetDomain(url){
+    var host;
+    try{ host = new URL(url).hostname; }catch(e){ return false; }
+    return host === "edinet-fsa.go.jp" || /\.edinet-fsa\.go\.jp$/.test(host);
+  }
+
+  // 改修27-3(3-1): 出典のリンクに使うURL。view_url(スクリプトが書いた読者向けのURL)が
+  // あればそれを使う。無ければ(過去の号)、EDINETの書類のURLは閲覧画面に、書類一覧
+  // (URLの形か出典の番号で見分ける)はEDINETのトップに直す。それ以外はurlのまま。
+  function readerSourceUrl(src){
+    if(!src) return null;
+    if(typeof src.view_url === "string" && src.view_url.trim() !== "") return src.view_url;
+    var url = src.url;
+    if(typeof url !== "string" || url.trim() === "") return null;
+    var m = EDINET_DOC_API_RE.exec(url);
+    if(m) return EDINET_DOC_VIEW_URL_PREFIX + m[1];
+    if(EDINET_DOCLIST_API_RE.test(url)) return EDINET_VIEW_TOP_URL;
+    if(EDINET_DOCLIST_SOURCE_IDS[src.source_id] && isEdinetDomain(url)) return EDINET_VIEW_TOP_URL;
+    return url;
+  }
+
   function renderSourceBadge(line, sourcesById){
     var src = line.source_ref ? sourcesById[line.source_ref] : null;
     if(!src) return null;
@@ -1088,9 +1243,10 @@
     if(line.excerpt){
       detail.appendChild(el("p", { class: "excerpt", text: "「" + line.excerpt + "」" }));
     }
-    if(src.url){
+    var linkUrl = readerSourceUrl(src);
+    if(linkUrl){
       detail.appendChild(el("p", {}, [
-        el("a", { href: src.url, target: "_blank", rel: "noopener", text: "出典ページを見る" })
+        el("a", { href: linkUrl, target: "_blank", rel: "noopener", text: "出典ページを見る" })
       ]));
     }
     badge.appendChild(detail);
@@ -1207,8 +1363,163 @@
     return frag;
   }
 
-  function renderArticle(art, sourcesById, companyIndex){
+  // ---------- 続報の印 ----------
+  // 改修27-3(3-2): スクリプトが書いたfollowupのis_followupが真の記事だけに出す。
+  // 見出しの文字(「続報：」の有無)は見ない。続報でない記事・followupが無い記事には何も出さない。
+
+  function followupTagText(followup){
+    if(!followup || typeof followup !== "object" || followup.is_followup !== true) return null;
+    var text = "続報";
+    var firstSeen = formatSlashMonthDay(followup.first_seen);
+    if(firstSeen) text += " 初出" + firstSeen;
+    if(followup.has_new_source === true) text += "（新しい出典あり）";
+    else if(followup.has_new_source === false) text += "（新しい出典なし）";
+    return text;
+  }
+
+  // ---------- Claudeに聞く／質問文をコピー ----------
+
+  // 対になっていない半端な文字コードを置き換え文字(U+FFFD)に置き換える(そのままだとURLへの変換が止まる)。
+  function toWellFormedText(s){
+    var out = "";
+    for(var i = 0; i < s.length; i++){
+      var c = s.charCodeAt(i);
+      if(c >= 0xD800 && c <= 0xDBFF){
+        var n = s.charCodeAt(i + 1);
+        if(n >= 0xDC00 && n <= 0xDFFF){ out += s[i] + s[i + 1]; i++; }
+        else out += "\uFFFD";
+      }else if(c >= 0xDC00 && c <= 0xDFFF){
+        out += "\uFFFD";
+      }else{
+        out += s[i];
+      }
+    }
+    return out;
+  }
+
+  // 質問文に入れる出典URL: 記事の行のsource_refを出てきた順に集め、報道の出典と
+  // EDINETのトップ(書類を指さない)を外し、同じURLは1つにまとめて先頭から最大3件。
+  function askSourceUrls(art, sourcesById){
+    var urls = [];
+    (art.lines || []).forEach(function(line){
+      if(urls.length >= ASK_MAX_SOURCES) return;
+      var ref = line ? line.source_ref : null;
+      var src = (typeof ref === "string") ? sourcesById[ref] : null;
+      if(!src || ASK_EXCLUDED_PUBLISHER_TYPES[src.publisher_type]) return;
+      var url = readerSourceUrl(src);
+      if(!url || url === EDINET_VIEW_TOP_URL || urls.indexOf(url) !== -1) return;
+      urls.push(url);
+    });
+    return urls;
+  }
+
+  function buildAskQuestion(art, ed, sourcesById){
+    var headline = typeof art.headline === "string" ? art.headline : "";
+    headline = headline.replace(/\r\n|[\r\n\u2028\u2029\u0085]/g, " ");
+    var urls = askSourceUrls(art, sourcesById);
+    var text = ASK_QUESTION_HEAD +
+      "\n出来事：" + headline +
+      "\n日付：" + formatDateLabel(ed && typeof ed.date === "string" ? ed.date : "") +
+      "\n紙面が使った出典：" + (urls.length > 0 ? urls.join("\n") : ASK_NO_SOURCES_TEXT);
+    return toWellFormedText(text);
+  }
+
+  // 古いコピーの方法(Clipboard APIが使えない環境向け)。成功したかを真偽で返す。
+  function legacyCopy(text){
+    var ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.top = "0";
+    ta.style.left = "0";
+    ta.style.opacity = "0";
+    ta.style.fontSize = "16px";
+    document.body.appendChild(ta);
+    var ok = false;
+    try{
+      ta.focus();
+      ta.select();
+      ta.setSelectionRange(0, text.length);
+      ok = document.execCommand("copy") === true;
+    }catch(e){
+      ok = false;
+    }
+    document.body.removeChild(ta);
+    return ok;
+  }
+
+  function renderAskBox(art, ed, sourcesById){
+    var question = buildAskQuestion(art, ed, sourcesById);
+    var box = el("div", { class: "ask-box" });
+
+    var askLink = el("a", {
+      class: "ask-btn",
+      href: ASK_CLAUDE_URL + encodeURIComponent(question),
+      target: "_blank",
+      rel: "noopener",
+      text: "Claudeに聞く"
+    });
+    var copyBtn = el("button", { type: "button", class: "ask-btn", text: COPY_BUTTON_LABEL });
+    box.appendChild(el("div", { class: "ask-buttons" }, [askLink, copyBtn]));
+    box.appendChild(el("p", { class: "ask-note", text: "開いた先でウェブ検索をオンにしてください。" }));
+    box.appendChild(el("p", { class: "ask-note", text: "iPhoneでは『質問文をコピー』を押して、Claudeのアプリに貼ってください。" }));
+
+    var live = el("span", { class: "sr-only", "aria-live": "polite" });
+    box.appendChild(live);
+
+    // コピーできなかったときに、手で選んでコピーできる枠を出す(黙って失敗しない)。
+    var manual = el("div", { class: "ask-manual" });
+    manual.hidden = true;
+    manual.appendChild(el("p", { class: "warn-note" }, [
+      svgWarnTriangle(),
+      document.createTextNode("コピーできませんでした。下の枠の文を選んでコピーしてください（iPhoneでは長押しして『すべてを選択』→『コピー』）。")
+    ]));
+    var manualText = el("textarea", { readonly: "", rows: "8", "aria-label": "質問文" });
+    manualText.value = question;
+    manual.appendChild(manualText);
+    box.appendChild(manual);
+
+    var resetTimer = null;
+    function done(){
+      manual.hidden = true;
+      copyBtn.textContent = COPY_DONE_LABEL;
+      live.textContent = "質問文をコピーしました。";
+      if(resetTimer) clearTimeout(resetTimer);
+      resetTimer = setTimeout(function(){
+        copyBtn.textContent = COPY_BUTTON_LABEL;
+        live.textContent = "";
+      }, 2000);
+    }
+    function failed(){
+      copyBtn.textContent = COPY_BUTTON_LABEL;
+      live.textContent = "コピーできませんでした。";
+      manual.hidden = false;
+      try{ manualText.focus(); manualText.select(); }catch(e){ /* 選べなくても枠は見えている */ }
+    }
+
+    copyBtn.addEventListener("click", function(){
+      // iPhoneのSafariは「押した直後」でないとコピーを拒むため、待たずにすぐ呼ぶ。
+      var clip = navigator.clipboard;
+      if(clip && typeof clip.writeText === "function" && window.isSecureContext){
+        var p = null;
+        try{ p = clip.writeText(question); }catch(e){ p = null; }
+        if(p && typeof p.then === "function"){
+          p.then(done, function(){
+            if(legacyCopy(question)) done(); else failed();
+          });
+          return;
+        }
+      }
+      if(legacyCopy(question)) done(); else failed();
+    });
+
+    return box;
+  }
+
+  function renderArticle(art, sourcesById, companyIndex, ed){
     var artEl = el("article", { class: "article" });
+    var tagText = followupTagText(art.followup);
+    if(tagText) artEl.appendChild(el("p", { class: "followup-tag", text: tagText }));
     artEl.appendChild(el("h3", { class: "headline", text: art.headline || "" }));
 
     var lines = art.lines || [];
@@ -1217,6 +1528,8 @@
     if(art.inferences && art.inferences.length > 0){
       artEl.appendChild(renderInferences(art.inferences));
     }
+
+    artEl.appendChild(renderAskBox(art, ed, sourcesById));
 
     var companiesBox = renderArticleCompanies(art.article_id, companyIndex);
     if(companiesBox) artEl.appendChild(companiesBox);
@@ -1258,7 +1571,7 @@
       var secEl = el("section", { class: secClass });
       secEl.appendChild(sectionHeading(sec.title || sid));
       (sec.articles || []).forEach(function(art){
-        secEl.appendChild(renderArticle(art, sourcesById, companyIndex));
+        secEl.appendChild(renderArticle(art, sourcesById, companyIndex, ed));
       });
       main.appendChild(secEl);
     });
@@ -1308,6 +1621,21 @@
     });
   }
 
+  // 改修27-3(3-5): 号をまたぐ重複(duplicate_ofがnullでない上段の会社)に添える1行。
+  // duplicate_ofは"{edition_id}:{hypothesis_id}"。edition_idから日付と時間帯が読めなければ
+  // 「以前の号」と書く。
+  function duplicateNoteText(duplicateOf){
+    if(duplicateOf === null || duplicateOf === undefined) return null;
+    var when = "以前の";
+    var m = /^(\d{4})-(\d{2})-(\d{2})-(morning|noon|evening)(?::|$)/.exec(
+      typeof duplicateOf === "string" ? duplicateOf.split(":")[0] : ""
+    );
+    if(m){
+      when = parseInt(m[2], 10) + "月" + parseInt(m[3], 10) + "日" + SLOT_LABEL[m[4]] + "の";
+    }
+    return "この会社は" + when + "号でも同じ書類で挙がっています。この号の分は自動の答え合わせに入りません。";
+  }
+
   function renderTopCompanyCard(h){
     var card = el("div", { class: "company-card" });
 
@@ -1317,6 +1645,9 @@
     card.appendChild(head);
 
     var body = el("div", { class: "company-body" });
+
+    var duplicateText = duplicateNoteText(h.duplicate_of);
+    if(duplicateText) body.appendChild(el("p", { class: "company-duplicate-note", text: duplicateText }));
 
     var holding = renderHoldingNote(h);
     if(holding) body.appendChild(holding);
@@ -1335,10 +1666,6 @@
     if(h.impact_reason) body.appendChild(el("p", { class: "company-impact-reason", text: h.impact_reason }));
 
     if(h.relation_text) body.appendChild(el("p", { class: "company-relation", text: h.relation_text }));
-
-    if(h.falsifier){
-      body.appendChild(el("p", { class: "company-note-line", text: "外れる条件：" + h.falsifier }));
-    }
 
     if(h.baseline_date){
       var baselineText = "基準日：" + h.baseline_date;
@@ -1468,9 +1795,10 @@
       var card = el("div", { class: "source-card" });
       if(src.publisher) card.appendChild(el("p", { class: "publisher", text: src.publisher }));
       if(src.title) card.appendChild(el("p", { class: "title", text: src.title }));
-      if(src.url){
+      var linkUrl = readerSourceUrl(src);
+      if(linkUrl){
         card.appendChild(el("p", {}, [
-          el("a", { href: src.url, target: "_blank", rel: "noopener", text: src.url })
+          el("a", { href: linkUrl, target: "_blank", rel: "noopener", text: linkUrl })
         ]));
       }
       if(src.published_at) card.appendChild(el("p", { class: "attr", text: "公開: " + formatPublishedAt(src.published_at) }));
@@ -1525,6 +1853,7 @@
     box.appendChild(el("p", { text: "このページは投資の推奨ではありません。" }));
     box.appendChild(el("p", { text: "この紙面はAIが自動で作成しています。" }));
     box.appendChild(el("p", { text: "検索避けの設定を入れていますが、これは検索結果に出にくくするだけで、内容を隠す機能ではありません。このページは誰でも見られます。" }));
+    box.appendChild(el("p", { text: "運営：blast" }));
     return box;
   }
 
@@ -1538,6 +1867,18 @@
 
     var entry = indexData.editions.find(function(e){ return e.date === date && e.slot === slot; });
     if(!entry) return;
+
+    // 確認用(?preview=1)では、決まった場所(preview-27-3/)の外のファイルを読まない。
+    if(PREVIEW_MODE){
+      var outside = [entry.edition_path, entry.hypotheses_path].filter(function(p){
+        return typeof p !== "string" || p.indexOf(PREVIEW_DIR) !== 0 || p.indexOf("..") !== -1;
+      });
+      if(outside.length > 0){
+        showContentError(String(outside[0]));
+        renderFooter(null);
+        return;
+      }
+    }
 
     var main = document.getElementById("content");
     clear(main);
@@ -1572,12 +1913,23 @@
 
   // ---------- 起動 ----------
 
+  function renderPreviewNotice(){
+    var box = document.getElementById("previewNotice");
+    clear(box);
+    if(!PREVIEW_MODE){ box.hidden = true; return; }
+    box.appendChild(el("div", { class: "notice-box preview-box" }, [
+      el("p", { text: "確認用の見本です（実際の出来事ではありません）" })
+    ]));
+    box.hidden = false;
+  }
+
   async function init(){
+    renderPreviewNotice();
     try{
-      indexData = await fetchJson("editions/index.json?t=" + Date.now());
+      indexData = await fetchJson(INDEX_PATH + "?t=" + Date.now());
       hideFatalError();
     }catch(e){
-      showFatalError("editions/index.json", e);
+      showFatalError(INDEX_PATH, e);
       return;
     }
 
@@ -1587,7 +1939,8 @@
       return;
     }
 
-    renderDelayBanner();
+    // 見本の号では「号は作成されていません」の知らせを出さない。
+    if(!PREVIEW_MODE) renderDelayBanner();
 
     var first = indexData.editions[0];
     selectEdition(first.date, first.slot);

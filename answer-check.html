@@ -14,8 +14,6 @@
     --border:#D8DEE4;
     --accent:#2563EB;
     --accent-fg:#FFFFFF;
-    --plus:#0F7B3E;
-    --minus:#C13B2A;
     --hit:#0F7B3E;
     --miss:#C13B2A;
     --unknown:#8A6D00;
@@ -31,8 +29,6 @@
       --border:#2C3945;
       --accent:#4B8BFF;
       --accent-fg:#0B1220;
-      --plus:#3FCB7C;
-      --minus:#FF6B57;
       --hit:#3FCB7C;
       --miss:#FF6B57;
       --unknown:#E0B94D;
@@ -110,8 +106,6 @@
     padding:2px 8px;
     border-radius:999px;
   }
-  .badge.plus{color:var(--plus);background:color-mix(in srgb, var(--plus) 15%, transparent);}
-  .badge.minus{color:var(--minus);background:color-mix(in srgb, var(--minus) 15%, transparent);}
   .badge.hit{color:var(--hit);background:color-mix(in srgb, var(--hit) 15%, transparent);}
   .badge.miss{color:var(--miss);background:color-mix(in srgb, var(--miss) 15%, transparent);}
   .badge.unknown{color:var(--unknown);background:color-mix(in srgb, var(--unknown) 15%, transparent);}
@@ -195,11 +189,11 @@
   var REPO_FULL = "axl4415blast-hash/daily-brief-routine";
 
   var HYPOTHESES = [
-    { id: "2026-09-01-morning-0001", company: "サンプル工業", code: "0001", direction: "plus",  offsetDays: -5, priceAtHypo: 1234,  topixAtHypo: 2650.5 },
-    { id: "2026-09-05-morning-0002", company: "サンプル物産", code: "0002", direction: "minus", offsetDays: -2, priceAtHypo: 890,   topixAtHypo: 2660.2 },
-    { id: "2026-09-10-afternoon-0003", company: "サンプル商事", code: "0003", direction: "plus",  offsetDays: 0,  priceAtHypo: 2100,  topixAtHypo: 2670.8 },
-    { id: "2026-09-15-morning-0004", company: "サンプル化学", code: "0004", direction: "minus", offsetDays: 3,  priceAtHypo: 560,   topixAtHypo: 2655.1 },
-    { id: "2026-09-16-morning-0005", company: "サンプルHD",   code: "0005", direction: "plus",  offsetDays: 10, priceAtHypo: 3400,  topixAtHypo: 2680.0 }
+    { id: "2026-09-01-morning-0001", company: "サンプル工業", code: "0001", offsetDays: -5, priceAtHypo: 1234,  topixAtHypo: 2650.5 },
+    { id: "2026-09-05-morning-0002", company: "サンプル物産", code: "0002", offsetDays: -2, priceAtHypo: 890,   topixAtHypo: 2660.2 },
+    { id: "2026-09-10-afternoon-0003", company: "サンプル商事", code: "0003", offsetDays: 0,  priceAtHypo: 2100,  topixAtHypo: 2670.8 },
+    { id: "2026-09-15-morning-0004", company: "サンプル化学", code: "0004", offsetDays: 3,  priceAtHypo: 560,   topixAtHypo: 2655.1 },
+    { id: "2026-09-16-morning-0005", company: "サンプルHD",   code: "0005", offsetDays: 10, priceAtHypo: 3400,  topixAtHypo: 2680.0 }
   ];
 
   function pad(n){ return String(n).padStart(2, "0"); }
@@ -341,7 +335,6 @@
 
   // --- 表示 ---
 
-  function directionLabel(d){ return d === "plus" ? "プラス" : "マイナス"; }
   function resultLabel(r){ return r === "hit" ? "当たり" : r === "miss" ? "外れ" : "判定不能"; }
 
   function renderHypothesisCard(h, record){
@@ -349,15 +342,12 @@
       el("span", { class: "company", text: h.company }),
       el("span", { class: "code", text: "証券コード " + h.code })
     ]);
-    var badges = el("div", {}, [
-      el("span", { class: "badge " + h.direction, text: directionLabel(h.direction) })
-    ]);
     var meta = [];
     meta.push(el("p", { class: "meta" }, [document.createTextNode("期限: "), el("b", { text: h.deadline })]));
     meta.push(el("p", { class: "meta" }, [document.createTextNode("仮説日の株価: "), el("b", { text: h.priceAtHypo.toLocaleString() + " 円" })]));
     meta.push(el("p", { class: "meta" }, [document.createTextNode("仮説日のTOPIX: "), el("b", { text: h.topixAtHypo.toLocaleString() })]));
 
-    var card = el("div", { class: "card" }, [row1, badges].concat(meta));
+    var card = el("div", { class: "card" }, [row1].concat(meta));
     card.appendChild(el("p", { class: "id", text: "仮説ID: " + h.id }));
 
     if(record){
