@@ -325,7 +325,194 @@ def load_ng_words(path):
     return words
 
 
+# 改修27-2 第8回の追加2: AIが書いた値の型(文字・null・配列・辞書)の検査。
+# スクリプトが「文字」として使う値(辞書の鍵・集合の要素・文字列の処理に使うもの)に、リスト・辞書・
+# 数・真偽値が書かれていると、途中で止まって終了コード2(スクリプトのエラー)になり、その日の号が
+# 公開されなかった。紙面は構造の検査で「保存できない」(終了コード1)、上段の仮説は該当する仮説
+# だけの削除にする。nullは今までどおり(文字として使う値でも、nullは許す)。
+EDITION_STRING_FIELDS = ("edition_id", "date", "slot", "generated_at")
+SOURCE_STRING_FIELDS = ("source_id", "publisher", "title", "url", "published_at", "content_sha256")
+SECTION_STRING_FIELDS = ("section_id",)
+ARTICLE_STRING_FIELDS = ("article_id", "headline")
+LINE_STRING_FIELDS = ("line_id", "text", "claimed_mark", "source_ref", "excerpt")
+NUMBER_STRING_FIELDS = ("label",)
+INFERENCE_STRING_FIELDS = ("text", "falsifier", "check_metric", "check_by")
+HYPOTHESIS_STRING_FIELDS = (
+    "hypothesis_id", "company_name", "relation_text", "evidence_grade", "evidence_source_ref",
+    "ticker", "ticker_source", "baseline_date", "baseline_price_type", "baseline_observed_at",
+    "impact_reason", "article_id", "added_by",
+)
+INDUSTRY_PICK_STRING_FIELDS = ("article_id", "industry", "event_id")
+
+
+def _is_str_or_null(value):
+    return value is None or isinstance(value, str)
+
+
+def _type_name(value):
+    return {"list": "リスト", "dict": "辞書", "int": "数", "float": "数", "bool": "真偽値"}.get(type(value).__name__, type(value).__name__)
+
+
+def _require_str_or_null(obj, fields, where):
+    for field in fields:
+        value = obj.get(field)
+        if not _is_str_or_null(value):
+            raise EditionInvalid(f"{where}の '{field}' が文字でもnullでもありません({_type_name(value)}が書かれています)。")
+
+
+def validate_edition_field_types(edition):
+    """紙面の値の型を確かめる(check_a_structure()から呼ぶ)。文字として使う値が文字でもnullでもない、
+    辞書であるべき値(出典・section・記事・行・数字・推論、verification)が辞書でない、配列であるべき値
+    (numbers・inferences)が配列でない場合は、EditionInvalid(終了コード1)。
+    メッセージには、場所(記事ID・行IDなど、分かる範囲)と項目名を書く。
+    sections・sources・articles・linesそのものが配列でない場合は、この関数では何もしない
+    (check_a_structure()の、配列かどうかの検査が扱う)。"""
+    _require_str_or_null(edition, EDITION_STRING_FIELDS, "紙面")
+    for field in ("verification",):
+        value = edition.get(field)
+        if value is not None and not isinstance(value, dict):
+            raise EditionInvalid(f"紙面の '{field}' が辞書でもnullでもありません({_type_name(value)}が書かれています)。")
+    verification = edition.get("verification")
+    if isinstance(verification, dict):
+        first_run = verification.get("first_run")
+        if first_run is not None and not isinstance(first_run, dict):
+            raise EditionInvalid(f"紙面の 'verification.first_run' が辞書でもnullでもありません({_type_name(first_run)}が書かれています)。")
+
+    sources = edition.get("sources")
+    if isinstance(sources, list):
+        for i, source in enumerate(sources):
+            where = f"出典 sources[{i}]"
+            if not isinstance(source, dict):
+                raise EditionInvalid(f"{where} が辞書ではありません({_type_name(source)}が書かれています)。")
+            if isinstance(source.get("source_id"), str):
+                where = f"出典 {source['source_id']}"
+            _require_str_or_null(source, SOURCE_STRING_FIELDS, where)
+
+    sections = edition.get("sections")
+    if not isinstance(sections, list):
+        return
+    for si, section in enumerate(sections):
+        where = f"section sections[{si}]"
+        if not isinstance(section, dict):
+            raise EditionInvalid(f"{where} が辞書ではありません({_type_name(section)}が書かれています)。")
+        if isinstance(section.get("section_id"), str):
+            where = f"section {section['section_id']}"
+        _require_str_or_null(section, SECTION_STRING_FIELDS, where)
+        articles = section.get("articles")
+        if not isinstance(articles, list):
+            continue
+        for ai, article in enumerate(articles):
+            a_where = f"{where}の記事 articles[{ai}]"
+            if not isinstance(article, dict):
+                raise EditionInvalid(f"{a_where} が辞書ではありません({_type_name(article)}が書かれています)。")
+            if isinstance(article.get("article_id"), str):
+                a_where = f"記事 {article['article_id']}"
+            _require_str_or_null(article, ARTICLE_STRING_FIELDS, a_where)
+            lines = article.get("lines")
+            if isinstance(lines, list):
+                for li, line in enumerate(lines):
+                    l_where = f"{a_where}の行 lines[{li}]"
+                    if not isinstance(line, dict):
+                        raise EditionInvalid(f"{l_where} が辞書ではありません({_type_name(line)}が書かれています)。")
+                    if isinstance(line.get("line_id"), str):
+                        l_where = f"{a_where}の行 {line['line_id']}"
+                    _require_str_or_null(line, LINE_STRING_FIELDS, l_where)
+                    numbers = line.get("numbers")
+                    if isinstance(numbers, list):
+                        for ni, number in enumerate(numbers):
+                            n_where = f"{l_where}の数字 numbers[{ni}]"
+                            if not isinstance(number, dict):
+                                raise EditionInvalid(f"{n_where} が辞書ではありません({_type_name(number)}が書かれています)。")
+                            _require_str_or_null(number, NUMBER_STRING_FIELDS, n_where)
+            inferences = article.get("inferences")
+            if inferences is not None:
+                if not isinstance(inferences, list):
+                    raise EditionInvalid(f"{a_where}の 'inferences' が配列でもnullでもありません({_type_name(inferences)}が書かれています)。")
+                for ii, inference in enumerate(inferences):
+                    i_where = f"{a_where}の推論 inferences[{ii}]"
+                    if not isinstance(inference, dict):
+                        raise EditionInvalid(f"{i_where} が辞書ではありません({_type_name(inference)}が書かれています)。")
+                    _require_str_or_null(inference, INFERENCE_STRING_FIELDS, i_where)
+
+
+def hypothesis_type_problems(hyp):
+    """上段の仮説1件の、型の問題のある項目名の一覧(なければ空)。仮説が辞書でなければ["(仮説が辞書でない)"]。
+    文字として使う値(HYPOTHESIS_STRING_FIELDS)が文字でもnullでもない、links が辞書でもnullでもない、
+    links.price_history が文字でもnullでもない、line_ids が配列でもnullでもない・中身に文字でないものがある、
+    の場合にその項目名を返す。nullは問題にしない(今までどおり)。"""
+    if not isinstance(hyp, dict):
+        return ["(仮説が辞書でない)"]
+    problems = [f for f in HYPOTHESIS_STRING_FIELDS if not _is_str_or_null(hyp.get(f))]
+    links = hyp.get("links")
+    if links is not None and not isinstance(links, dict):
+        problems.append("links")
+    elif isinstance(links, dict) and not _is_str_or_null(links.get("price_history")):
+        problems.append("links.price_history")
+    line_ids = hyp.get("line_ids")
+    if line_ids is not None and (not isinstance(line_ids, list) or any(not isinstance(l, str) for l in line_ids)):
+        problems.append("line_ids")
+    return problems
+
+
+def validate_hypotheses_doc_structure(doc):
+    """仮説ファイル全体の型を確かめる(EditionInvalid = 終了コード1)。辞書であること、hypothesesが
+    配列(キーが無いのは可)、industry_picksが配列かnull(キーが無いのは可)、edition_id・generated_atが
+    文字かnull。"""
+    if not isinstance(doc, dict):
+        raise EditionInvalid(f"仮説ファイルの一番外側が辞書(オブジェクト)ではありません({_type_name(doc)}が書かれています)。")
+    _require_str_or_null(doc, ("edition_id", "generated_at"), "仮説ファイル")
+    if "hypotheses" in doc and not isinstance(doc["hypotheses"], list):
+        raise EditionInvalid(f"仮説ファイルの 'hypotheses' が配列ではありません({_type_name(doc['hypotheses'])}が書かれています)。")
+    if doc.get("industry_picks") is not None and not isinstance(doc["industry_picks"], list):
+        raise EditionInvalid(f"仮説ファイルの 'industry_picks' が配列でもnullでもありません({_type_name(doc['industry_picks'])}が書かれています)。")
+
+
+def remove_type_invalid_hypotheses(doc):
+    """型の問題のある上段の仮説だけを削除する(理由 field_type_invalid)。仮説の値を読むどの処理よりも先に呼ぶ。
+    戻り値: [{"index": 仮説の位置(0始まり)、"hypothesis_id": 文字ならその値・そうでなければNone、
+              "fields": 項目名の一覧}, ...]。"""
+    hyps = doc.get("hypotheses")
+    if not isinstance(hyps, list):
+        return []
+    kept, removed = [], []
+    for index, hyp in enumerate(hyps):
+        problems = hypothesis_type_problems(hyp)
+        if problems:
+            hid = hyp.get("hypothesis_id") if isinstance(hyp, dict) else None
+            removed.append({"index": index, "hypothesis_id": hid if isinstance(hid, str) else None, "fields": problems})
+        else:
+            kept.append(hyp)
+    doc["hypotheses"] = kept
+    return removed
+
+
+def remove_type_invalid_industry_picks(doc):
+    """型の問題のある業種の指定(industry_picks)だけを取り除く。辞書でない、article_id・industry・event_idが
+    文字でもnullでもない、industry_line_idsが配列でもnullでもない・中身に文字でないものがある、の場合。
+    戻り値: [{"index": 位置(0始まり), "fields": 項目名の一覧}, ...]。"""
+    picks = doc.get("industry_picks")
+    if not isinstance(picks, list):
+        return []
+    kept, removed = [], []
+    for index, pick in enumerate(picks):
+        if not isinstance(pick, dict):
+            problems = ["(業種の指定が辞書でない)"]
+        else:
+            problems = [f for f in INDUSTRY_PICK_STRING_FIELDS if not _is_str_or_null(pick.get(f))]
+            ids = pick.get("industry_line_ids")
+            if ids is not None and (not isinstance(ids, list) or any(not isinstance(l, str) for l in ids)):
+                problems.append("industry_line_ids")
+        if problems:
+            removed.append({"index": index, "fields": problems})
+        else:
+            kept.append(pick)
+    doc["industry_picks"] = kept
+    return removed
+
+
 def check_a_structure(edition):
+    if not isinstance(edition, dict):
+        raise EditionInvalid(f"紙面JSONの一番外側が辞書(オブジェクト)ではありません({_type_name(edition)}が書かれています)。")
     for key in REQUIRED_EDITION_KEYS:
         if key not in edition:
             raise EditionInvalid(f"必須項目 '{key}' がありません。")
@@ -337,6 +524,10 @@ def check_a_structure(edition):
         raise EditionInvalid("market_open が真偽値でもnullでもありません。")
     if not isinstance(edition.get("sources"), list):
         raise EditionInvalid("sources が配列ではありません。")
+    # 改修27-2 第8回の追加2: 値の型の検査(文字として使う値が文字でもnullでもない、など)。
+    # 下の行ごとの検査(claimed_markが既知の値かなど)より先に行う(リストが書かれていると、
+    # 下の検査で止まってしまうため)。
+    validate_edition_field_types(edition)
 
     for section in edition["sections"]:
         if "section_id" not in section:
@@ -2648,7 +2839,7 @@ def check37_reasons(hyp, article_ids, line_marks, line_refs, original_line_ids, 
             "checks": {l: dropped_by.get(l, "unknown") for l in removed},
         })
     surviving = [l for l in line_ids if hashable(l) and l in line_marks]
-    if surviving and article_id in article_ids:   # article_not_foundのときは判定しない(article_idがNoneでも落ちない)
+    if surviving and isinstance(article_id, str) and article_id in article_ids:   # article_not_foundのときは判定しない(article_idが文字でなくても落ちない)
         elsewhere = [l for l in surviving if article_id not in line_articles.get(l, set())]
         if elsewhere:
             reasons.append({
@@ -2660,7 +2851,8 @@ def check37_reasons(hyp, article_ids, line_marks, line_refs, original_line_ids, 
             reasons.append({"reason": "no_fact_line", "line_ids": surviving})
         if hyp.get("evidence_grade") == "primary":
             source_refs = {line_refs.get(l) for l in surviving if line_refs.get(l)}
-            if hyp.get("evidence_source_ref") not in source_refs:
+            evidence_ref = hyp.get("evidence_source_ref")
+            if not isinstance(evidence_ref, str) or evidence_ref not in source_refs:   # 文字でない値でも落ちない
                 reasons.append({
                     "reason": "primary_ref_mismatch", "evidence_source_ref": hyp.get("evidence_source_ref"),
                     "line_ids": surviving,
@@ -3177,6 +3369,7 @@ def print_report(edition_path, stats, stop_hits, watch_hits, dropped_inferences,
         print(f"仮説に関する指摘件数: {hypothesis_violations}")
         reason_text = {
             "missing_field": "必須項目が空だった(削除)",
+            "field_type_invalid": "仮説の値の型が正しくなかった(文字でもnullでもない値が書かれていた、など。削除。項目名はfield_type_invalid_removedに記録)",
             "article_not_found": "検査37: 仮説の記事ID(article_id)が空、または紙面に無かった(削除。他の理由もcheck37_removedに記録)",
             "line_ids_empty": "検査37: 仮説の根拠の行(line_ids)が空だった(削除)",
             "line_id_never_existed": "検査37: 仮説の根拠の行に、AIが書いた紙面に元から無い行IDがあった(削除)",
@@ -3348,13 +3541,15 @@ def run_verification(edition_file, hypotheses_file, cache_dir_arg, calendar_dir_
         # 覚えておく。first_runは記録としてだけ引き継ぐ(判定には使わない。
         # AIが書けるファイルの中にある値のため)。existing_verificationは
         # should_abort_rerun()の判定にだけ使う(修正C)。
+        # 改修27-2 第8回の追加2: 構造・型の検査を、紙面の値を読むどの処理よりも先に行う
+        # (verificationが辞書でないと、下でも止まるため)。
+        check_a_structure(edition)
         existing_verification = edition.get("verification")
         existing_first_run = (existing_verification or {}).get("first_run")
         # 修正8: 記録専用。existing_verificationの有無だけで決まり、実行時刻には
         # 依存しない(compute_rerun_detected()を参照)。
         rerun_detected = compute_rerun_detected(existing_verification)
 
-        check_a_structure(edition)
         check_b_edition_id(edition, edition_path)
 
         # 改修27-2第8回(S9): AIが書いた紙面の行ID全部と、検査で行を落とすたびに「どの検査で
@@ -3520,6 +3715,8 @@ def run_verification(edition_file, hypotheses_file, cache_dir_arg, calendar_dir_
             "check37_removed": [],
         }
         hypotheses_doc = None
+        field_type_invalid_removed = []
+        industry_pick_field_type_invalid_removed = []
         hypotheses_generated_at_raw = None
         industry_report = None
         # 改修27-1(4-12): --hypotheses未指定でもキーがそろうよう、既定値(0件)にしておく。
@@ -3530,7 +3727,15 @@ def run_verification(edition_file, hypotheses_file, cache_dir_arg, calendar_dir_
         # 改修27-2(S13): --hypotheses未指定でもキーがそろうよう、既定値(0件)にしておく。
         reported_relation_text_mismatch = {"count": 0, "hypothesis_ids": []}
         if hypotheses_file:
-            hypotheses_doc = load_json(hypotheses_file)
+            try:
+                hypotheses_doc = load_json(hypotheses_file)
+            except (json.JSONDecodeError, OSError, UnicodeDecodeError) as e:
+                raise EditionInvalid(f"仮説JSONを読み込めません: {e}")
+            # 改修27-2 第8回の追加2: 仮説の値を読むどの処理よりも先に、型の問題のある仮説だけを削除する
+            # (理由field_type_invalid)。仮説ファイル全体の型の問題は保存できない(終了コード1)。
+            validate_hypotheses_doc_structure(hypotheses_doc)
+            field_type_invalid_removed = remove_type_invalid_hypotheses(hypotheses_doc)
+            industry_pick_field_type_invalid_removed = remove_type_invalid_industry_picks(hypotheses_doc)
             # 改修27-1(4-1): 仮説ファイルのgenerated_atも、紙面と同じく実行時刻で上書きする。
             hypotheses_generated_at_raw = override_generated_at(hypotheses_doc, run_at)
             hypotheses_doc["baseline_late"] = baseline_late
@@ -3552,6 +3757,10 @@ def run_verification(edition_file, hypotheses_file, cache_dir_arg, calendar_dir_
                 hypotheses_doc, edition, business_days, ng_words, cache_dir_arg, edinet_companies, codelist_rows,
                 line_drop_info={"original_line_ids": original_line_ids, "dropped_by": dropped_by},
             )
+            if field_type_invalid_removed:
+                # 型の問題で先に削除した仮説も、指摘件数と理由に数える。
+                hypothesis_violations += len(field_type_invalid_removed)
+                hypothesis_reasons["field_type_invalid"] = len(field_type_invalid_removed)
 
             # 検査14: 休場日(market_openがfalse)、または遅延号(baseline_lateがtrue)の号は、
             # 上段(hypotheses、run_hypothesis_checks側で既に空にしている)だけでなく、
@@ -3739,6 +3948,10 @@ def run_verification(edition_file, hypotheses_file, cache_dir_arg, calendar_dir_
             # 改修27-2第8回(S9): 検査37(上段の会社の根拠の行・記事・出典)で削除した会社。
             # 社名・記事ID・行ID・当たった理由すべて(複数の理由に当たれば全部)。
             "check37_removed": hypothesis_extra["check37_removed"],
+            # 改修27-2 第8回の追加2: 値の型の問題(文字でもnullでもない、など)で先に削除した上段の仮説
+            # (位置・hypothesis_id・項目名)と、取り除いた業種の指定(位置・項目名)。
+            "field_type_invalid_removed": field_type_invalid_removed,
+            "industry_pick_field_type_invalid_removed": industry_pick_field_type_invalid_removed,
             # 改修27-2第4回(S2): 日付だけの出典で、本文に日付が見つからず(または本文が読めず)
             # 日付不明にした出典と、そのためにchangeの枠から落とした行。
             "published_date_not_found": published_date_not_found,

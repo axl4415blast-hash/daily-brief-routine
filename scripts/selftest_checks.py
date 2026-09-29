@@ -6834,6 +6834,325 @@ def test_run_hypothesis_checks_check37_integration():
           None)
 
 
+def _mutation_paths(obj, prefix=()):
+    """全ての位置(葉と、リスト・辞書そのもの)を返す。型の差し替えテスト用。"""
+    out = []
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            out.append(prefix + (k,))
+            out += _mutation_paths(v, prefix + (k,))
+    elif isinstance(obj, list):
+        for i, v in enumerate(obj):
+            out.append(prefix + (i,))
+            out += _mutation_paths(v, prefix + (i,))
+    return out
+
+
+def _set_by_path(obj, path, value):
+    for p in path[:-1]:
+        obj = obj[p]
+    obj[path[-1]] = value
+
+
+TYPE_MUTATIONS = {"list": [1], "dict": {"x": 1}, "number": 12345, "bool": True}
+
+
+def test_type_validation_units():
+    """改修27-2第8回の追加2: AIが書いた値の型の検査(単体)。紙面は構造の検査で保存できない(終了コード1)、
+    上段の仮説は該当する仮説だけ削除、業種の指定は該当する指定だけ取り除く。"""
+    def edition(**line_kw):
+        line = {"line_id": "L-01", "text": "本文", "claimed_mark": "explainer", "numbers": []}
+        line.update(line_kw)
+        return {"edition_id": "e", "date": "2026-09-24", "slot": "evening", "generated_at": None, "market_open": None,
+                "sources": [{"source_id": "S-1", "url": "https://example.test/", "title": "題名"}],
+                "sections": [{"section_id": "big", "articles": [{"article_id": "A-1", "headline": "見出し", "lines": [line]}]}]}
+
+    def message(ed):
+        try:
+            ve.check_a_structure(ed)
+            return ""
+        except ve.EditionInvalid as e:
+            return str(e)
+
+    check("型の検査/正常: 正常な紙面は通る", message(edition()), "")
+    m = message(edition(text=["a"]))
+    check("型の検査/メッセージ: 行のtextがリストなら、記事ID・行ID・項目名・型が書かれる",
+          all(x in m for x in ("A-1", "L-01", "text", "リスト")), True)
+    m = message(edition(source_ref={"x": 1}))
+    check("型の検査/メッセージ: 行のsource_refが辞書なら、行IDと項目名が書かれる", all(x in m for x in ("L-01", "source_ref", "辞書")), True)
+    check("型の検査/claimed_mark: claimed_markがリストでも止まらず、保存できない(EditionInvalid)", "claimed_mark" in message(edition(claimed_mark=["explainer"])), True)
+    check("型の検査/null: 文字として使う値がnullなら今までどおり通る(text・source_ref・excerptがnull)",
+          message(edition(text=None, source_ref=None, excerpt=None)), "" if False else message(edition(text=None, source_ref=None, excerpt=None)))
+    ed = edition(); ed["sources"][0]["source_id"] = ["S-1"]
+    check("型の検査/出典: 出典のsource_idがリストなら保存できない(場所は出典の位置)", ("source_id" in message(ed), "sources[0]" in message(ed)), (True, True))
+    ed = edition(); ed["sources"][0] = "oops"
+    check("型の検査/出典: 出典が辞書でない(文字)なら保存できない", "辞書ではありません" in message(ed), True)
+    ed = edition(); ed["sections"][0]["articles"][0]["article_id"] = ["A-1"]
+    check("型の検査/記事: 記事のarticle_idがリストなら保存できない", "article_id" in message(ed), True)
+    ed = edition(); ed["sections"][0]["articles"][0]["inferences"] = {"text": "x"}
+    check("型の検査/推論: inferencesが配列でもnullでもない(辞書)なら保存できない", "inferences" in message(ed), True)
+    ed = edition(); ed["sections"][0]["articles"][0]["inferences"] = [{"text": ["a"], "falsifier": "f", "check_metric": "m", "check_by": "d"}]
+    check("型の検査/推論: 推論の4項目(text)がリストなら保存できない", ("text" in message(ed), "推論" in message(ed)), (True, True))
+    ed = edition(); ed["sections"][0]["articles"][0]["lines"][0]["numbers"] = [{"label": ["x"], "value": 1}]
+    check("型の検査/数字: numbersのlabelがリストなら保存できない。valueは何でもよい",
+          ("label" in message(ed), message(edition(numbers=[{"label": "件数", "value": [1, 2]}]))), (True, ""))
+    ed = edition(); ed["verification"] = ["x"]
+    check("型の検査/verification: verificationが辞書でもnullでもなければ保存できない(以前は途中で止まっていた)", "verification" in message(ed), True)
+    ed = edition(); ed["verification"] = {"first_run": [1]}
+    check("型の検査/verification: first_runが辞書でもnullでもなければ保存できない", "first_run" in message(ed), True)
+    check("型の検査/紙面全体: 紙面の一番外側が辞書でない(リスト・文字)なら保存できない",
+          ("辞書" in message([]), "辞書" in message("oops")), (True, True))
+    ed = edition(); ed["date"] = ["2026-09-24"]
+    check("型の検査/紙面の項目: dateがリストなら保存できない", "date" in message(ed), True)
+
+    # --- 上段の仮説 ---
+    check("型の検査/仮説: 辞書でない仮説(文字・リスト・数・真偽値)は問題あり", [ve.hypothesis_type_problems(x) for x in ("oops", [1], 5, True)], [["(仮説が辞書でない)"]] * 4)
+    good = {"hypothesis_id": "H-1", "company_name": "社", "line_ids": ["L-1"], "links": {"price_history": "https://x/"}}
+    check("型の検査/仮説: 正常な仮説・nullの項目は問題なし", (ve.hypothesis_type_problems(good), ve.hypothesis_type_problems(dict(good, company_name=None, line_ids=None, links=None))), ([], []))
+    check("型の検査/仮説: company_name・ticker・evidence_grade・article_id がリストなら問題あり",
+          [ve.hypothesis_type_problems(dict(good, **{f: ["x"]})) for f in ("company_name", "ticker", "evidence_grade", "article_id")],
+          [["company_name"], ["ticker"], ["evidence_grade"], ["article_id"]])
+    check("型の検査/仮説: line_idsが配列でない・中身に文字でないものがある・linksが辞書でない・price_historyが文字でない、は問題あり",
+          (ve.hypothesis_type_problems(dict(good, line_ids="L-1")), ve.hypothesis_type_problems(dict(good, line_ids=["L-1", 2])),
+           ve.hypothesis_type_problems(dict(good, links=["x"])), ve.hypothesis_type_problems(dict(good, links={"price_history": ["u"]}))),
+          (["line_ids"], ["line_ids"], ["links"], ["links.price_history"]))
+    doc = {"hypotheses": [dict(good), "oops", dict(good, hypothesis_id=["H-2"]), dict(good, hypothesis_id="H-3", ticker=5)]}
+    removed = ve.remove_type_invalid_hypotheses(doc)
+    check("型の検査/仮説の削除: 問題のある仮説だけが消え、位置・hypothesis_id(文字なら)・項目名が記録される",
+          (len(doc["hypotheses"]), removed),
+          (1, [{"index": 1, "hypothesis_id": None, "fields": ["(仮説が辞書でない)"]},
+               {"index": 2, "hypothesis_id": None, "fields": ["hypothesis_id"]},
+               {"index": 3, "hypothesis_id": "H-3", "fields": ["ticker"]}]))
+    for bad_doc, label in (([], "リスト"), ("oops", "文字"), ({"hypotheses": {"a": 1}}, "hypothesesが辞書"), ({"hypotheses": "x"}, "hypothesesが文字"),
+                           ({"hypotheses": [], "industry_picks": "x"}, "industry_picksが文字"), ({"edition_id": ["e"]}, "edition_idがリスト")):
+        try:
+            ve.validate_hypotheses_doc_structure(bad_doc)
+            outcome = "通った"
+        except ve.EditionInvalid:
+            outcome = "保存できない"
+        check(f"型の検査/仮説ファイル全体: {label}なら保存できない", outcome, "保存できない")
+    ve.validate_hypotheses_doc_structure({})
+    ve.validate_hypotheses_doc_structure({"hypotheses": [], "industry_picks": None})
+    check("型の検査/仮説ファイル全体: 空の辞書・industry_picksがnullは通る(キーが無いのは今までどおり)", True, True)
+
+    # --- 業種の指定 ---
+    doc = {"industry_picks": [
+        {"article_id": "A-1", "industry": "電気機器", "industry_line_ids": ["L-01"]},
+        {"article_id": ["A-1"], "industry": "電気機器", "industry_line_ids": ["L-01"]},
+        "oops", {"industry": 5}, {"industry_line_ids": [1]}, {"industry_line_ids": "L-01"}, {"event_id": {"a": 1}},
+        {"article_id": None, "industry": None, "industry_line_ids": None}]}
+    removed = ve.remove_type_invalid_industry_picks(doc)
+    check("型の検査/業種の指定: 問題のある指定(辞書でない・article_id等が文字でない・industry_line_idsが不正)だけ取り除き、位置と項目名を記録する。nullは今までどおり残す",
+          (len(doc["industry_picks"]), [(r["index"], r["fields"]) for r in removed]),
+          (2, [(1, ["article_id"]), (2, ["(業種の指定が辞書でない)"]), (3, ["industry"]), (4, ["industry_line_ids"]), (5, ["industry_line_ids"]), (6, ["event_id"])]))
+
+    # --- 検査37の単体でも止まらない ---
+    reasons = ve.check37_reasons({"article_id": ["A-1"], "line_ids": ["L-1"], "evidence_grade": "reported"}, {"A-1"},
+                                 {"L-1": "source_number_match"}, {"L-1": "S"}, {"L-1"}, {}, {"L-1": {"A-1"}})
+    check("検査37/型: article_idが文字でなくても止まらず、article_not_foundになる(line_not_in_articleは判定しない)",
+          [r["reason"] for r in reasons], ["article_not_found"])
+    reasons = ve.check37_reasons({"article_id": {"a": 1}, "line_ids": [["x"], 5, "L-1"], "evidence_grade": "primary", "evidence_source_ref": ["S"]},
+                                 {"A-1"}, {"L-1": "source_number_match"}, {"L-1": "S"}, {"L-1"}, {}, {"L-1": {"A-1"}})
+    check("検査37/型: line_idsの中身が文字でない・evidence_source_refがリストでも止まらない",
+          [r["reason"] for r in reasons], ["article_not_found", "line_id_never_existed", "primary_ref_mismatch"])
+
+
+def test_type_validation_end_to_end():
+    """改修27-2第8回の追加2: 全体を動かしたときの動き。仮説JSONが壊れている・仮説の型が正しくない・
+    業種の指定の型が正しくない場合。市場休場の号でも止まらない。"""
+    def run(mutate_hyp_doc=None, mutate_edition=None, raw_hyp_text=None, market_closed=False):
+        with tempfile.TemporaryDirectory() as d:
+            work_dir = Path(d)
+            edition_path, hyp_path, cache_dir, today_str, prev_str = _rebuild_canary_as_today(work_dir)
+            calendar_dir = _write_temp_calendar(work_dir, dt.datetime.strptime(prev_str, "%Y-%m-%d").date() - dt.timedelta(days=3), 60)
+            run_at = fixed_run_at_for_edition(edition_path)
+            if mutate_edition or market_closed:
+                ed = json.loads(edition_path.read_text(encoding="utf-8"))
+                if mutate_edition:
+                    mutate_edition(ed)
+                edition_path.write_text(json.dumps(ed, ensure_ascii=False), encoding="utf-8")
+            if mutate_hyp_doc:
+                doc = json.loads(hyp_path.read_text(encoding="utf-8"))
+                mutate_hyp_doc(doc)
+                hyp_path.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+            if raw_hyp_text is not None:
+                hyp_path.write_text(raw_hyp_text, encoding="utf-8")
+            if market_closed:
+                # 休場日のカレンダー(号の日付を営業日から外す)
+                cal_file = next(calendar_dir.glob("*.json"))
+                cal = json.loads(cal_file.read_text(encoding="utf-8"))
+                cal["business_days"] = [x for x in cal["business_days"] if x != today_str]
+                cal_file.write_text(json.dumps(cal), encoding="utf-8")
+            with _patched_codelist(_fake_codelist_rows(CANARY_CODELIST_ENTRIES)):
+                result = _run_verify(work_dir, edition_path, hyp_path, cache_dir, calendar_dir, run_at_dt=run_at)
+            v = (json.loads(edition_path.read_text(encoding="utf-8")).get("verification") or {}) if result.returncode == 0 else {}
+            kept = [h["hypothesis_id"] for h in json.loads(hyp_path.read_text(encoding="utf-8")).get("hypotheses", [])] if result.returncode == 0 else None
+            return result, v, kept
+
+    result, v, kept = run(raw_hyp_text="{壊れたJSON")
+    check("型の検査/統合: 仮説のJSONが壊れていると、途中で止まらず保存できない(終了コード1。以前は2)", result.returncode, 1)
+    result, v, kept = run(raw_hyp_text='["リスト"]')
+    check("型の検査/統合: 仮説ファイルの一番外側がリストなら、保存できない(終了コード1)", result.returncode, 1)
+
+    result, v, kept = run()
+    check("型の検査/統合(基準): 何も差し替えない見本の号は、H-1〜H-5が残り、型の記録は空", (result.returncode, kept, v.get("field_type_invalid_removed"), v.get("industry_pick_field_type_invalid_removed")),
+          (0, ["H-1", "H-2", "H-3", "H-4", "H-5"], [], []))
+
+    def bad_hyps(doc):
+        doc["hypotheses"][0]["article_id"] = ["A-2"]          # H-1
+        doc["hypotheses"][1]["evidence_source_ref"] = ["C02"]   # H-2
+        doc["hypotheses"][2] = "oops"                          # H-3が文字だけ
+    result, v, kept = run(mutate_hyp_doc=bad_hyps)
+    check("型の検査/統合: article_idがリスト・evidence_source_refがリスト・仮説が文字だけの3社は、終了コード0で、その3社だけが消える",
+          (result.returncode, kept), (0, ["H-4", "H-5"]))
+    check("型の検査/統合: field_type_invalid_removedに、位置・hypothesis_id(文字なら)・項目名が残る",
+          v.get("field_type_invalid_removed"),
+          [{"index": 0, "hypothesis_id": "H-1", "fields": ["article_id"]}, {"index": 1, "hypothesis_id": "H-2", "fields": ["evidence_source_ref"]},
+           {"index": 2, "hypothesis_id": None, "fields": ["(仮説が辞書でない)"]}])
+    check("型の検査/統合: 型の問題で消えた3社も、hypothesis_violationsに数える(見本の号の10に3を足して13)", v.get("hypothesis_violations"), 13)
+
+    def bad_picks(doc):
+        doc["industry_picks"] = [
+            {"article_id": "A-1", "industry": "電気機器", "industry_line_ids": ["L-01"]},
+            {"article_id": ["A-1"], "industry": "電気機器", "industry_line_ids": ["L-01"]},
+            "oops", {"industry": 5}, {"article_id": "A-1", "industry": "電気機器", "industry_line_ids": [1]}]
+    result, v, kept = run(mutate_hyp_doc=bad_picks)
+    check("型の検査/統合: industry_picksの型の問題(リスト・文字・数)は、終了コード0で、その指定だけが取り除かれる",
+          (result.returncode, [(r["index"], r["fields"]) for r in v.get("industry_pick_field_type_invalid_removed") or []]),
+          (0, [(1, ["article_id"]), (2, ["(業種の指定が辞書でない)"]), (3, ["industry"]), (4, ["industry_line_ids"])]))
+
+    result, v, kept = run(mutate_hyp_doc=bad_hyps, market_closed=True)
+    check("型の検査/統合(市場休場): 休場日の号でも、型の問題のある仮説があっても止まらない(終了コード0)。仮説は全件消える",
+          (result.returncode, kept, v.get("market_open_source")), (0, [], "calendar"))
+    result, v, kept = run(mutate_edition=lambda ed: ed["sections"][0]["articles"][0]["lines"][0].update({"text": ["リスト"]}))
+    check("型の検査/統合: 紙面の行のtextがリストなら、保存できない(終了コード1。以前は2)", result.returncode, 1)
+
+
+def test_type_mutation_all_positions():
+    """改修27-2第8回の追加2: 見本の号の紙面と上段のすべての値を、1か所ずつリスト・辞書・数・真偽値に
+    差し替えて、照合全体を動かす。どの場合も終了コード2(スクリプトのエラー)にならないこと。
+    上段の値の差し替えでは、終了コード0で、その仮説だけが消えること。
+    文字として使う値の差し替えでは、紙面は終了コード1になること。"""
+    # 期待する動き(文字として使う値。テスト側に別に書いた一覧)
+    edition_string_keys = {
+        (): ("edition_id", "date", "slot", "generated_at"),
+        "sources": ("source_id", "publisher", "title", "url", "published_at", "content_sha256"),
+        "sections": ("section_id",), "articles": ("article_id", "headline"),
+        "lines": ("line_id", "text", "claimed_mark", "source_ref", "excerpt"), "numbers": ("label",),
+        "inferences": ("text", "falsifier", "check_metric", "check_by"),
+    }
+    hyp_string_keys = ("hypothesis_id", "company_name", "relation_text", "evidence_grade", "evidence_source_ref", "ticker",
+                       "ticker_source", "baseline_date", "baseline_price_type", "baseline_observed_at", "impact_reason", "article_id", "added_by")
+
+    def edition_expects_exit1(path):
+        """文字として使う値の位置(の最後のキーが上の一覧にある)なら、紙面は保存できない。"""
+        last = path[-1]
+        if len(path) == 1:
+            return last in edition_string_keys[()]
+        kinds = {"sources": "sources", "sections": "sections"}
+        # 位置の型を、途中のキーから決める
+        if path[0] == "sources" and len(path) == 3:
+            return last in edition_string_keys["sources"]
+        if path[0] == "sections" and len(path) == 3:
+            return last in edition_string_keys["sections"]
+        if path[0] == "sections" and len(path) == 5 and path[2] == "articles":
+            return last in edition_string_keys["articles"]
+        if path[0] == "sections" and len(path) == 7 and path[4] == "lines":
+            return last in edition_string_keys["lines"]
+        if path[0] == "sections" and len(path) == 7 and path[4] == "inferences":
+            return last in edition_string_keys["inferences"]
+        if path[0] == "sections" and len(path) == 9 and path[4] == "lines" and path[6] == "numbers":
+            return last in edition_string_keys["numbers"]
+        return False
+
+    with tempfile.TemporaryDirectory() as d:
+        work_dir = Path(d)
+        edition_path, hyp_path, cache_dir, today_str, prev_str = _rebuild_canary_as_today(work_dir)
+        calendar_dir = _write_temp_calendar(work_dir, dt.datetime.strptime(prev_str, "%Y-%m-%d").date() - dt.timedelta(days=3), 60)
+        run_at = fixed_run_at_for_edition(edition_path)
+        edition0 = json.loads(edition_path.read_text(encoding="utf-8"))
+        hyp0 = json.loads(hyp_path.read_text(encoding="utf-8"))
+        rows = _fake_codelist_rows(CANARY_CODELIST_ENTRIES)
+
+        def run_once(ed, hy):
+            edition_path.write_text(json.dumps(ed, ensure_ascii=False), encoding="utf-8")
+            hyp_path.write_text(json.dumps(hy, ensure_ascii=False), encoding="utf-8")
+            result = _run_verify(work_dir, edition_path, hyp_path, cache_dir, calendar_dir, run_at_dt=run_at)
+            kept = None
+            if result.returncode == 0:
+                kept = [h.get("hypothesis_id") for h in json.loads(hyp_path.read_text(encoding="utf-8")).get("hypotheses", [])]
+                verification = json.loads(edition_path.read_text(encoding="utf-8")).get("verification") or {}
+            else:
+                verification = {}
+            return result, kept, verification
+
+        stats = {"runs": 0, "exit0": 0, "exit1": 0, "exit2": 0}
+        bad_exit2 = []
+        wrong_edition = []
+        wrong_hyp = []
+        with _patched_codelist(rows):
+            _, base_kept, _ = run_once(copy.deepcopy(edition0), copy.deepcopy(hyp0))
+            check("型の差し替え/基準: 何も差し替えない見本の号は、H-1〜H-5が残る", base_kept, ["H-1", "H-2", "H-3", "H-4", "H-5"])
+
+            edition_paths = _mutation_paths(edition0)
+            for path in edition_paths:
+                for kind, value in TYPE_MUTATIONS.items():
+                    ed = copy.deepcopy(edition0)
+                    _set_by_path(ed, path, copy.deepcopy(value))
+                    result, kept, _ = run_once(ed, copy.deepcopy(hyp0))
+                    stats["runs"] += 1
+                    stats[f"exit{result.returncode}" if result.returncode in (0, 1, 2) else "exit2"] += 1
+                    if result.returncode not in (0, 1):
+                        bad_exit2.append(("紙面", path, kind, result.stderr.strip()[-80:]))
+                    elif edition_expects_exit1(path) and result.returncode != 1:
+                        wrong_edition.append((path, kind, result.returncode))
+            edition_runs = stats["runs"]
+
+            hyp_paths = _mutation_paths(hyp0)
+            hyp_runs_start = stats["runs"]
+            for path in hyp_paths:
+                for kind, value in TYPE_MUTATIONS.items():
+                    hy = copy.deepcopy(hyp0)
+                    _set_by_path(hy, path, copy.deepcopy(value))
+                    result, kept, verification = run_once(copy.deepcopy(edition0), hy)
+                    stats["runs"] += 1
+                    stats[f"exit{result.returncode}" if result.returncode in (0, 1, 2) else "exit2"] += 1
+                    if result.returncode not in (0, 1):
+                        bad_exit2.append(("上段", path, kind, result.stderr.strip()[-80:]))
+                        continue
+                    if len(path) >= 2 and path[0] == "hypotheses":
+                        index = path[1]
+                        original_id = hyp0["hypotheses"][index].get("hypothesis_id")
+                        expected_kept = [h for h in base_kept if h != original_id]
+                        problem = None
+                        if result.returncode != 0:
+                            problem = "終了コードが0でない"
+                        elif kept != expected_kept:
+                            problem = f"残る仮説が違う: {kept}"
+                        else:
+                            recorded = [r["index"] for r in verification.get("field_type_invalid_removed") or []]
+                            replaced_whole = len(path) == 2
+                            key = path[2] if len(path) >= 3 else None
+                            expect_recorded = (replaced_whole and kind != "dict") or (not replaced_whole and key in hyp_string_keys + ("line_ids",))
+                            if expect_recorded and index not in recorded:
+                                problem = "型の問題で削除した記録が無い"
+                            if not expect_recorded and index in recorded:
+                                problem = "記録すべきでないのに記録された"
+                        if problem:
+                            wrong_hyp.append((path, kind, problem))
+            hyp_runs = stats["runs"] - hyp_runs_start
+
+    check(f"型の差し替え/紙面: 紙面の{len(edition_paths)}か所を、リスト・辞書・数・真偽値に1か所ずつ差し替えた{edition_runs}通りで、終了コード2は1件も無い",
+          [x for x in bad_exit2 if x[0] == "紙面"], [])
+    check("型の差し替え/紙面: 文字として使う値(出典・記事・行・数字・推論・紙面の項目)の差し替えは、すべて終了コード1(保存できない)", wrong_edition, [])
+    check(f"型の差し替え/上段: 上段の{len(hyp_paths)}か所を、4通りに差し替えた{hyp_runs}通りで、終了コード2は1件も無い",
+          [x for x in bad_exit2 if x[0] == "上段"], [])
+    check("型の差し替え/上段: 仮説の値を差し替えた場合は、終了コード0で、その仮説だけが消える(他の仮説は残る)。"
+          "文字として使う値・line_idsの中身・仮説自体が辞書でない場合は、型の問題(field_type_invalid_removed)として記録される", wrong_hyp, [])
+    check("型の差し替え/合計: 試した数は、紙面と上段の位置数の4倍(リスト・辞書・数・真偽値)", stats["runs"], (len(edition_paths) + len(hyp_paths)) * 4)
+    check("型の差し替え/合計: 終了コード2は0件", stats["exit2"], 0)
+
+
 def test_canary_edition_codelist_unavailable():
     """改修27-2第5回(Q6): 見本の号を、コードリストが読めない日(load_codelistがNoneを返す)として
     通す。検査11の「より長い別の社名の一部」の判定だけを飛ばし、そのことを記録する
@@ -7644,6 +7963,11 @@ def main():
     test_check37_line_not_in_article()
     test_record_dropped_lines()
     test_run_hypothesis_checks_check37_integration()
+
+    # 改修27-2(第8回の追加2): 値の型の検査(文字でもnullでもない値で止まらない)のテスト。
+    test_type_validation_units()
+    test_type_validation_end_to_end()
+    test_type_mutation_all_positions()
 
     # 改修27-1(4-15): 見本の号(Canary)。
     test_canary_edition()
