@@ -2771,6 +2771,45 @@ def _write_fake_codelist(work_dir, rows):
     (codelist_dir / "EdinetcodeDlInfo_2026-09-24.csv").write_bytes(csv_text.encode("cp932"))
 
 
+def _fake_codelist_rows(entries):
+    """改修27-2第5回(Q4): 架空のコードリストの行(コードリストのCSVを読んだときと同じ、列名をキーにした
+    辞書)を作る。entries: (会社名, 証券コード5桁 or "", 上場区分)のタプルのリスト。
+    ファイルには書かず、_patched_codelist()でedinet_codelist.load_codelistを置き換えて渡す
+    (本番の読み込みの経路には何も置かない)。"""
+    rows = []
+    for number, (name, sec_code, listed) in enumerate(entries, start=1):
+        rows.append({
+            ec.COL_EDINET_CODE: f"E9{number:04d}", ec.COL_FILER_NAME: name, ec.COL_INDUSTRY: "電気機器",
+            ec.COL_LISTED: listed, ec.COL_CAPITAL: "1000", ec.COL_TICKER_RAW: sec_code,
+        })
+    return rows
+
+
+class _patched_codelist:
+    """with文の間だけ、edinet_codelist.load_codelistが(rows, 取得日)を返すように置き換える。
+    rowsがNoneなら「コードリストが読めない日」(本番の(None, None)と同じ)になる。"""
+    def __init__(self, rows):
+        self.rows = rows
+
+    def __enter__(self):
+        self.original = ec.load_codelist
+        rows = self.rows
+        ec.load_codelist = lambda: (rows, None if rows is None else "2026-09-24")
+        return self
+
+    def __exit__(self, *exc):
+        ec.load_codelist = self.original
+        return False
+
+
+CANARY_CODELIST_ENTRIES = [
+    ("カナリア物産株式会社", "11110", "上場"), ("カナリア電機株式会社", "22220", "上場"),
+    ("カナリア物流株式会社", "44440", "上場"),
+    # H-6(カナリア食品)の名前は、この長い社名(非上場でもよい)の一部としてしか本文に出ない。
+    ("カナリア食品開発株式会社", "", "非上場"),
+]
+
+
 def _assert_testdata_untouched(label):
     status = subprocess.run(
         ["git", "status", "--porcelain", "--", "scripts/testdata"],
@@ -3294,13 +3333,20 @@ def test_edition_date_check_cannot_be_bypassed_by_forged_first_run():
     _assert_testdata_untouched("検査24/捏造対策テスト")
 
 
-def test_evidence_downgrade_target_is_reported():
-    """修正5: 検査11に不合格の仮説は、evidence_gradeがinferredではなくreportedになる。"""
-    hyps = [{"evidence_grade": "primary", "evidence_source_ref": None, "company_name": "テスト物産"}]
-    downgraded, unreadable = ve.run_check_hypothesis_evidence(hyps, {}, ".")
-    check("検査11/修正5: 不合格の仮説はevidence_gradeがreportedになる", hyps[0]["evidence_grade"], "reported")
-    check("検査11/修正5: primary_evidence_unverifiedの件数は1", downgraded, 1)
-    check("検査11/修正5: evidence_source_unreadableの件数は0", unreadable, 0)
+def test_check11_removes_instead_of_downgrading():
+    """改修27-2第5回(S5・D4): 検査11に不合格のprimaryの仮説は、reportedへ格下げではなく削除する。
+    文字コードで読めない場合も削除する(理由を分けて記録)。reportedの会社は対象外。
+    (以前は「不合格の仮説はevidence_gradeがreportedになる」を確かめていた。)"""
+    hyps = [
+        {"hypothesis_id": "H-1", "evidence_grade": "primary", "evidence_source_ref": None, "company_name": "テスト物産"},
+        {"hypothesis_id": "H-2", "evidence_grade": "reported", "evidence_source_ref": None, "company_name": "テスト電機"},
+    ]
+    result = ve.run_check_hypothesis_evidence(hyps, {}, ".")
+    check("検査11/削除: 根拠の出典番号が空のprimaryは削除される(格下げして残さない)", [h["hypothesis_id"] for h in result["kept"]], ["H-2"])
+    check("検査11/削除: 削除の記録に仮説ID・社名・理由が入る", result["removed"],
+          [{"hypothesis_id": "H-1", "company_name": "テスト物産", "reason": "evidence_source_ref_missing"}])
+    check("検査11/削除: 元の仮説のevidence_gradeを書き換えない(reportedにしない)", hyps[0]["evidence_grade"], "primary")
+    check("検査11/対象外: reportedの会社(H-2)は出典番号が空でも検査11の対象外で、そのまま残る", hyps[1] in result["kept"], True)
 
 
 def test_check_hypothesis_baseline_late_input():
@@ -5920,6 +5966,219 @@ def test_published_date_only_required():
               (stale, unknown, by_kind, kept_ids(e)), (1, 0, {"timed": 0, "date_only": 1}, []))
 
 
+def test_find_company_name_stage():
+    """改修27-2第5回(S5・Q6): 会社名が本文に出ているかを3段階(そのまま/NFKC/照合名)で試す。
+    より長い別の社名の一部としてしか出ていない場合は一致としない(コードリストがあるとき)。"""
+    generic = pic.load_generic_words()
+
+    def stage(name, body, longer_names=None):
+        index = None
+        if longer_names is not None:
+            rows = _fake_codelist_rows([(n, "", "非上場") for n in longer_names])
+            index = ve.build_longer_name_index(rows)
+        return ve.find_company_name_stage(name, body, index, generic)
+
+    # --- 段階 ---
+    check("検査11/段階: 社名がそのまま本文にあれば、最初の段階(raw)で見つかる",
+          stage("ＧＭＯインターネット株式会社", "提出者はＧＭＯインターネット株式会社である。"), ("raw", False))
+    check("検査11/段階(試作5回目のＧＭＯコマース型): 仮説は全角・本文は半角なら、そのままでは見つからず、NFKCで見つかる",
+          stage("ＧＭＯコマース株式会社", "取得対象はGMOコマース株式会社である。"), ("nfkc", False))
+    check("検査11/段階: 法人格・長音を除いた照合名で見つかる(株式会社フェローテック→本文はフェローテック)",
+          stage("株式会社フェローテック", "フェローテックは公開買付けを行う。"), ("match_name", False))
+    check("検査11/段階: 照合名でも直後の文字の確認は下段の選定と同じ(フェローテックグループのように直後がカタカナなら一致しない)",
+          stage("株式会社フェローテック", "フェローテックグループは公開買付けを行う。"), (None, False))
+    check("検査11/段階: 一般語辞書に載る照合名(コア)は、この段階では使わない",
+          stage("コア株式会社", "物価のコアは上昇した。"), (None, False))
+    check("検査11/段階: 本文に社名が無ければ見つからない(長い社名の問題でもない)",
+          stage("テスト物産株式会社", "無関係な会社の開示。", ["テスト物産開発株式会社"]), (None, False))
+    check("検査11/段階: 空の社名は見つからない", stage("", "本文"), (None, False))
+
+    # --- より長い別の社名の一部 ---
+    check("検査11/長い社名: 照合名ニックスが、本文ではサンジェニックスの中にしか無ければ一致としない(消える)",
+          stage("株式会社ニックス", "サンジェニックスは新製品を発表した。", ["株式会社ニックス", "株式会社サンジェニックス"]), (None, True))
+    check("検査11/長い社名: 長い社名の中にもあり、単独でも1か所あれば一致とする(残る)",
+          stage("株式会社ニックス", "サンジェニックスは新製品を発表した。ニックスも発表した。", ["株式会社ニックス", "株式会社サンジェニックス"]),
+          ("match_name", False))
+    check("検査11/長い社名: 長い社名(サンジェニックス)がコードリストに無ければ、判定できないので一致とする",
+          stage("株式会社ニックス", "サンジェニックスは新製品を発表した。", ["株式会社ニックス"]), ("match_name", False))
+    check("検査11/長い社名: コードリストが読めない(None)ときは、この判定を飛ばして一致とする",
+          stage("株式会社ニックス", "サンジェニックスは新製品を発表した。", None), ("match_name", False))
+    check("検査11/長い社名: 法人格つきの社名(raw)が、法人格つきの長い社名の一部としてしか無ければ一致としない",
+          stage("株式会社ニックス", "株式会社ニックスジャパンの発表。", ["株式会社ニックス", "株式会社ニックスジャパン"]), (None, True))
+    check("検査11/長い社名: 自分自身の別の書き方(株式会社ニックス)の一部は、長い別の社名とみなさない(ニックスは残る)",
+          stage("ニックス", "株式会社ニックスは発表した。", ["株式会社ニックス"]), ("raw", False))
+    check("検査11/長い社名: 同じ社名のまま前後に別の語がつく別会社(ＧＭＯインターネットグループ)の中にしか無ければ一致としない",
+          stage("ＧＭＯインターネット", "ＧＭＯインターネットグループ株式会社の発表。", ["ＧＭＯインターネットグループ株式会社"]), (None, True))
+    check("検査11/長い社名: 同じ号に長い社名と単独の社名(ＧＭＯインターネット株式会社)が両方あれば一致とする",
+          stage("ＧＭＯインターネット株式会社", "ＧＭＯインターネットグループ株式会社の子会社であるＧＭＯインターネット株式会社が提出した。",
+                ["ＧＭＯインターネットグループ株式会社", "ＧＭＯインターネット株式会社"]), ("raw", False))
+    check("検査11/長い社名: この判定は最初に見つかった段階(raw)でも行う(そのまま見つかっても、すべて長い社名の中なら一致としない)",
+          stage("カナリア食品", "カナリア食品開発株式会社が提出した。", ["カナリア食品開発株式会社"]), (None, True))
+    check("検査11/長い社名: 上場・非上場を問わずコードリストの全件を長い社名の候補にする(非上場のサンジェニックス)",
+          ve.find_company_name_stage("ニックス", "サンジェニックスの発表。", ve.build_longer_name_index(
+              _fake_codelist_rows([("株式会社サンジェニックス", "", "非上場")])), generic), (None, True))
+
+
+def test_run_check_hypothesis_evidence_stages_and_reasons():
+    """改修27-2第5回(S5): 検査11の段階の記録(name_match_stage)と、削除の理由の分け方。"""
+    rows = _fake_codelist_rows([
+        ("株式会社ニックス", "11110", "上場"), ("株式会社サンジェニックス", "22220", "上場"),
+        ("テスト物産開発株式会社", "", "非上場"),
+    ])
+    with tempfile.TemporaryDirectory() as d:
+        write(d, "SRC-RAW.txt", "テスト物産株式会社が提出した。".encode("utf-8"))
+        write(d, "SRC-NFKC.txt", "GMOコマース株式会社が対象である。".encode("utf-8"))
+        write(d, "SRC-MATCH.txt", "フェローテックは公開買付けを行う。".encode("utf-8"))
+        write(d, "SRC-LONGER-ONLY.txt", "サンジェニックスは新製品を発表した。".encode("utf-8"))
+        write(d, "SRC-LONGER-AND-ALONE.txt", "サンジェニックスは新製品を発表した。ニックスも発表した。".encode("utf-8"))
+        write(d, "SRC-NONAME.txt", "無関係な会社の開示。".encode("utf-8"))
+        write(d, "SRC-BROKEN.txt", b"\x83\xff\x00\x81")
+        write(d, "SRC-LONG-COMPANY.txt", "テスト物産開発株式会社が提出した。".encode("utf-8"))
+        sources = {sid: {"source_id": sid, "usage": "quotable"} for sid in (
+            "SRC-RAW", "SRC-NFKC", "SRC-MATCH", "SRC-LONGER-ONLY", "SRC-LONGER-AND-ALONE", "SRC-NONAME",
+            "SRC-BROKEN", "SRC-LONG-COMPANY")}
+        sources["SRC-LINKONLY"] = {"source_id": "SRC-LINKONLY", "usage": "link_only"}
+
+        def hyp(hid, name, ref, grade="primary"):
+            return {"hypothesis_id": hid, "company_name": name, "evidence_grade": grade, "evidence_source_ref": ref}
+
+        hyps = [
+            hyp("H-1", "テスト物産株式会社", "SRC-RAW"),
+            hyp("H-2", "ＧＭＯコマース株式会社", "SRC-NFKC"),
+            hyp("H-3", "株式会社フェローテック", "SRC-MATCH"),
+            hyp("H-4", "株式会社ニックス", "SRC-LONGER-ONLY"),
+            hyp("H-5", "株式会社ニックス", "SRC-LONGER-AND-ALONE"),
+            hyp("H-6", "テスト電機株式会社", "SRC-NONAME"),
+            hyp("H-7", "テスト物産株式会社", "SRC-BROKEN"),
+            hyp("H-8", "テスト物産株式会社", "SRC-LINKONLY"),
+            hyp("H-9", "テスト物産株式会社", "SRC-NOPE"),
+            hyp("H-10", "テスト物産株式会社", None),
+            hyp("H-11", "テスト無関係株式会社", "SRC-NONAME", grade="reported"),
+            hyp("H-12", "テスト物産開発株式会社", "SRC-LONG-COMPANY"),
+        ]
+        result = ve.run_check_hypothesis_evidence(hyps, sources, d, rows)
+
+    check("検査11/統合: 残るのは、そのまま(H-1)・NFKC(H-2)・照合名(H-3)・長い社名と単独の両方(H-5)・"
+          "reportedで対象外(H-11)・長い社名そのもの(H-12)",
+          [h["hypothesis_id"] for h in result["kept"]], ["H-1", "H-2", "H-3", "H-5", "H-11", "H-12"])
+    check("検査11/統合: 削除される会社と理由を分けて記録する(長い社名の中にしか無い・本文に社名が無い・"
+          "文字コードで読めない・リンクだけ・出典が見つからない・出典番号が空)",
+          [(r["hypothesis_id"], r["reason"]) for r in result["removed"]],
+          [("H-4", "evidence_company_name_only_in_longer_name"), ("H-6", "evidence_company_name_not_found"),
+           ("H-7", "evidence_source_unreadable"), ("H-8", "evidence_source_link_only"),
+           ("H-9", "evidence_source_not_found"), ("H-10", "evidence_source_ref_missing")])
+    check("検査11/統合: 見つかった段階の件数。H-1とH-12はraw、H-2はnfkc、H-3とH-5はmatch_name",
+          result["name_match_stage"], {"raw": 2, "nfkc": 1, "match_name": 2})
+    check("検査11/統合: コードリストがあるので、長い社名の判定を飛ばした件数は0", result["longer_name_check_skipped"], 0)
+    check("検査11/統合: reported(H-11)は検査11の対象外なので、段階の件数にも削除の記録にも入らない",
+          "H-11" in [r["hypothesis_id"] for r in result["removed"]], False)
+
+
+def test_check11_codelist_unavailable_skips_longer_name_check():
+    """改修27-2第5回(Q6): コードリストが読めない日は、「より長い別の社名の一部」の判定だけを飛ばし、
+    飛ばした件数を記録する。そのままの一致・NFKC・照合名の判定は行う。"""
+    with tempfile.TemporaryDirectory() as d:
+        write(d, "SRC-LONGER-ONLY.txt", "サンジェニックスは新製品を発表した。".encode("utf-8"))
+        write(d, "SRC-NONAME.txt", "無関係な会社の開示。".encode("utf-8"))
+        write(d, "SRC-NFKC.txt", "GMOコマース株式会社が対象である。".encode("utf-8"))
+        sources = {sid: {"source_id": sid, "usage": "quotable"} for sid in ("SRC-LONGER-ONLY", "SRC-NONAME", "SRC-NFKC")}
+        hyps = [
+            {"hypothesis_id": "H-1", "company_name": "株式会社ニックス", "evidence_grade": "primary", "evidence_source_ref": "SRC-LONGER-ONLY"},
+            {"hypothesis_id": "H-2", "company_name": "テスト電機株式会社", "evidence_grade": "primary", "evidence_source_ref": "SRC-NONAME"},
+            {"hypothesis_id": "H-3", "company_name": "ＧＭＯコマース株式会社", "evidence_grade": "primary", "evidence_source_ref": "SRC-NFKC"},
+            {"hypothesis_id": "H-4", "company_name": "テスト無関係株式会社", "evidence_grade": "reported", "evidence_source_ref": None},
+        ]
+        result = ve.run_check_hypothesis_evidence(hyps, sources, d, None)
+    check("検査11/コードリスト無し: 長い社名の判定だけ飛ばすので、サンジェニックスの中のニックス(H-1)は残る。本文に無い(H-2)は消える",
+          ([h["hypothesis_id"] for h in result["kept"]], [(r["hypothesis_id"], r["reason"]) for r in result["removed"]]),
+          (["H-1", "H-3", "H-4"], [("H-2", "evidence_company_name_not_found")]))
+    check("検査11/コードリスト無し: 飛ばした件数は、検査したprimaryの3件(reportedは数えない)", result["longer_name_check_skipped"], 3)
+    check("検査11/コードリスト無し: NFKC・照合名の判定は行う(H-1は照合名、H-3はNFKC)",
+          result["name_match_stage"], {"raw": 0, "nfkc": 1, "match_name": 1})
+    check("検査11/コードリスト無し: primaryが1件も無ければ、飛ばした件数は0",
+          ve.run_check_hypothesis_evidence([hyps[3]], sources, ".", None)["longer_name_check_skipped"], 0)
+
+
+def test_run_hypothesis_checks_records_check11_keys():
+    """改修27-2第5回(S5・S15): run_hypothesis_checksが、検査11の削除を理由別に数え、記録のキーを
+    (市場休場で仮説を全件消す号でも)そろえて返す。"""
+    def run(market_open, codelist_rows):
+        edition = {"market_open": market_open, "sources": [{"source_id": "S-1", "usage": "quotable"}], "sections": [], "slot": "evening", "date": "2026-09-24"}
+        doc = {"hypotheses": [{"hypothesis_id": "H-1", "company_name": "テスト物産", "evidence_grade": "primary", "evidence_source_ref": None}]}
+        return ve.run_hypothesis_checks(doc, edition, [], [], ".", None, codelist_rows), doc
+
+    (violations, reasons, extra), doc = run(True, None)
+    check("検査11/統合: 検査11で削除した会社は、理由別にreasonsへ数えられ、仮説から消える",
+          (violations, reasons.get("evidence_source_ref_missing"), doc["hypotheses"]), (1, 1, []))
+    check("検査11/統合: check11_removedに社名と理由が入る",
+          extra["check11_removed"], [{"hypothesis_id": "H-1", "company_name": "テスト物産", "reason": "evidence_source_ref_missing"}])
+    check("検査11/統合: 格下げの記録(primary_evidence_unverified)はもう出ない", "primary_evidence_unverified" in reasons, False)
+    check("検査11/統合: コードリストがNoneなら、飛ばした件数が記録される", extra["check11_longer_name_check_skipped"], 1)
+
+    (violations2, reasons2, extra2), doc2 = run(False, None)
+    check("検査11/統合: 市場休場で全件削除する号でも、キーはそろう(空・0)",
+          (extra2["check11_removed"], extra2["name_match_stage"], extra2["check11_longer_name_check_skipped"]),
+          ([], {"raw": 0, "nfkc": 0, "match_name": 0}, 0))
+
+
+def test_dictionaries_load_regardless_of_cwd():
+    """改修27-2第5回: 一般語辞書(generic_words.txt)とエイリアス表(aliases.csv)を、実行した場所
+    (カレントディレクトリ)ではなく、pick_industry_companies.pyの置き場所から読む。"""
+    check("辞書/パス: 一般語辞書のパスはスクリプトの置き場所(絶対パス)から決まる",
+          (pic.GENERIC_WORDS_PATH.is_absolute(), pic.GENERIC_WORDS_PATH.parent == Path(pic.__file__).resolve().parent), (True, True))
+    check("辞書/パス: エイリアス表のパスも同じ", (pic.ALIASES_PATH.is_absolute(), pic.ALIASES_PATH.parent == Path(pic.__file__).resolve().parent), (True, True))
+    with tempfile.TemporaryDirectory() as d:
+        prev_cwd = os.getcwd()
+        os.chdir(d)  # リポジトリの外(scripts/generic_words.txtが無い場所)から実行する
+        err = io.StringIO()
+        try:
+            with contextlib.redirect_stderr(err):
+                words = pic.load_generic_words()
+                aliases = pic.load_aliases()
+        finally:
+            os.chdir(prev_cwd)
+    check("辞書/別の場所から実行: 一般語辞書が空にならない(コアが入っている)", "コア" in words and len(words) > 0, True)
+    check("辞書/別の場所から実行: エイリアス表が空にならない", len(aliases) > 0, True)
+    check("辞書/別の場所から実行: 「見つからない」の表示(標準エラー)が出ない", err.getvalue(), "")
+    # 照合の本体を別の場所から実行しても、辞書が見つからない表示が出ない。
+    with tempfile.TemporaryDirectory() as d:
+        work_dir = Path(d)
+        edition_path, hyp_path, cache_dir, today_str, prev_str = _rebuild_canary_as_today(work_dir)
+        calendar_dir = _write_temp_calendar(work_dir, dt.datetime.strptime(prev_str, "%Y-%m-%d").date() - dt.timedelta(days=3), 60)
+        with _patched_codelist(_fake_codelist_rows([(n, c, l) for n, c, l in CANARY_CODELIST_ENTRIES])):
+            result = _run_verify(work_dir, edition_path, hyp_path, cache_dir, calendar_dir)
+    check("辞書/別の場所から実行: 照合の本体の実行中に「見つからない」の表示が出ない(以前は毎回出ていた)",
+          ("見つかりません" in result.stderr, result.returncode), (False, 0))
+
+
+def test_canary_edition_codelist_unavailable():
+    """改修27-2第5回(Q6): 見本の号を、コードリストが読めない日(load_codelistがNoneを返す)として
+    通す。検査11の「より長い別の社名の一部」の判定だけを飛ばし、そのことを記録する
+    (そのままの一致・NFKC・照合名の判定は行う)。"""
+    with tempfile.TemporaryDirectory() as d:
+        work_dir = Path(d)
+        edition_path, hyp_path, cache_dir, today_str, prev_str = _rebuild_canary_as_today(work_dir)
+        calendar_dir = _write_temp_calendar(
+            work_dir, dt.datetime.strptime(prev_str, "%Y-%m-%d").date() - dt.timedelta(days=3), 60,
+        )
+        with _patched_codelist(None):
+            result = _run_verify(work_dir, edition_path, hyp_path, cache_dir, calendar_dir)
+        check("見本の号(コードリスト無し)/正例: 正常終了する(終了コード0)", result.returncode, 0)
+        v = json.loads(edition_path.read_text(encoding="utf-8")).get("verification") or {}
+    check(
+        "見本の号(コードリスト無し)/正例(Q6): 長い社名の判定を飛ばした件数は、検査したprimary(H-5・H-6・H-7)の3件で、"
+        "codelist_unavailableが真",
+        (v.get("check11_longer_name_check_skipped"), v.get("codelist_unavailable")), (3, True),
+    )
+    check(
+        "見本の号(コードリスト無し)/正例(Q6): 長い社名の判定を飛ばすので、H-6(カナリア食品)は検査11では消えない。"
+        "本文に社名が無いH-7だけが検査11で消える",
+        [(r["hypothesis_id"], r["reason"]) for r in v.get("check11_removed") or []],
+        [("H-7", "evidence_company_name_not_found")],
+    )
+    check("見本の号(コードリスト無し)/正例: 段階の件数はraw 2(H-5・H-6)", v.get("name_match_stage"), {"raw": 2, "nfkc": 0, "match_name": 0})
+
+
 def test_canary_edition():
     """改修27-1(4-15): 見本の号(scripts/testdata/canary/)を、実際にverify_edition.pyの
     CLI全体に通して確かめる。第7.1版どおり10個の値(generated_at・baseline_late・
@@ -5939,7 +6198,10 @@ def test_canary_edition():
             work_dir, dt.datetime.strptime(prev_str, "%Y-%m-%d").date() - dt.timedelta(days=3), 60,
         )
 
-        result = _run_verify(work_dir, edition_path, hyp_path, cache_dir, calendar_dir)
+        # 改修27-2第5回(Q4): 架空のコードリストは、テストの中でedinet_codelist.load_codelistを
+        # 置き換えて渡す(本番の読み込みの経路には何も置かない)。
+        with _patched_codelist(_fake_codelist_rows(CANARY_CODELIST_ENTRIES)):
+            result = _run_verify(work_dir, edition_path, hyp_path, cache_dir, calendar_dir)
         check("見本の号/正例: 正常終了する(終了コード0)", result.returncode, 0)
 
         after_edition = json.loads(edition_path.read_text(encoding="utf-8"))
@@ -5948,18 +6210,22 @@ def test_canary_edition():
         business_days = ve.load_business_days(str(calendar_dir))
 
         # --- 出典の数(第5回で必ず直すこと1: 9つに揃える) ---
-        check("見本の号/正例: 出典は15(書類一覧2+C01〜C13。27-2第1回でC08・C09、第3回でC10、第4回でC11〜C13を足した)", len(after_edition.get("sources") or []), 15)
+        check("見本の号/正例: 出典は17(書類一覧2+C01〜C15。27-2第1回でC08・C09、第3回でC10、第4回でC11〜C13、第5回でC14・C15を足した)", len(after_edition.get("sources") or []), 17)
 
         # --- 会社・行が消えないこと ---
-        check("見本の号/正例: 上段の会社は4社とも残る", len(after_hyp.get("hypotheses") or []), 4)
         check(
-            "見本の号/正例: hypothesis_violationsは0(検査で削除された会社は無い)",
-            v.get("hypothesis_violations"), 0,
+            "見本の号/正例: 上段の会社はH-1〜H-5の5社が残る(reportedの4社と、本文に社名があるprimaryのH-5。"
+            "27-2第5回でH-5〜H-7を足し、H-6・H-7は検査11で消える)",
+            [h["hypothesis_id"] for h in after_hyp.get("hypotheses") or []], ["H-1", "H-2", "H-3", "H-4", "H-5"],
         )
         check(
-            "見本の号/正例: 検査時点の本文の行は16行(27-2第1回でL-09・L-10、第3回でL-11・L-12、第4回でL-13〜L-16を足した。"
-            "L-12・L-13・L-15は検査36・検査10で落ちるが、行の数は落とす前に数える)",
-            v.get("lines_total"), 16,
+            "見本の号/正例: hypothesis_violationsは2(検査11で消えたH-6・H-7の2社)",
+            v.get("hypothesis_violations"), 2,
+        )
+        check(
+            "見本の号/正例: 検査時点の本文の行は18行(27-2第1回でL-09・L-10、第3回でL-11・L-12、第4回でL-13〜L-16、"
+            "第5回でL-17・L-18を足した。L-12・L-13・L-15は検査36・検査10で落ちるが、行の数は落とす前に数える)",
+            v.get("lines_total"), 18,
         )
         check("見本の号/正例: 出典と数字が一致した行は4件", v.get("passed"), 4)
 
@@ -6038,8 +6304,8 @@ def test_canary_edition():
         # --- 4-6: attribution_overwritten(第5回で必ず直すこと2: 出典・行の両方を
         #     合わせた第4回の数え方で計算し直した値) ---
         check(
-            "見本の号/正例: attribution_overwrittenは28(出典14件+source_refを持つ行14件。題名が空のC09とL-10はひな形が作れず、nullのままなので数えない)",
-            v.get("attribution_overwritten"), 28,
+            "見本の号/正例: attribution_overwrittenは32(出典16件+source_refを持つ行16件。題名が空のC09とL-10はひな形が作れず、nullのままなので数えない)",
+            v.get("attribution_overwritten"), 32,
         )
         check(
             "見本の号/正例: attribution_generation_skippedは2(題名が空のC09と、それを参照するL-10)",
@@ -6096,8 +6362,8 @@ def test_canary_edition():
         )
         check(
             "見本の号/正例(27-2 S13): reportedの上段4社は、いずれも定型文ではないため4件とも記録され、会社は消えない",
-            (v.get("reported_relation_text_mismatch"), len(after_hyp["hypotheses"])),
-            ({"count": 4, "hypothesis_ids": ["H-1", "H-2", "H-3", "H-4"]}, 4),
+            (v.get("reported_relation_text_mismatch"), [h["hypothesis_id"] for h in after_hyp["hypotheses"]][:4]),
+            ({"count": 4, "hypothesis_ids": ["H-1", "H-2", "H-3", "H-4"]}, ["H-1", "H-2", "H-3", "H-4"]),
         )
 
         # --- 改修27-2第3回: S4(検査10を出典の種類で分ける) ---
@@ -6147,9 +6413,33 @@ def test_canary_edition():
             (False, 1, {"timed": 0, "date_only": 1}, 0),
         )
         check(
-            "見本の号/負例(27-2 S2): 時刻付きの出典C01〜C07は記録だけで(published_at_unverified_hitsは7のまま)、行は落とさない",
+            "見本の号/負例(27-2 S2): 時刻付きの出典(C01〜C07と、第5回で足したEDINETのC14・C15)は記録だけで、行は落とさない",
             (v.get("published_at_unverified_hits"), sorted(v.get("published_at_unverified_sources") or [])),
-            (7, ["C01", "C02", "C03", "C04", "C05", "C06", "C07"]),
+            (9, ["C01", "C02", "C03", "C04", "C05", "C06", "C07", "C14", "C15"]),
+        )
+
+        # --- 改修27-2第5回: S5(検査11を削除にする)・Q6(長い社名の一部)・Q5(EDINETの書類から出したprimary) ---
+        check(
+            "見本の号/正例(27-2 S5): EDINETの書類(C14)に社名がそのまま書かれているprimaryのH-5は残り、見つかった段階はraw(1件)。"
+            "reportedの4社(H-1〜H-4)は検査11の対象外で、段階の件数にも入らない",
+            (v.get("name_match_stage"), by_hyp["H-5"].get("evidence_grade"), by_hyp["H-5"].get("evidence_role")),
+            ({"raw": 1, "nfkc": 0, "match_name": 0}, "primary", "filer_self"),
+        )
+        check(
+            "見本の号/正例(27-2 S5): H-6(カナリア食品)は、本文ではカナリア食品開発株式会社(コードリストの長い社名)の中にしか出ないので削除、"
+            "H-7(カナリア建設株式会社)は本文に社名が無いので削除。理由が分けて記録される",
+            v.get("check11_removed"),
+            [{"hypothesis_id": "H-6", "company_name": "カナリア食品", "reason": "evidence_company_name_only_in_longer_name"},
+             {"hypothesis_id": "H-7", "company_name": "カナリア建設株式会社", "reason": "evidence_company_name_not_found"}],
+        )
+        check(
+            "見本の号/正例(27-2 Q6): コードリストがあるので、長い社名の判定を飛ばした件数は0",
+            (v.get("check11_longer_name_check_skipped"), v.get("codelist_unavailable")), (0, False),
+        )
+        check(
+            "見本の号/負例(27-2 S5): reportedの4社(H-1〜H-4)は検査11で格下げも削除もされず、reportedのまま残る",
+            [(h["hypothesis_id"], h["evidence_grade"]) for h in after_hyp["hypotheses"][:4]],
+            [("H-1", "reported"), ("H-2", "reported"), ("H-3", "reported"), ("H-4", "reported")],
         )
 
         # --- 4-11: RECENT-HEADLINES.jsonを置いていないので失敗として記録される(号は止まらない) ---
@@ -6498,7 +6788,6 @@ def main():
     test_check_edition_date()
     test_edition_date_check_always_runs_even_with_first_run()
     test_edition_date_check_cannot_be_bypassed_by_forged_first_run()
-    test_evidence_downgrade_target_is_reported()
     test_check_hypothesis_baseline_late_input()
 
     # 改修27-1(第1回): decision1(falsifier)・4-5(観察窓の機械化)・4-1(generated_atの
@@ -6569,8 +6858,18 @@ def main():
     test_date_found_in_text()
     test_published_date_only_required()
 
+    # 改修27-2(第5回): 検査11を削除にする(S5)・照合名の段階・より長い別の社名の一部(Q6)・
+    # 辞書の読み込み場所のテスト。
+    test_check11_removes_instead_of_downgrading()
+    test_find_company_name_stage()
+    test_run_check_hypothesis_evidence_stages_and_reasons()
+    test_check11_codelist_unavailable_skips_longer_name_check()
+    test_run_hypothesis_checks_records_check11_keys()
+    test_dictionaries_load_regardless_of_cwd()
+
     # 改修27-1(4-15): 見本の号(Canary)。
     test_canary_edition()
+    test_canary_edition_codelist_unavailable()
 
     total = len(results)
     passed = sum(1 for _, ok, _, _ in results if ok)

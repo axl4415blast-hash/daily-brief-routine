@@ -26,8 +26,12 @@ from pathlib import Path
 
 import edinet_codelist
 
-ALIASES_PATH = Path("scripts/aliases.csv")
-GENERIC_WORDS_PATH = Path("scripts/generic_words.txt")
+# 改修27-2第5回: 実行した場所(カレントディレクトリ)によらず読めるよう、このファイルの
+# 置き場所(scripts/)から決める。以前は相対パス(scripts/aliases.csv)で、リポジトリの
+# 一番上以外から実行すると辞書が空のまま動いていた。
+_SCRIPT_DIR = Path(__file__).resolve().parent
+ALIASES_PATH = _SCRIPT_DIR / "aliases.csv"
+GENERIC_WORDS_PATH = _SCRIPT_DIR / "generic_words.txt"
 
 # 業種あたり・記事あたり・号全体(下段)の上限。号全体(上段+下段)の上限は別途
 # hypotheses配列の件数から動的に計算する(上段を先に数える)。

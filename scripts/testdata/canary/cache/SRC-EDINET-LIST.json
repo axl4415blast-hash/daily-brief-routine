@@ -36,6 +36,26 @@
    "secCode": null,
    "submitDateTime": "2026-09-24 17:00",
    "subjectEdinetCode": null
+  },
+  {
+   "docID": "S-CANARY-05",
+   "edinetCode": "E-S-CANARY-05",
+   "filerName": "カナリア精機株式会社",
+   "docTypeCode": "120",
+   "docDescription": "架空の書類",
+   "secCode": "55550",
+   "submitDateTime": "2026-09-24 17:00",
+   "subjectEdinetCode": null
+  },
+  {
+   "docID": "S-CANARY-06",
+   "edinetCode": "E-S-CANARY-06",
+   "filerName": "カナリア食品開発株式会社",
+   "docTypeCode": "120",
+   "docDescription": "架空の書類",
+   "secCode": null,
+   "submitDateTime": "2026-09-24 17:00",
+   "subjectEdinetCode": null
   }
  ]
 }

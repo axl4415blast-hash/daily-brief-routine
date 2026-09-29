@@ -1562,39 +1562,173 @@ def apply_observation_window(hyps, business_days):
 LINK_ONLY_USAGE = "link_only"
 
 
-def check_evidence_source_ref(hyp, sources_by_id, cache_dir):
-    """検査11: evidence_grade が primary の自己申告を機械で確かめる。
-    合格なら None、不合格なら理由の文字列を返す。
+NAME_MATCH_STAGES = ("raw", "nfkc", "match_name")
 
-    既知の限界: この検査は「その出典に会社名がそのまま出ている」ことしか確かめられない。
+
+def build_longer_name_index(codelist_rows):
+    """改修27-2第5回(S5・Q6): 「より長い別の社名の一部としてしか出ていない」を見分けるために、
+    コードリスト(EDINETの提出者名。上場・非上場を問わず全件)から、段階ごとの「長い社名の
+    候補」の一覧を作る。コードリストが読めない(None)ならNoneを返す(この判定を飛ばす)。
+
+    各段階の候補は、その段階の比べ方にそろえた書き方で持つ(法人格つきと、法人格を除いた
+    書き方の両方)。会社ごとの照合名(own)も添える(判定の相手が自分自身の別表記
+    (例: 株式会社ニックスとニックス)のとき、長い別の社名とみなさないため)。
+      raw       : 提出者名そのまま / 法人格を除いたもの
+      nfkc      : 上をNFKCにしたもの
+      match_name: 下段の選定と同じ照合名(pick_industry_companies._normalize_match_name)
+    戻り値: {"raw": [(候補, own)...], "nfkc": [...], "match_name": [...]}。"""
+    if codelist_rows is None:
+        return None
+    index = {stage: [] for stage in NAME_MATCH_STAGES}
+    seen = {stage: set() for stage in NAME_MATCH_STAGES}
+
+    def add(stage, form, own):
+        if form and (form, own) not in seen[stage]:
+            seen[stage].add((form, own))
+            index[stage].append((form, own))
+
+    for row in codelist_rows:
+        name = (row.get(edinet_codelist.COL_FILER_NAME) or "").strip()
+        if not name:
+            continue
+        own = pick_industry_companies._normalize_match_name(name)
+        stripped = name
+        for token in edinet_codelist.CORPORATE_DESIGNATORS:
+            stripped = stripped.replace(token, "")
+        for form in (name, stripped):
+            add("raw", form, own)
+            add("nfkc", unicodedata.normalize("NFKC", form), own)
+        add("match_name", own, own)
+    return index
+
+
+def _all_indexes(haystack, needle):
+    start = 0
+    while True:
+        idx = haystack.find(needle, start)
+        if idx == -1:
+            return
+        yield idx
+        start = idx + 1
+
+
+def _occurrence_inside_longer_name(haystack, idx, needle, longer_forms):
+    """haystackのidx位置に出ているneedleが、longer_formsのどれか(needleを含む、より長い
+    社名)の一部になっているかを返す(その長い社名がその位置を覆って本文に実在する場合)。"""
+    for longer in longer_forms:
+        offset = 0
+        while True:
+            pos = longer.find(needle, offset)
+            if pos == -1:
+                break
+            begin = idx - pos
+            if begin >= 0 and haystack[begin:begin + len(longer)] == longer:
+                return True
+            offset = pos + 1
+    return False
+
+
+def find_company_name_stage(company_name, body_text, longer_name_index=None, generic_words=None):
+    """改修27-2第5回(S5): 上段の会社名が、出典本文に出ているかを、次の3段階で順に試す。
+    最初に見つかった段階を返す(本文は、EDINETならタグ除去済みのもの)。
+      1. raw       : company_nameをそのまま探す
+      2. nfkc      : 社名と本文の両方をNFKCにそろえて探す(全角・半角の違いを吸収)
+      3. match_name: 下段の選定と同じ照合名(pick_industry_companies._normalize_match_name。
+                     法人格・中黒・長音・ハイフン・空白を除き、大文字化)で探す。
+                     直後の文字の確認(_is_word_forming)も下段の選定と同じ規則。
+                     一般語辞書(generic_words)に載る照合名は、この段階では使わない
+    longer_name_index(build_longer_name_index()の結果)があるときは、どの段階でも、
+    見つかった箇所がすべて「より長い別の社名(コードリスト)の一部」なら、その段階は
+    一致としない(1か所でも単独で出ていれば一致)。longer_name_indexがNoneなら、この判定は
+    行わない(コードリストが読めない日)。
+
+    戻り値: (見つかった段階 or None, 長い社名の一部としてしか見つからなかった段階があったか)。"""
+    if not company_name:
+        return None, False
+    if generic_words is None:
+        generic_words = pick_industry_companies.load_generic_words()
+    own_match_name = pick_industry_companies._normalize_match_name(company_name)
+    only_in_longer = False
+    for stage in NAME_MATCH_STAGES:
+        accept_end = None
+        if stage == "raw":
+            haystack, needle = body_text, company_name
+        elif stage == "nfkc":
+            haystack = unicodedata.normalize("NFKC", body_text)
+            needle = unicodedata.normalize("NFKC", company_name)
+        else:
+            needle = own_match_name
+            if not needle or needle in generic_words:
+                continue
+            haystack = pick_industry_companies._normalize_match_name(body_text)
+            accept_end = lambda end, h=haystack: not pick_industry_companies._is_word_forming(h[end] if end < len(h) else None)
+        if not needle:
+            continue
+        occurrences = [
+            i for i in _all_indexes(haystack, needle)
+            if accept_end is None or accept_end(i + len(needle))
+        ]
+        if not occurrences:
+            continue
+        if longer_name_index is None:
+            return stage, False
+        longer_forms = [
+            form for form, own in longer_name_index[stage]
+            if form != needle and needle in form and own != own_match_name
+        ]
+        if any(not _occurrence_inside_longer_name(haystack, i, needle, longer_forms) for i in occurrences):
+            return stage, False
+        only_in_longer = True
+    return None, only_in_longer
+
+
+def check_evidence_source_ref_detail(hyp, sources_by_id, cache_dir, longer_name_index=None, generic_words=None):
+    """検査11: evidence_grade が primary の自己申告を機械で確かめる。
+    戻り値: {"reason": 合格ならNone・不合格なら理由の文字列, "stage": 会社名が見つかった段階
+    (NAME_MATCH_STAGESのどれか。見つからなければNone)}。
+
+    理由: evidence_source_ref_missing / evidence_source_not_found / evidence_source_link_only /
+    evidence_source_unreadable(本文が文字コードで読めない) / evidence_company_name_not_found /
+    evidence_company_name_only_in_longer_name(より長い別の社名の一部としてしか出ていない)。
+
+    既知の限界: この検査は「その出典に会社名が出ている」ことしか確かめられない。
     無関係な文脈での言及(例えばある会社の開示資料に取引先として別の会社名が挙がっている場合など)
     を一次情報と誤認する可能性がある。
     """
     ref = hyp.get("evidence_source_ref")
     if not ref:
-        return "evidence_source_ref_missing"
+        return {"reason": "evidence_source_ref_missing", "stage": None}
 
     source = sources_by_id.get(ref)
     if source is None:
-        return "evidence_source_not_found"
+        return {"reason": "evidence_source_not_found", "stage": None}
 
     if source.get("usage") == LINK_ONLY_USAGE:
-        return "evidence_source_link_only"
+        return {"reason": "evidence_source_link_only", "stage": None}
 
     cache_path = Path(cache_dir) / f"{ref}.txt"
     if not cache_path.is_file():
-        return "evidence_source_not_found"
+        return {"reason": "evidence_source_not_found", "stage": None}
 
     # 改修27-1(4-9): EDINETの出典はHTMLタグを取り除いた本文で会社名を探す。
     body_text = read_source_body_for_checks(cache_path, source)
     if body_text is None:
-        return "evidence_source_unreadable"
+        return {"reason": "evidence_source_unreadable", "stage": None}
 
-    company_name = hyp.get("company_name")
-    if not company_name or company_name not in body_text:
-        return "evidence_company_name_not_found"
+    stage, only_in_longer = find_company_name_stage(
+        hyp.get("company_name"), body_text, longer_name_index, generic_words,
+    )
+    if stage is not None:
+        return {"reason": None, "stage": stage}
+    if only_in_longer:
+        return {"reason": "evidence_company_name_only_in_longer_name", "stage": None}
+    return {"reason": "evidence_company_name_not_found", "stage": None}
 
-    return None
+
+def check_evidence_source_ref(hyp, sources_by_id, cache_dir, longer_name_index=None, generic_words=None):
+    """検査11(理由だけを返す版): 合格ならNone、不合格なら理由の文字列。
+    詳しい結果(見つかった段階)はcheck_evidence_source_ref_detail()。"""
+    return check_evidence_source_ref_detail(hyp, sources_by_id, cache_dir, longer_name_index, generic_words)["reason"]
 
 
 EDINET_DOCLIST_FILENAMES = {"today": "SRC-EDINET-LIST.json", "prev": "SRC-EDINET-LIST-PREV.json"}
@@ -2047,25 +2181,46 @@ def check_ticker_fields(hyp, edinet_companies):
     return None
 
 
-def run_check_hypothesis_evidence(hyps, sources_by_id, cache_dir):
-    """evidence_grade が primary の仮説だけを検査11にかけ、不合格なら reported へ格下げする。
-    inferredは下段(industry_examples)専用の値のため、上段(仮説)の格下げ先には使わない。
-    不合格の原因が出典ファイルの文字コード問題(evidence_source_unreadable)だった件数は、
-    それ以外の原因と分けて返す(原因が違うため)。"""
-    downgraded = 0
-    unreadable = 0
+def run_check_hypothesis_evidence(hyps, sources_by_id, cache_dir, codelist_rows=None):
+    """evidence_grade が primary の仮説だけを検査11にかけ、不合格なら仮説を削除する
+    (改修27-2第5回・S5。それまでは reported への格下げだった)。文字コードで読めない場合も
+    削除する(D4。理由は分けて記録)。reported・inferredの仮説は検査11の対象外で、そのまま残す。
+
+    codelist_rows(コードリストの行。Noneなら読めない日)から長い社名の候補を作り、
+    「より長い別の社名の一部としてしか出ていない」会社を一致としない。Noneのときは
+    その判定だけを飛ばし、飛ばした件数(longer_name_check_skipped)を返す。
+
+    戻り値: {"kept": 残す仮説のリスト(元の順),
+             "removed": [{"hypothesis_id", "company_name", "reason"}, ...],
+             "name_match_stage": {"raw": n, "nfkc": n, "match_name": n}(合格したprimaryの、最初に
+                                 見つかった段階ごとの件数),
+             "longer_name_check_skipped": 長い社名の判定を飛ばして検査した件数}。"""
+    longer_name_index = build_longer_name_index(codelist_rows)
+    generic_words = pick_industry_companies.load_generic_words()
+    kept = []
+    removed = []
+    stage_counts = {stage: 0 for stage in NAME_MATCH_STAGES}
+    skipped = 0
     for hyp in hyps:
         if hyp.get("evidence_grade") != "primary":
+            kept.append(hyp)
             continue
-        reason = check_evidence_source_ref(hyp, sources_by_id, cache_dir)
-        if not reason:
+        if longer_name_index is None:
+            skipped += 1
+        result = check_evidence_source_ref_detail(hyp, sources_by_id, cache_dir, longer_name_index, generic_words)
+        if result["reason"]:
+            removed.append({
+                "hypothesis_id": hyp.get("hypothesis_id"),
+                "company_name": hyp.get("company_name"),
+                "reason": result["reason"],
+            })
             continue
-        hyp["evidence_grade"] = "reported"
-        if reason == "evidence_source_unreadable":
-            unreadable += 1
-        else:
-            downgraded += 1
-    return downgraded, unreadable
+        stage_counts[result["stage"]] += 1
+        kept.append(hyp)
+    return {
+        "kept": kept, "removed": removed, "name_match_stage": stage_counts,
+        "longer_name_check_skipped": skipped,
+    }
 
 
 def first_business_day_after(business_days, date_str):
@@ -2293,6 +2448,12 @@ def run_hypothesis_checks(hypotheses_doc, edition, business_days, ng_words, cach
         # 改修27-1(4-10): tob_sideの決定でsubjectEdinetCodeが取れず、今の規則
         # (mentioned→target)に倒した件数。
         "tob_side_subject_code_missing": 0,
+        # 改修27-2第5回(S5): 検査11で削除した会社(社名・理由)、合格した会社の見つかった段階の件数、
+        # コードリストが読めず長い社名の判定を飛ばした件数。市場休場などで仮説を全件消す号でも
+        # キーがそろうよう、空・0で始める。
+        "check11_removed": [],
+        "name_match_stage": {stage: 0 for stage in NAME_MATCH_STAGES},
+        "check11_longer_name_check_skipped": 0,
     }
 
     market_open = edition.get("market_open", True)
@@ -2309,11 +2470,15 @@ def run_hypothesis_checks(hypotheses_doc, edition, business_days, ng_words, cach
         return len(hyps), reasons, extra_counts
 
     sources_by_id = {s.get("source_id"): s for s in edition.get("sources", [])}
-    evidence_downgrades, evidence_unreadable = run_check_hypothesis_evidence(hyps, sources_by_id, cache_dir)
-    if evidence_downgrades:
-        reasons["primary_evidence_unverified"] = evidence_downgrades
-    if evidence_unreadable:
-        reasons["evidence_source_unreadable"] = evidence_unreadable
+    # 改修27-2第5回(S5): 検査11は格下げではなく削除。削除した会社は、理由ごとにreasonsへ
+    # 数え、社名と理由をcheck11_removedに記録する。
+    check11 = run_check_hypothesis_evidence(hyps, sources_by_id, cache_dir, codelist_rows)
+    hyps = check11["kept"]
+    for item in check11["removed"]:
+        reasons[item["reason"]] = reasons.get(item["reason"], 0) + 1
+    extra_counts["check11_removed"] = check11["removed"]
+    extra_counts["name_match_stage"] = check11["name_match_stage"]
+    extra_counts["check11_longer_name_check_skipped"] = check11["longer_name_check_skipped"]
 
     # 修正2・3(要件定義書v12 3.4(2)・5.4)、および2026年9月21日の追加指示: evidence_filer_name/
     # evidence_doc_type/evidence_role/impact_kind/impact_kind_source/auto_check_targetはAIには
@@ -2705,8 +2870,12 @@ def print_report(edition_path, stats, stop_hits, watch_hits, dropped_inferences,
             "market_closed": "市場が休みの号に仮説が入っていた(削除)",
             "baseline_late": "号が遅延していた(baseline_late)ため仮説が入っていた(削除)",
             "too_many_hypotheses": "仮説が上限(5件)を超えていた(削除)",
-            "primary_evidence_unverified": "根拠が最上位(primary)の自己申告なのに、出典本文に会社名を確認できなかった(reportedへ格下げ)",
-            "evidence_source_unreadable": "根拠の出典ファイルが文字コードの問題で読めなかった(reportedへ格下げ)",
+            "evidence_source_ref_missing": "根拠が最上位(primary)なのに根拠の出典番号が空だった(削除)",
+            "evidence_source_not_found": "根拠が最上位(primary)なのに、根拠の出典またはその本文が見つからなかった(削除)",
+            "evidence_source_link_only": "根拠が最上位(primary)なのに、根拠の出典はリンクだけの扱い(本文を確かめられない)だった(削除)",
+            "evidence_source_unreadable": "根拠の出典ファイルが文字コードの問題で読めなかった(削除)",
+            "evidence_company_name_not_found": "根拠が最上位(primary)の自己申告なのに、出典本文に会社名を確認できなかった(削除)",
+            "evidence_company_name_only_in_longer_name": "出典本文に会社名は出ているが、より長い別の社名の一部としてしか出ていなかった(削除)",
             "ticker_missing": "証券コードが無い、または証券コードの形に合わなかった(削除)",
             "ticker_source_missing": "証券コードの出典(ticker_source)が空だった(削除)",
             "ticker_mismatch": "証券コードがEDINET書類一覧の記録と一致しなかった(削除)",
@@ -3005,6 +3174,10 @@ def run_verification(edition_file, hypotheses_file, cache_dir_arg, calendar_dir_
             "horizon_recount_skipped": 0,
             # 改修27-1(4-10): --hypotheses未指定でもキーがそろうよう、既定値を0にしておく。
             "tob_side_subject_code_missing": 0,
+            # 改修27-2第5回(S5): --hypotheses未指定でもキーがそろうよう、既定値にしておく。
+            "check11_removed": [],
+            "name_match_stage": {stage: 0 for stage in NAME_MATCH_STAGES},
+            "check11_longer_name_check_skipped": 0,
         }
         hypotheses_doc = None
         hypotheses_generated_at_raw = None
@@ -3212,6 +3385,12 @@ def run_verification(edition_file, hypotheses_file, cache_dir_arg, calendar_dir_
             "horizon_recount_skipped": hypothesis_extra["horizon_recount_skipped"],
             # 改修27-1(4-10): tob_sideの決定でsubjectEdinetCodeが取れなかった件数(記録専用)。
             "tob_side_subject_code_missing": hypothesis_extra["tob_side_subject_code_missing"],
+            # 改修27-2第5回(S5): 検査11(上段のprimaryの会社名が出典本文にあるか)。
+            # 削除した会社(社名と理由)・合格した会社の見つかった段階ごとの件数・コードリストが
+            # 読めず「より長い別の社名の一部」の判定を飛ばした件数。
+            "check11_removed": hypothesis_extra["check11_removed"],
+            "name_match_stage": hypothesis_extra["name_match_stage"],
+            "check11_longer_name_check_skipped": hypothesis_extra["check11_longer_name_check_skipped"],
             # 改修27-2第4回(S2): 日付だけの出典で、本文に日付が見つからず(または本文が読めず)
             # 日付不明にした出典と、そのためにchangeの枠から落とした行。
             "published_date_not_found": published_date_not_found,

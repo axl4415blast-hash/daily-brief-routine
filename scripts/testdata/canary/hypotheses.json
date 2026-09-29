@@ -67,6 +67,51 @@
    "line_ids": [
     "L-08"
    ]
+  },
+  {
+   "hypothesis_id": "H-5",
+   "company_name": "カナリア精機株式会社",
+   "relation_text": "提出者自身の開示の内容に関係する",
+   "evidence_grade": "primary",
+   "evidence_source_ref": "C14",
+   "ticker": "5555",
+   "ticker_source": "edinet_seccode",
+   "baseline_date": "2026-09-24",
+   "baseline_price_type": "close",
+   "added_by": "manual",
+   "line_ids": [
+    "L-17"
+   ]
+  },
+  {
+   "hypothesis_id": "H-6",
+   "company_name": "カナリア食品",
+   "relation_text": "提出された報告書の内容に関係する",
+   "evidence_grade": "primary",
+   "evidence_source_ref": "C15",
+   "ticker": "7777",
+   "ticker_source": "edinet_seccode",
+   "baseline_date": "2026-09-24",
+   "baseline_price_type": "close",
+   "added_by": "manual",
+   "line_ids": [
+    "L-18"
+   ]
+  },
+  {
+   "hypothesis_id": "H-7",
+   "company_name": "カナリア建設株式会社",
+   "relation_text": "提出された報告書の内容に関係する",
+   "evidence_grade": "primary",
+   "evidence_source_ref": "C14",
+   "ticker": "8888",
+   "ticker_source": "edinet_seccode",
+   "baseline_date": "2026-09-24",
+   "baseline_price_type": "close",
+   "added_by": "manual",
+   "line_ids": [
+    "L-17"
+   ]
   }
  ]
 }
