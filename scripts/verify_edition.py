@@ -920,14 +920,65 @@ def build_listed_company_matcher(codelist_rows):
     }
 
 
+# 改修27-2第6回の追加: 推論欄の会社名の検査だけ、照合名の直後の判定を広げる(下段の選定は変えない)。
+# 直後が漢字のとき当てるのは、照合名(正規化後)がこの文字数以上のときだけ(2文字の名前は
+# 「電算機類」「モデルベース開発」のように普通の言葉の一部になりやすいため)。
+INFERENCE_KANJI_FOLLOW_MIN_LEN = 3
+_CORPORATE_DESIGNATOR_FORMS = tuple(sorted(
+    set(edinet_codelist.CORPORATE_DESIGNATORS)
+    | {unicodedata.normalize("NFKC", d) for d in edinet_codelist.CORPORATE_DESIGNATORS},
+    key=lambda d: -len(d),
+))
+
+
+def _is_kanji(ch):
+    code = ord(ch)
+    return 0x4E00 <= code <= 0x9FFF or 0x3400 <= code <= 0x4DBF
+
+
+def make_inference_accept_end(text, norm, positions):
+    """推論欄の会社名の検査で、pick_industry_companies._find_mentions()に渡す判定を作る
+    (照合名の直後の判定。text=元の文、norm・positions=正規化した文と元の位置の対応)。
+    次のどれかなら、その出現を会社名として当てる。
+      ・今までの規則で当たるもの(直後がひらがな・記号・文の終わりなど、語の続きでない)
+      ・規則1: 元の文で、直後が法人格の表記(株式会社・(株)など)か「・」
+        (「兼松株式会社及び」「トヨタ自動車・清水建設」。正規化で法人格と「・」が消えて
+        区切りが見えなくなるため、元の文で見る)
+      ・規則3: 直後が「グループ」(正規化で長音が消えて「グルプ」になるため、元の文で見る)
+      ・規則2: 直後が漢字で、照合名が3文字以上(INFERENCE_KANJI_FOLLOW_MIN_LEN)のとき
+    直後がカタカナ・英数字のものは、規則1・3に当たらない限り当てない。
+    positionsがNone(位置の対応が作れなかった)なら、今までの規則だけで判定する。"""
+    def accept(start, end, entry):
+        next_ch = norm[end] if end < len(norm) else None
+        if not pick_industry_companies._is_word_forming(next_ch):
+            return True
+        if positions is None:
+            return False
+        tail = text[positions[end - 1] + 1:]
+        tail_nfkc = unicodedata.normalize("NFKC", tail)
+        if tail.startswith(("・", "･")) or any(
+            tail.startswith(d) or tail_nfkc.startswith(d) for d in _CORPORATE_DESIGNATOR_FORMS
+        ):
+            return True
+        if tail_nfkc.startswith("グループ"):
+            return True
+        if _is_kanji(next_ch) and len(entry[0]) >= INFERENCE_KANJI_FOLLOW_MIN_LEN:
+            return True
+        return False
+    return accept
+
+
 def find_listed_company_mentions(text, matcher):
-    """textの中に出ている上場会社を、下段の選定と同じ規則(最長一致・直後の文字の確認)で探す。
+    """textの中に出ている上場会社を、下段の選定と同じ規則(照合名・別名・一般語辞書・最長一致)で
+    探す。照合名の直後の判定だけは、下段より広い(make_inference_accept_end())。
     戻り値: [{"company_name": 提出者名, "matched_word": 当たった照合名, "alias": 別名で当たった
     場合の別名(なければNone)}, ...]。textが文字列でない・空なら空のリスト。"""
     if matcher is None or not isinstance(text, str) or not text:
         return []
-    blob = pick_industry_companies._normalize_match_name(text)
-    found = pick_industry_companies._find_mentions(blob, matcher["entries"])
+    blob, positions = pick_industry_companies._normalize_match_name_with_positions(text)
+    found = pick_industry_companies._find_mentions(
+        blob, matcher["entries"], accept_end=make_inference_accept_end(text, blob, positions),
+    )
     return [
         {"company_name": matcher["names_by_code"].get(key), "matched_word": entry[0], "alias": entry[2]}
         for key, entry in found.items()
@@ -937,7 +988,8 @@ def find_listed_company_mentions(text, matcher):
 def run_check_inference_company_names(edition, matcher):
     """検査18の追加(改修27-2第6回・S7): 推論欄の各推論の4項目(text・falsifier・check_metric・
     check_by)のどれかに上場会社の名前が含まれていたら、その推論1件を削除する
-    (同じ記事の他の推論は残す)。会社名の探し方はfind_listed_company_mentions()。
+    (同じ記事の他の推論は残す)。会社名の探し方はfind_listed_company_mentions()
+    (下段の選定と同じ規則で、照合名の直後の判定だけが広い)。
     4項目が空なら削除する今の検査(run_check_d_inferences)とは別で、そちらは残してある
     (推論欄のfalsifierは必須のまま)。matcherがNone(コードリストが読めない日)なら何もしない。
 

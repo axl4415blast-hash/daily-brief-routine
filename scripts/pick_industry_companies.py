@@ -146,6 +146,44 @@ def _normalize_match_name(s):
     return re.sub(r"\s+", "", normalized)
 
 
+def _normalize_match_name_with_positions(text):
+    """改修27-2第6回の追加: _normalize_match_name()と同じ照合用の文字列に加えて、その各文字が
+    元の文(text)の何文字目から来たかの対応を返す(推論欄の会社名の検査が、「照合名の直後の
+    元の文字」を見るために使う)。戻り値: (照合用の文字列, 位置のリスト)。
+    位置のリストのi番目は、照合用の文字列のi文字目が元の文の何文字目(0始まり)に当たるか。
+    NFKCは「基底の文字と、それにつく結合文字(濁点など)」のまとまりごとに行う。
+    対応が作れなかった場合(照合用の文字列が_normalize_match_name()と食い違う、通常は起きない)は、
+    位置のリストをNoneにして返す(呼び出し側は位置を使う判定をしない)。
+    _normalize_match_name()自体は変えていない(下段の選定はこちらを使わない)。"""
+    text = text or ""
+    groups = []
+    for i, ch in enumerate(text):
+        if groups and (unicodedata.combining(ch) or ch in "\uff9e\uff9f"):
+            groups[-1][1] += ch
+        else:
+            groups.append([i, ch])
+    seq = []
+    for start, group in groups:
+        for out_ch in unicodedata.normalize("NFKC", group).upper():
+            seq.append((out_ch, start))
+    for token in edinet_codelist.CORPORATE_DESIGNATORS:
+        joined = "".join(c for c, _ in seq)
+        kept = []
+        i = 0
+        while i < len(seq):
+            if joined.startswith(token, i):
+                i += len(token)
+            else:
+                kept.append(seq[i])
+                i += 1
+        seq = kept
+    seq = [(c, pos) for c, pos in seq if c not in "・ー-" and not c.isspace()]
+    normalized = "".join(c for c, _ in seq)
+    if normalized != _normalize_match_name(text):
+        return _normalize_match_name(text), None
+    return normalized, [pos for _, pos in seq]
+
+
 def _is_word_forming(ch):
     """一致した照合名の直後の1文字が、単語の続きとみなせる文字(カタカナ・漢字・
     英数字)かどうかを返す。ひらがな・句読点・記号・文字列の終わりは「境界」
@@ -209,11 +247,17 @@ def _filter_usable_names(entries, dropped=None, company_names=None):
     return kept
 
 
-def _find_mentions(blob, entries):
+def _find_mentions(blob, entries, accept_end=None):
     """本文(blob、正規化済み)の中で、照合名の長い順に非重複で探す。見つけた
     時点でその文字範囲を消費し、短い名前が同じ範囲に重なるのを防ぐ(最長一致)。
     前後の文字が同じ文字種で続く場合は、登録されていない長い固有名詞の一部と
     みなして採用しない。
+
+    accept_end: 省略できる。渡すと、直後の文字の判定(上の「同じ文字種で続く場合は採用しない」)
+    の代わりに、accept_end(照合名の開始位置, 終了位置(照合名の直後の位置), entry)が真を
+    返した出現だけを採用する。省略したときは、今までどおり_is_word_forming()による判定で、
+    下段の選定はこの引数を使わない(動きは変わらない)。推論欄の会社名の検査
+    (verify_edition.py)が、元の文の直後(法人格・「・」・グループ・漢字)を見る判定を渡す。
 
     戻り値: {company_key: 勝った entry} (1社につき最初に当たったentryだけ)。"""
     consumed = [False] * len(blob)
@@ -232,8 +276,11 @@ def _find_mentions(blob, entries):
             start = idx + 1
             if any(consumed[idx:end]):
                 continue
-            next_ch = blob[end] if end < len(blob) else None
-            if _is_word_forming(next_ch):
+            if accept_end is None:
+                next_ch = blob[end] if end < len(blob) else None
+                if _is_word_forming(next_ch):
+                    continue
+            elif not accept_end(idx, end, entry):
                 continue
             for i in range(idx, end):
                 consumed[i] = True

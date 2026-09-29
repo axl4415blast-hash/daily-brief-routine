@@ -6215,7 +6215,8 @@ def test_run_check_inference_company_names():
     result, remaining = run([inf("サンプルコンピュータの開発が進む")])
     check("推論欄の会社名/負例: 照合名の直後がカタカナ(サンプルコンピュータ)なら、語の続きなので消えない", (len(remaining), result["count"]), (1, 0))
     result, remaining = run([inf("サンプル製作所の開発が進む")])
-    check("推論欄の会社名/負例: 照合名の直後が漢字(サンプル製作所)でも、語の続きなので消えない", (len(remaining), result["count"]), (1, 0))
+    check("推論欄の会社名/広げた規則: 照合名(サンプル=4文字)の直後が漢字(サンプル製作所)なら、3文字以上なので当たる(以前は語の続きとして消えなかった)",
+          (len(remaining), result["count"]), (0, 1))
     result, remaining = run([inf("サンプルは開発を進める"), inf("サンプル、清水建設が開発を進める")])
     check("推論欄の会社名/正例: 直後がひらがな(は)・読点(、)なら会社名として当たる(2件とも消える)", (len(remaining), result["count"]), (0, 2))
     result, remaining = run([inf("株式会社テスト非上場の開示が出る")])
@@ -6234,7 +6235,7 @@ def test_run_check_inference_company_names():
     check("推論欄の会社名/親会社: 兼松エンジニアリングと書かれていれば、長い方だけが当たり、兼松(親会社)には重ねて当たらない",
           [h["company_name"] for r in result["removed"] for h in r["hits"]], ["兼松エンジニアリング株式会社"])
     result, remaining = run([inf("兼松グループの動向が波及する")])
-    check("推論欄の会社名/親会社: 兼松グループ(直後がカタカナ)は語の続きなので当たらない", (len(remaining), result["count"]), (1, 0))
+    check("推論欄の会社名/親会社: 兼松グループは、直後が「グループ」なので当たる(規則3。以前は直後がカタカナで当たらなかった)", (len(remaining), result["count"]), (0, 1))
     result, remaining = run([inf("")])
     check("推論欄の会社名/負例: 空の項目は会社名なしとして扱う(空の検査は別の検査が行う)", (len(remaining), result["count"]), (1, 0))
     result, remaining = run([{"text": None, "falsifier": 123, "check_metric": ["清水建設"], "check_by": None}])
@@ -6264,6 +6265,155 @@ def test_run_check_inference_company_names():
           (dropped, [i["text"] for i in edition["sections"][0]["articles"][0]["inferences"]]), (1, ["会社名の無い推論"]))
 
 
+def test_inference_widened_rule():
+    """改修27-2第6回の追加: 推論欄の会社名の検査だけ、照合名の直後の判定を広げる。
+      規則1: 元の文で直後が法人格の表記か「・」なら当てる
+      規則3: 直後が「グループ」なら当てる
+      規則2(案A): 直後が漢字なら、照合名(正規化後)が3文字以上のときだけ当てる
+      直後がカタカナ・英数字は、規則1・3に当たらない限り当てない"""
+    rows = _fake_codelist_rows([
+        ("兼松株式会社", "11110", "上場"), ("清水建設株式会社", "22220", "上場"),
+        ("トヨタ自動車株式会社", "33330", "上場"),
+        ("ＧＭＯインターネット株式会社", "44440", "上場"), ("ＧＭＯインターネットグループ株式会社", "55550", "上場"),
+        ("株式会社フェローテック", "66660", "上場"), ("東急株式会社", "77770", "上場"),
+        ("ＮＴＴ株式会社", "88880", "上場", "E04430"),   # aliases.csvに「NTT東日本」がある
+        ("株式会社近鉄百貨店", "99990", "上場"), ("株式会社ニックス", "10100", "上場"),
+        ("日本株式会社", "10200", "上場"),                # 照合名「日本」は一般語辞書に載っている
+        ("ベース株式会社", "10300", "上場"), ("株式会社ＩＣ", "10400", "上場"), ("株式会社電算", "10500", "上場"),
+        ("株式会社ミライ", "10600", "上場"),              # 3文字ちょうど
+        ("株式会社ノダ", "10700", "上場"),                # 2文字
+        ("株式会社エフ・ジェー・ネクスト", "10800", "上場"),  # 名前の途中に「・」
+    ])
+    matcher = ve.build_listed_company_matcher(rows)
+
+    def hits(text):
+        return sorted({m["company_name"] for m in ve.find_listed_company_mentions(text, matcher)})
+
+    # --- 測定3の一覧(案Aでの期待値)---
+    table = [
+        ("兼松社の開示", []),                                   # 2文字+漢字
+        ("兼松株式会社及び関係会社", ["兼松株式会社"]),           # 規則1
+        ("清水建設株式会社等の設備投資", ["清水建設株式会社"]),   # 規則1
+        ("トヨタ自動車向けの部品", ["トヨタ自動車株式会社"]),     # 規則2(6文字+漢字)
+        ("トヨタ自動車・清水建設の決算", ["トヨタ自動車株式会社", "清水建設株式会社"]),  # 規則1(・)
+        ("ＧＭＯインターネット株式会社・ＧＭＯインターネットグループ株式会社の書類",
+         ["ＧＭＯインターネット株式会社", "ＧＭＯインターネットグループ株式会社"]),
+        ("兼松グループの事業", ["兼松株式会社"]),                 # 規則3
+        ("フェローテックグループの方針", ["株式会社フェローテック"]),  # 規則3
+        ("兼松の開示", ["兼松株式会社"]),                         # 今も当たる(ひらがな)
+        ("東急電鉄の運賃", []),                                   # 2文字+漢字
+        ("トヨタ自動車東日本の工場", ["トヨタ自動車株式会社"]),   # 規則2(子会社名だが、グループを指すので消えてよい)
+        ("NTT東日本の回線", ["ＮＴＴ株式会社"]),                  # 別名
+        ("近鉄百貨店の売上", ["株式会社近鉄百貨店"]),
+        ("サンジェニックスなどの生産体制", ["株式会社ニックス"]),  # 既知の誤反応(直後がひらがな。今の規則と同じ)
+        ("日本の輸出", []),                                       # 一般語辞書
+        ("大手銀行の利ざや", []),
+    ]
+    for text, expected in table:
+        check(f"推論欄の広げた規則/一覧: 「{text}」→ {expected or '当たらない'}", hits(text), sorted(expected))
+
+    # --- 誤反応の例: 規則2で新たに当たらない(2文字+漢字)---
+    for text in ("モデルベース開発の支援", "ハイブリッドIC製品の生産", "電算機類の輸入額"):
+        check(f"推論欄の広げた規則/誤反応: 「{text}」は2文字の名前+漢字なので当たらない", hits(text), [])
+
+    # --- 境目: 3文字ちょうど+漢字は当たり、2文字+漢字は当たらない ---
+    check("推論欄の広げた規則/境目: 3文字ちょうど(ミライ)+漢字(工場)は当たる", hits("ミライ工場の稼働率"), ["株式会社ミライ"])
+    check("推論欄の広げた規則/境目: 2文字(ノダ)+漢字(工場)は当たらない", hits("ノダ工場の稼働率"), [])
+    check("推論欄の広げた規則/境目: 2文字でも直後がひらがな・「・」・法人格・グループなら当たる",
+          (hits("ノダは発表した"), hits("ノダ・ミライの提携"), hits("ノダ株式会社等の発表"), hits("ノダグループの方針")),
+          (["株式会社ノダ"], ["株式会社ノダ", "株式会社ミライ"], ["株式会社ノダ"], ["株式会社ノダ"]))
+    check("推論欄の広げた規則/カタカナ・英数字: 規則1・3に当たらない限り当てない(サンプルコンピュータ型: ミライソフト・ミライ2号)",
+          (hits("ミライソフトの開発"), hits("ミライ2号の開発"), hits("ミライABCの開発")), ([], [], []))
+    check("推論欄の広げた規則/規則1: 法人格の別の書き方((株)・㈱・(株)の全角・有限会社)の直後でも当たる",
+          (hits("兼松(株)及び関係会社"), hits("兼松㈱及び関係会社"), hits("兼松（株）及び関係会社"), hits("兼松有限会社及び")),
+          (["兼松株式会社"], ["兼松株式会社"], ["兼松株式会社"], ["兼松株式会社"]))
+    check("推論欄の広げた規則/規則1: 半角の中黒(･)・全角の中黒(・)の直後でも当たる", (hits("兼松･清水建設"), hits("兼松・清水建設")),
+          (["兼松株式会社", "清水建設株式会社"], ["兼松株式会社", "清水建設株式会社"]))
+    check("推論欄の広げた規則/規則3: グループの書き方(全角・半角)", (hits("兼松ｸﾞﾙｰﾌﾟの事業"), hits("兼松グループの事業")), (["兼松株式会社"], ["兼松株式会社"]))
+    check("推論欄の広げた規則/名前の途中の「・」: エフ・ジェー・ネクストは今までどおり当たり、途中の「・」で切れない",
+          (hits("エフ・ジェー・ネクストの発表"), hits("エフ・ジェー・ネクスト株式会社が発表")),
+          (["株式会社エフ・ジェー・ネクスト"], ["株式会社エフ・ジェー・ネクスト"]))
+    check("推論欄の広げた規則/最長一致: GMOインターネットグループの中でGMOインターネットが重ねて当たらない(グループ単独の文)",
+          hits("ＧＭＯインターネットグループの発表"), ["ＧＭＯインターネットグループ株式会社"])
+    check("推論欄の広げた規則/今までの当たりは減らない: 直後がひらがな・読点・文末・記号の当たり",
+          (hits("清水建設は発表"), hits("清水建設、兼松"), hits("清水建設"), hits("(清水建設)")), (["清水建設株式会社"], ["兼松株式会社", "清水建設株式会社"], ["清水建設株式会社"], ["清水建設株式会社"]))
+
+
+def test_normalize_match_name_with_positions():
+    """改修27-2第6回の追加: 「正規化した文＋元の位置の対応」を返す関数が、_normalize_match_name()と
+    同じ文字列を返すこと(過去の号の文すべてと、変わった書き方の文で確かめる)。"""
+    texts = ["", "兼松株式会社及び", "ＧＭＯインターネット株式会社・ＧＭＯインターネットグループ株式会社", "㈱テスト（株）(株)有限会社",
+             "ｶﾞｷﾞｸﾞ ハ゜ンダ ガ゛", "カルビー ・ エフ・ジェー・ネクスト", "ABC-def ｉｎｇ", "　全角　空白　", "株式会社", "・ー-",
+             "a\tb\nc", "①②㈱", "ﾄﾖﾀ自動車", "ｸﾞﾙｰﾌﾟ"]
+    for path in sorted((REPO_ROOT / "editions").glob("*/*.json")):
+        edition = json.loads(path.read_text(encoding="utf-8"))
+        for section in edition.get("sections", []):
+            for article in section.get("articles", []):
+                texts.append(article.get("headline") or "")
+                texts += [line.get("text") or "" for line in article.get("lines", [])]
+                for inf in article.get("inferences") or []:
+                    texts += [inf.get(k) or "" for k in ("text", "falsifier", "check_metric", "check_by")]
+    mismatched = []
+    without_positions = 0
+    monotonic_bad = 0
+    for text in texts:
+        norm, positions = pic._normalize_match_name_with_positions(text)
+        if norm != pic._normalize_match_name(text):
+            mismatched.append(text)
+        if positions is None:
+            without_positions += 1
+        elif len(positions) != len(norm) or any(a > b for a, b in zip(positions, positions[1:])) or any(not (0 <= p < len(text)) for p in positions):
+            monotonic_bad += 1
+    check(f"位置の対応/同じ文字列: {len(texts)}文(過去の号の全文と変わった書き方)で_normalize_match_nameと同じ文字列を返す", mismatched, [])
+    check("位置の対応/位置が作れた: どの文でも位置の対応が作れる(Noneを返さない)", without_positions, 0)
+    check("位置の対応/位置の正しさ: 位置は文字数と同じ数で、左から右へ並び、元の文の範囲内", monotonic_bad, 0)
+    norm, positions = pic._normalize_match_name_with_positions("兼松株式会社及び")
+    check("位置の対応/例: 「兼松株式会社及び」は「兼松及び」になり、位置は[0,1,6,7](株式会社の4文字は飛ぶ)", (norm, positions), ("兼松及び", [0, 1, 6, 7]))
+    norm, positions = pic._normalize_match_name_with_positions("ｶﾞｷ ・ダ")
+    check("位置の対応/例: 半角の濁点つきの文字(ｶﾞ)は、基底の文字と濁点を1つのまとまりとして扱う", (norm, positions), ("ガキダ", [0, 2, 5]))
+
+
+def test_find_mentions_default_unchanged_and_accept_end():
+    """改修27-2第6回の追加: _find_mentionsに省略できる引数accept_endを足しても、省略したときの
+    動き(下段の選定が使う動き)は変わらない。省略した場合と、今の規則を明示して渡した場合で、
+    過去の号の全文の結果が同じであることを確かめる。"""
+    rows = _fake_codelist_rows([
+        ("兼松株式会社", "11110", "上場"), ("清水建設株式会社", "22220", "上場"), ("株式会社フェローテック", "33330", "上場"),
+        ("株式会社日本抵抗器製作所", "44440", "上場"), ("ＧＭＯインターネット株式会社", "55550", "上場"),
+        ("ＧＭＯインターネットグループ株式会社", "66660", "上場"), ("株式会社ニックス", "77770", "上場"),
+        ("ベース株式会社", "88880", "上場"), ("株式会社ＩＣ", "99990", "上場"), ("株式会社電算", "10100", "上場"),
+    ])
+    matcher = ve.build_listed_company_matcher(rows)
+    texts = []
+    for path in sorted((REPO_ROOT / "editions").glob("*/*.json")):
+        edition = json.loads(path.read_text(encoding="utf-8"))
+        for section in edition.get("sections", []):
+            for article in section.get("articles", []):
+                texts.append(article.get("headline") or "")
+                texts += [line.get("text") or "" for line in article.get("lines", [])]
+                for inf in article.get("inferences") or []:
+                    texts += [inf.get(k) or "" for k in ("text", "falsifier", "check_metric", "check_by")]
+    different = []
+    total = 0
+    for text in texts:
+        blob = pic._normalize_match_name(text)
+        omitted = pic._find_mentions(blob, matcher["entries"])
+        explicit = pic._find_mentions(
+            blob, matcher["entries"],
+            accept_end=lambda start, end, entry, blob=blob: not pic._is_word_forming(blob[end] if end < len(blob) else None),
+        )
+        total += len(omitted)
+        if {k: v[0] for k, v in omitted.items()} != {k: v[0] for k, v in explicit.items()}:
+            different.append(text)
+    check(f"_find_mentions/引数を省略: 過去の号の全文({len(texts)}文)で、省略した場合と今の規則を明示した場合の結果が同じ", different, [])
+    check("_find_mentions/引数を省略: 試した文には実際に当たりがある(空振りの比較ではない)", total > 0, True)
+    check("_find_mentions/accept_end: 常に偽を返す判定を渡せば、何にも当たらない",
+          pic._find_mentions("兼松は発表", matcher["entries"], accept_end=lambda s, e, entry: False), {})
+    seen = []
+    pic._find_mentions("兼松は発表", matcher["entries"], accept_end=lambda s, e, entry: seen.append((s, e, entry[0])) or True)
+    check("_find_mentions/accept_end: 判定には、照合名の開始位置・終了位置・照合名が渡される", seen, [(0, 2, "兼松")])
+
+
 def test_inference_company_names_without_hypotheses():
     """改修27-2第6回(S7・S15): 推論欄は紙面の側にあるので、--hypothesesを渡さない実行でも
     推論欄の会社名の検査が行われ、キーがそろう。コードリストは1回だけ読む。"""
@@ -6283,11 +6433,11 @@ def test_inference_company_names_without_hypotheses():
     result, edition = run(_fake_codelist_rows(CANARY_CODELIST_ENTRIES), loads)
     v = edition["verification"]
     check("推論欄の会社名/--hypothesesなし: 正常終了する", result.returncode, 0)
-    check("推論欄の会社名/--hypothesesなし: 検査が行われ、会社名を含む2件が消える(記録が出る)",
-          (v["inference_company_name_removed"]["count"], v["inference_company_name_check_skipped"], v["codelist_unavailable"]), (2, False, False))
+    check("推論欄の会社名/--hypothesesなし: 検査が行われ、会社名を含む3件が消える(記録が出る。カナリア電機グループも規則3で当たる)",
+          (v["inference_company_name_removed"]["count"], v["inference_company_name_check_skipped"], v["codelist_unavailable"]), (3, False, False))
     check("推論欄の会社名/--hypothesesなし: コードリストの読み込みは1回だけ", len(loads), 1)
-    check("推論欄の会社名/--hypothesesなし: 残る推論は3件(会社名なし・カナリア電機グループ・非上場の会社)",
-          len(edition["sections"][1]["articles"][0]["inferences"]), 3)
+    check("推論欄の会社名/--hypothesesなし: 残る推論は2件(会社名なし・非上場の会社)",
+          len(edition["sections"][1]["articles"][0]["inferences"]), 2)
 
     result, edition = run(None)
     v = edition["verification"]
@@ -6598,17 +6748,18 @@ def test_canary_edition():
         # --- 改修27-2第6回: S7(推論欄の会社名の検査) ---
         a2_inferences = after_edition["sections"][1]["articles"][0]["inferences"]
         check(
-            "見本の号/正例(27-2 S7): 推論欄(A-2)の、上場会社の名前を含む2件(textに「カナリア電機」・check_metricに「カナリア物流株式会社」)が消え、"
-            "会社名を含まない推論・照合名の直後がカタカナ(カナリア電機グループ)・非上場の会社(カナリア食品開発)の3件が残る",
+            "見本の号/正例(27-2 S7): 推論欄(A-2)の、上場会社の名前を含む3件(textに「カナリア電機」・check_metricに「カナリア物流株式会社」・"
+            "textに「カナリア電機グループ」(規則3))が消え、会社名を含まない推論・非上場の会社(カナリア食品開発)の2件が残る",
             [i["text"][:12] for i in a2_inferences],
-            ["原材料価格の動向が今後の", "カナリア電機グループの動", "カナリア食品開発の提出書"],
+            ["原材料価格の動向が今後の", "カナリア食品開発の提出書"],
         )
         check(
             "見本の号/正例(27-2 S7): inference_company_name_removedに、記事ID・項目・社名・当たった語が記録される",
             v.get("inference_company_name_removed"),
-            {"count": 2, "removed": [
+            {"count": 3, "removed": [
                 {"article_id": "A-2", "hits": [{"field": "text", "company_name": "カナリア電機株式会社", "matched_word": "カナリア電機", "alias": None}]},
                 {"article_id": "A-2", "hits": [{"field": "check_metric", "company_name": "カナリア物流株式会社", "matched_word": "カナリア物流", "alias": None}]},
+                {"article_id": "A-2", "hits": [{"field": "text", "company_name": "カナリア電機株式会社", "matched_word": "カナリア電機", "alias": None}]},
             ]},
         )
         check(
@@ -7043,6 +7194,9 @@ def main():
 
     # 改修27-2(第6回): 推論欄の会社名の検査(S7)のテスト。
     test_run_check_inference_company_names()
+    test_inference_widened_rule()
+    test_normalize_match_name_with_positions()
+    test_find_mentions_default_unchanged_and_accept_end()
     test_inference_company_names_without_hypotheses()
 
     # 改修27-1(4-15): 見本の号(Canary)。
