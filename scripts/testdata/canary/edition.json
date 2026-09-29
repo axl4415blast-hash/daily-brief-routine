@@ -141,6 +141,39 @@
    "attribution": null,
    "processing_note": null,
    "published_at": "2026-09-01"
+  },
+  {
+   "source_id": "C11",
+   "publisher": "架空通信社",
+   "title": "架空商事、本文に日付の無い記事",
+   "url": "https://www.example-canary-news.test/article/5",
+   "usage": null,
+   "publisher_type": null,
+   "attribution": null,
+   "processing_note": null,
+   "published_at": "2026-09-18"
+  },
+  {
+   "source_id": "C12",
+   "publisher": "架空通信社",
+   "title": "Kakuu Shoji announces new item",
+   "url": "https://www.example-canary-news.test/article/6",
+   "usage": null,
+   "publisher_type": null,
+   "attribution": null,
+   "processing_note": null,
+   "published_at": "2026-09-18"
+  },
+  {
+   "source_id": "C13",
+   "publisher": "架空通信社",
+   "title": "架空商事、本文を取得していない記事",
+   "url": "https://www.example-canary-news.test/article/7",
+   "usage": null,
+   "publisher_type": null,
+   "attribution": null,
+   "processing_note": null,
+   "published_at": "2026-09-18"
   }
  ],
  "sections": [
@@ -219,6 +252,33 @@
        "claimed_mark": "reported_unverified",
        "numbers": [],
        "source_ref": "C10",
+       "attribution": null,
+       "processing_note": null
+      },
+      {
+       "line_id": "L-13",
+       "text": "日付だけで本文に日付が無い出典を参照する行",
+       "claimed_mark": "reported_unverified",
+       "numbers": [],
+       "source_ref": "C11",
+       "attribution": null,
+       "processing_note": null
+      },
+      {
+       "line_id": "L-14",
+       "text": "日付だけで本文に英語の日付がある出典を参照する行",
+       "claimed_mark": "reported_unverified",
+       "numbers": [],
+       "source_ref": "C12",
+       "attribution": null,
+       "processing_note": null
+      },
+      {
+       "line_id": "L-15",
+       "text": "日付だけで本文が無い出典を参照する行",
+       "claimed_mark": "reported_unverified",
+       "numbers": [],
+       "source_ref": "C13",
        "attribution": null,
        "processing_note": null
       }
@@ -307,6 +367,15 @@
        "claimed_mark": "reported_unverified",
        "numbers": [],
        "source_ref": "C09",
+       "attribution": null,
+       "processing_note": null
+      },
+      {
+       "line_id": "L-16",
+       "text": "日付だけで本文に日付が無い出典を参照するが、新しい変化ではない行",
+       "claimed_mark": "reported_unverified",
+       "numbers": [],
+       "source_ref": "C11",
        "attribution": null,
        "processing_note": null
       }

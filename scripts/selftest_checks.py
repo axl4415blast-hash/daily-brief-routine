@@ -2726,6 +2726,20 @@ def _rebuild_canary_as_today(work_dir):
             text = src.read_text(encoding="utf-8")
             text = text.replace(CANARY_BASELINE_DATE, today_str).replace(CANARY_PREV_DATE, prev_str)
             (cache_dir / src.name).write_text(text, encoding="utf-8")
+        elif src.suffix == ".txt" and "{{" in src.read_text(encoding="utf-8"):
+            # 改修27-2第4回: 本文の中に前日の日付を書きたい見本の出典(C08・C12)は、
+            # 置き換え用の目印({{PREV_JP_FW}}など)を含む。目印を含む本文だけを書き換え、
+            # ほかの本文(ハッシュを照合するC01〜C04など)は1バイトも変えずにコピーする。
+            text = src.read_text(encoding="utf-8")
+            prev_date = dt.datetime.strptime(prev_str, "%Y-%m-%d")
+            prev_jp = f"{prev_date.year}年{prev_date.month}月{prev_date.day}日"
+            month_names = ["January", "February", "March", "April", "May", "June", "July",
+                           "August", "September", "October", "November", "December"]
+            prev_en = f"{month_names[prev_date.month - 1]} {prev_date.day}, {prev_date.year}"
+            fullwidth = str.maketrans("0123456789", "０１２３４５６７８９")
+            text = (text.replace("{{PREV_JP_FW}}", prev_jp.translate(fullwidth))
+                        .replace("{{PREV_JP}}", prev_jp).replace("{{PREV_EN}}", prev_en))
+            (cache_dir / src.name).write_text(text, encoding="utf-8")
         else:
             shutil.copy(src, cache_dir / src.name)
 
@@ -5255,32 +5269,32 @@ def test_apply_published_date_only():
     check("published_date_only/負例: sourcesのキーが無い号でも落ちない", ve.apply_published_date_only({}), {"count": 0, "source_ids": []})
 
 
-def test_check36_still_applies_to_ai_date_only_sources():
-    """改修27-2第1回: published_date_onlyを機械が全出典に書くようになったが、検査36の
-    除外は書類一覧の2つだけのまま(AIが日付だけを書いた出典は、今までどおり検査36にかかる。
-    必須にするのは第4回)。"""
+def test_check36_timed_only_record_skips_date_only():
+    """改修27-2第4回: 記録だけの検査36(run_check_published_at)は時刻付きの出典だけが対象で、
+    日付だけの出典(書類一覧の2つを含む)は対象外(件数にも入れない)。日付だけの出典は
+    行を落とす run_check_published_date_only_required() が別に扱う。
+    (第1回では、AIが日付だけを書いた出典は「今までどおりこの検査にかかる」としていたが、
+    第4回で日付だけの出典の扱いを新しい関数に移したため期待値を変えた。)"""
     with tempfile.TemporaryDirectory() as d:
-        write(d, "C08.txt", "この本文には日付が書かれていない。".encode("utf-8"))
-        write(d, "SRC-EDINET-LIST.txt", "この本文にも日付が書かれていない。".encode("utf-8"))
+        for sid in ("C08", "SRC-EDINET-LIST", "T-1"):
+            write(d, f"{sid}.txt", "この本文には日付が書かれていない。".encode("utf-8"))
         edition = {
             "sections": [{"section_id": "big", "articles": [{"lines": [
                 {"line_id": "L-1", "source_ref": "C08"},
                 {"line_id": "L-2", "source_ref": "SRC-EDINET-LIST"},
+                {"line_id": "L-3", "source_ref": "T-1"},
             ]}]}],
             "sources": [
                 {"source_id": "C08", "url": "https://example.test/a", "published_at": "2026-09-18", "published_date_only": True},
                 {"source_id": "SRC-EDINET-LIST", "url": "https://api.edinet-fsa.go.jp/api/v2/documents.json?date=2026-09-18&type=2",
                  "published_at": "2026-09-18", "published_date_only": True},
+                {"source_id": "T-1", "url": "https://example.test/t", "published_at": "2026-09-18T10:00:00+09:00", "published_date_only": False},
             ],
         }
         hits, unverified_sources = ve.run_check_published_at(edition, d)
     check(
-        "検査36/27-2第1回・反応してほしい例: AIが日付だけを書いた出典(C08)は本文に日付が無ければ記録される",
-        (hits, unverified_sources), (1, ["C08"]),
-    )
-    check(
-        "検査36/27-2第1回・反応してほしくない例: 書類一覧(SRC-EDINET-LIST)は日付だけでも対象から外れたまま",
-        "SRC-EDINET-LIST" in unverified_sources, False,
+        "検査36(記録)/27-2第4回: 日付だけの出典(C08・書類一覧)は対象外で、時刻付きのT-1だけが記録される",
+        (hits, unverified_sources), (1, ["T-1"]),
     )
 
 
@@ -5377,7 +5391,12 @@ def test_round1_27_2_end_to_end_default_keys_without_hypotheses():
         check("27-2 S15/正例: --hypothesesなしでも正常終了する", result.returncode, 0)
         v = json.loads(edition_path.read_text(encoding="utf-8")).get("verification") or {}
     check("27-2 S15/正例: reported_relation_text_mismatchは0件・空で出る", v.get("reported_relation_text_mismatch"), {"count": 0, "hypothesis_ids": []})
-    check("27-2 S15/正例: published_date_only_sourcesは紙面だけで決まるので3件", (v.get("published_date_only_sources") or {}).get("count"), 4)
+    check("27-2 S15/正例: published_date_only_sourcesは紙面だけで決まるので7件", (v.get("published_date_only_sources") or {}).get("count"), 7)
+    check(
+        "27-2 S15/正例(第4回): published_date_not_foundも紙面と本文のキャッシュだけで決まるので、--hypothesesなしでも出る(2件)",
+        ((v.get("published_date_not_found") or {}).get("count"), (v.get("published_date_not_found") or {}).get("source_ids")),
+        (2, ["C11", "C13"]),
+    )
     check("27-2 S15/正例: empty_title_or_url_refsは紙面だけで決まるのでL-10の1件", v.get("empty_title_or_url_refs"), {"count": 1, "line_ids": ["L-10"]})
 
 
@@ -5734,6 +5753,173 @@ def test_prev_edinet_list_dropped_from_change_on_monday():
           flow("2026-09-29", "2026-09-28"), (["L-T", "L-P"], 0, {"timed": 0, "date_only": 0}))
 
 
+def test_date_found_in_text():
+    """改修27-2第4回: 本文の日付探し(英語の書き方の追加と、別の日に一致しないための規則)。"""
+    def found(text, year, month, day):
+        return ve.date_found_in_text(text, ve.published_at_candidates(year, month, day))
+
+    # --- 日本語・数字の書き方(今までどおり) ---
+    for label, text in [
+        ("ISO", "発表日は2026-09-18です"), ("スラッシュ(ゼロ埋め)", "2026/09/18に発表"),
+        ("スラッシュ(ゼロ埋めなし)", "2026/9/18に発表"), ("漢字", "2026年9月18日に発表"),
+        ("令和", "令和8年9月18日に発表"), ("年なし", "9月18日に発表"),
+    ]:
+        check(f"日付探し/日本語・数字({label}): 見つかる", found(text, 2026, 9, 18), True)
+
+    # --- 全角数字はNFKCで拾える ---
+    for label, text in [
+        ("全角の漢字表記", "２０２６年９月１８日に発表"), ("全角のスラッシュ", "２０２６／９／１８に発表"),
+        ("全角のISO", "２０２６-０９-１８に発表"), ("全角の令和", "令和８年９月１８日に発表"),
+        ("全角の年なし", "９月１８日に発表"), ("全角の英語", "Ｓｅｐｔｅｍｂｅｒ　１８，　２０２６"),
+    ]:
+        check(f"日付探し/全角({label}): 見つかる", found(text, 2026, 9, 18), True)
+
+    # --- 英語 ---
+    for label, text in [
+        ("正式名", "Published on September 18, 2026."), ("Sept.", "Published Sept. 18, 2026"),
+        ("Sep.", "Published Sep. 18, 2026"), ("Sep(ピリオドなし)", "Published Sep 18, 2026"),
+        ("Sept(ピリオドなし)", "Published Sept 18, 2026"),
+        ("大文字", "PUBLISHED SEPTEMBER 18, 2026"), ("小文字", "published september 18, 2026"),
+        ("大文字小文字が混ざる", "SePt. 18, 2026"), ("空白が特殊(改行・不可分空白)", "September\n18, 2026"),
+        ("時刻が続く", "September 18, 2026, 3:00 p.m. ET"), ("時刻が続く(Sep.)", "Sep. 18, 2026, 15:00"),
+    ]:
+        check(f"日付探し/英語({label}): 見つかる", found(text, 2026, 9, 18), True)
+    check("日付探し/英語(日が1桁): September 1, 2026 が見つかる", found("On September 1, 2026, the Board", 2026, 9, 1), True)
+    check("日付探し/英語(他の月): May 5, 2026・Jun. 5, 2026・Dec. 25, 2026 が見つかる",
+          (found("May 5, 2026", 2026, 5, 5), found("Jun. 5, 2026", 2026, 6, 5), found("Dec. 25, 2026", 2026, 12, 25)),
+          (True, True, True))
+    check("日付探し/英語(負例): 違う日・違う月・違う年は見つからない",
+          (found("September 19, 2026", 2026, 9, 18), found("October 18, 2026", 2026, 9, 18), found("September 18, 2025", 2026, 9, 18)),
+          (False, False, False))
+    check("日付探し/英語(負例): 9月の略記Sept.は10月には使われない(10月18日の資料に Sep. 18, 2026 は一致しない)",
+          found("Sep. 18, 2026", 2026, 10, 18), False)
+
+    # --- 別の日に一致してしまう穴(ゼロ埋めしない書き方)---
+    check("日付探し/別の日の穴: 2026/9/1 は 2026/9/12 に一致しない", found("2026/9/12に発表", 2026, 9, 1), False)
+    check("日付探し/別の日の穴: 9月1日 は 9月12日 に一致しない", found("9月12日に発表", 2026, 9, 1), False)
+    check("日付探し/別の日の穴: September 1, 2026 は September 12, 2026 に一致しない", found("September 12, 2026", 2026, 9, 1), False)
+    check("日付探し/別の日の穴: 直前が数字なら一致しない(12026/9/1 の中の 2026/9/1)", found("12026/9/1", 2026, 9, 1), False)
+    check("日付探し/別の日の穴: 12月1日 の中の 2月1日 に一致しない(直前が数字)", found("12月1日に発表", 2026, 2, 1), False)
+    check("日付探し/別の日の穴: 直後が数字(2026-09-180)なら一致しない", found("2026-09-180", 2026, 9, 18), False)
+    check("日付探し/別の日の穴: 直前が数字(12026-09-18)なら一致しない", found("12026-09-18", 2026, 9, 18), False)
+    check("日付探し/別の日の穴: 年の後ろに数字が続く(September 1, 20261)は一致しない", found("September 1, 20261", 2026, 9, 1), False)
+    check("日付探し/別の日の穴: 2026/9/1 そのもの(直後が文字・記号・文末)には一致する",
+          (found("2026/9/1に発表", 2026, 9, 1), found("2026/9/1、続報", 2026, 9, 1), found("2026/9/1", 2026, 9, 1)), (True, True, True))
+    check("日付探し/別の日の穴: 別の日が先に出ても、正しい日が別の場所にあれば見つかる",
+          found("2026/9/12 と 2026/9/1 の両方", 2026, 9, 1), True)
+    check("日付探し/別の日の穴: 「日」で終わる書き方は直後に数字が続いても見つかる(9月18日15時30分・2026年9月18日15:00)",
+          (found("9月18日15時30分に発表", 2026, 9, 18), found("2026年9月18日15:00", 2026, 9, 18)), (True, True))
+    check("日付探し/別の日の穴: 9月1日 は 9月18日 に一致しない", found("9月18日", 2026, 9, 1), False)
+    check("日付探し/負例: 日付がまったく無い本文・空の本文・Noneは見つからない",
+          (found("日付の無い本文", 2026, 9, 18), found("", 2026, 9, 18), found(None, 2026, 9, 18)), (False, False, False))
+
+
+def test_published_date_only_required():
+    """改修27-2第4回(S2・S3): 日付だけの出典は、本文に日付が見つからなければ日付不明とし、
+    その出典を参照するchangeの行を落とす(検査10より前)。"""
+    def line(line_id, ref):
+        return {"line_id": line_id, "source_ref": ref}
+
+    def make(sources, sections):
+        return {"date": "2026-09-25", "sources": sources, "sections": sections}
+
+    def src(source_id, published_at="2026-09-24", date_only=True):
+        return {"source_id": source_id, "url": f"https://example.test/{source_id}", "published_at": published_at, "published_date_only": date_only}
+
+    def change_only(lines):
+        return [{"section_id": "change", "articles": [{"lines": lines}]}]
+
+    def kept_ids(edition, index=0):
+        return [l["line_id"] for l in edition["sections"][index]["articles"][0]["lines"]]
+
+    with tempfile.TemporaryDirectory() as d:
+        write(d, "S-JP.txt", "本文。発表日は2026年9月24日。".encode("utf-8"))
+        write(d, "S-FW.txt", "本文。発表日は２０２６年９月２４日。".encode("utf-8"))
+        write(d, "S-EN.txt", "Body. Published Sept. 24, 2026.".encode("utf-8"))
+        write(d, "S-NONE.txt", "本文。発表日はどこにも書かれていない。".encode("utf-8"))
+        write(d, "S-WRONGDAY.txt", "本文。発表日は2026/9/240。別の日は2026年9月2日。".encode("utf-8"))
+        write(d, "S-BROKEN.txt", b"\x83\xff\x00\x81")
+        write(d, "SRC-EDINET-LIST.txt", "日付なし".encode("utf-8"))
+        write(d, "SRC-EDINET-LIST-PREV.txt", "日付なし".encode("utf-8"))
+        write(d, "T-NONE.txt", "日付なし".encode("utf-8"))
+
+        # --- 本文に日付がある(日本語・全角・英語)→ changeの行は残る ---
+        for sid, label in (("S-JP", "日本語"), ("S-FW", "全角"), ("S-EN", "英語")):
+            e = make([src(sid)], change_only([line("L-1", sid)]))
+            r = ve.run_check_published_date_only_required(e, d)
+            check(f"検査36必須/正例({label}): 本文に日付があれば、changeの行は残り、日付不明にならない",
+                  (kept_ids(e), r["count"], r["dropped_line_ids"]), (["L-1"], 0, []))
+
+        # --- 本文に日付が無い → changeの行は落ち、記録される ---
+        e = make([src("S-NONE")], change_only([line("L-1", "S-NONE"), line("L-2", "S-NONE")]))
+        r = ve.run_check_published_date_only_required(e, d)
+        check("検査36必須/正例: 本文に日付が無ければ、その出典を参照するchangeの行は(2行とも)落ちる", kept_ids(e), [])
+        check("検査36必須/正例: 記録される(出典1件・理由not_in_body・落とした行2つ)", r,
+              {"count": 1, "source_ids": ["S-NONE"], "reasons": {"S-NONE": "not_in_body"}, "dropped_line_ids": ["L-1", "L-2"]})
+
+        # --- 別の日の書き方が本文にあっても通らない(ゼロ埋めしない書き方の穴)---
+        e = make([src("S-WRONGDAY", published_at="2026-09-02")], change_only([line("L-1", "S-WRONGDAY")]))
+        e2 = make([src("S-WRONGDAY", published_at="2026-09-24")], change_only([line("L-1", "S-WRONGDAY")]))
+        r = ve.run_check_published_date_only_required(e, d)
+        r2 = ve.run_check_published_date_only_required(e2, d)
+        check("検査36必須/穴: 本文の「2026/9/240」は 2026-09-24 ではない(直後が数字)ため、9/24の資料は通らない",
+              (kept_ids(e2), r2["reasons"]), ([], {"S-WRONGDAY": "not_in_body"}))
+        check("検査36必須/穴: 本文に「2026年9月2日」がある9/2の資料は通る", (kept_ids(e), r["count"]), (["L-1"], 0))
+
+        # --- 本文のファイルが無い・読めない → 落ち、理由を分ける ---
+        e = make([src("S-MISSING"), src("S-BROKEN")], change_only([line("L-1", "S-MISSING"), line("L-2", "S-BROKEN"), line("L-3", "S-NO-SUCH-SOURCE")]))
+        r = ve.run_check_published_date_only_required(e, d)
+        check("検査36必須/正例: 本文のファイルが無い出典はbody_missing、文字コードで読めない出典はbody_unreadable",
+              r["reasons"], {"S-MISSING": "body_missing", "S-BROKEN": "body_unreadable"})
+        check("検査36必須/正例: どちらもchangeの行は落ちる(出典が見つからない行L-3は今までどおり残る)", kept_ids(e), ["L-3"])
+
+        # --- change以外の枠は落とさない ---
+        sections = [{"section_id": sid, "articles": [{"lines": [line(f"L-{sid}", "S-NONE")]}]} for sid in ("change", "big", "ripple", "deep")]
+        e = make([src("S-NONE")], sections)
+        r = ve.run_check_published_date_only_required(e, d)
+        check("検査36必須/枠: 日付不明でも、big・ripple・deepの行は落とさない(changeだけ落とす)",
+              [kept_ids(e, i) for i in range(4)], [[], ["L-big"], ["L-ripple"], ["L-deep"]])
+        check("検査36必須/枠: 記録の落とした行はchangeの1行だけ。出典は日付不明として1件数える",
+              (r["count"], r["dropped_line_ids"]), (1, ["L-change"]))
+
+        # --- 書類一覧の2つは対象外 ---
+        e = make([src("SRC-EDINET-LIST"), src("SRC-EDINET-LIST-PREV")],
+                 change_only([line("L-1", "SRC-EDINET-LIST"), line("L-2", "SRC-EDINET-LIST-PREV")]))
+        r = ve.run_check_published_date_only_required(e, d)
+        check("検査36必須/対象外: 書類一覧の2つは、本文に日付が無くても日付不明にならず、行も落とさない",
+              (kept_ids(e), r["count"]), (["L-1", "L-2"], 0))
+        e = make([src("SRC-EDINET-LIST"), src("SRC-EDINET-LIST-PREV")], change_only([line("L-1", "SRC-EDINET-LIST")]))
+        check("検査36必須/対象外: 書類一覧の本文ファイルが無くても落ちない(body_missingにもしない)",
+              ve.run_check_published_date_only_required(e, str(Path(d) / "no-such-dir"))["count"], 0)
+
+        # --- 時刻付きは記録だけ ---
+        e = make([src("T-NONE", published_at="2026-09-24T10:00:00+09:00", date_only=False)], change_only([line("L-1", "T-NONE")]))
+        r = ve.run_check_published_date_only_required(e, d)
+        hits, srcs = ve.run_check_published_at(e, d)
+        check("検査36必須/時刻付き: 時刻付きの出典は本文に日付が無くても行を落とさない(この関数の対象外)",
+              (kept_ids(e), r["count"]), (["L-1"], 0))
+        check("検査36必須/時刻付き: 時刻付きは今までどおり published_at_unverified_hits に数えられる(記録だけ)",
+              (hits, srcs), (1, ["T-NONE"]))
+
+        # --- 印(published_date_only)が無い出典は、この関数の対象外(印は機械が書く)---
+        e = make([{"source_id": "S-NONE", "published_at": "2026-09-24"}], change_only([line("L-1", "S-NONE")]))
+        check("検査36必須/印なし: published_date_onlyが真でない出典は対象外",
+              (ve.run_check_published_date_only_required(e, d)["count"], kept_ids(e)), (0, ["L-1"]))
+
+        # --- 順番(S3): 日付不明で落ちた行は検査10に届かず、二重に数えない ---
+        old = "2026-09-01"  # 号の日付(9/25)の前々日以前 → 日付が本文にあっても検査10では古い
+        write(d, "S-OLD-FOUND.txt", "本文。発表日は2026-09-01。".encode("utf-8"))
+        write(d, "S-OLD-NONE.txt", "本文。日付なし。".encode("utf-8"))
+        e = make([src("S-OLD-FOUND", published_at=old), src("S-OLD-NONE", published_at=old)],
+                 change_only([line("L-found", "S-OLD-FOUND"), line("L-none", "S-OLD-NONE")]))
+        r = ve.run_check_published_date_only_required(e, d)
+        check("検査36必須/順番: 本文に日付が無い古い出典(L-none)は検査36で落ちる",
+              (r["dropped_line_ids"], r["source_ids"]), (["L-none"], ["S-OLD-NONE"]))
+        stale, unknown, by_kind = ve.run_check_e_stale_sources(e, dt.datetime.fromisoformat("2026-09-25T07:30:00+09:00"))
+        check("検査36必須/順番: 検査10に届くのは残ったL-foundだけ。古い行は1・読めない行は0(L-noneは二重に数えない)",
+              (stale, unknown, by_kind, kept_ids(e)), (1, 0, {"timed": 0, "date_only": 1}, []))
+
+
 def test_canary_edition():
     """改修27-1(4-15): 見本の号(scripts/testdata/canary/)を、実際にverify_edition.pyの
     CLI全体に通して確かめる。第7.1版どおり10個の値(generated_at・baseline_late・
@@ -5762,7 +5948,7 @@ def test_canary_edition():
         business_days = ve.load_business_days(str(calendar_dir))
 
         # --- 出典の数(第5回で必ず直すこと1: 9つに揃える) ---
-        check("見本の号/正例: 出典は12(書類一覧2+C01〜C10。27-2第1回でC08・C09、第3回でC10を足した)", len(after_edition.get("sources") or []), 12)
+        check("見本の号/正例: 出典は15(書類一覧2+C01〜C13。27-2第1回でC08・C09、第3回でC10、第4回でC11〜C13を足した)", len(after_edition.get("sources") or []), 15)
 
         # --- 会社・行が消えないこと ---
         check("見本の号/正例: 上段の会社は4社とも残る", len(after_hyp.get("hypotheses") or []), 4)
@@ -5771,9 +5957,9 @@ def test_canary_edition():
             v.get("hypothesis_violations"), 0,
         )
         check(
-            "見本の号/正例: 検査時点の本文の行は12行(27-2第1回でL-09・L-10、第3回でL-11・L-12を足した。"
-            "L-12は検査10で落ちるが、行の数は落とす前に数える)",
-            v.get("lines_total"), 12,
+            "見本の号/正例: 検査時点の本文の行は16行(27-2第1回でL-09・L-10、第3回でL-11・L-12、第4回でL-13〜L-16を足した。"
+            "L-12・L-13・L-15は検査36・検査10で落ちるが、行の数は落とす前に数える)",
+            v.get("lines_total"), 16,
         )
         check("見本の号/正例: 出典と数字が一致した行は4件", v.get("passed"), 4)
 
@@ -5852,8 +6038,8 @@ def test_canary_edition():
         # --- 4-6: attribution_overwritten(第5回で必ず直すこと2: 出典・行の両方を
         #     合わせた第4回の数え方で計算し直した値) ---
         check(
-            "見本の号/正例: attribution_overwrittenは21(出典11件+source_refを持つ行10件。題名が空のC09とL-10はひな形が作れず、nullのままなので数えない)",
-            v.get("attribution_overwritten"), 21,
+            "見本の号/正例: attribution_overwrittenは28(出典14件+source_refを持つ行14件。題名が空のC09とL-10はひな形が作れず、nullのままなので数えない)",
+            v.get("attribution_overwritten"), 28,
         )
         check(
             "見本の号/正例: attribution_generation_skippedは2(題名が空のC09と、それを参照するL-10)",
@@ -5887,9 +6073,9 @@ def test_canary_edition():
 
         # --- 改修27-2第1回: S1・S12・S13 ---
         check(
-            "見本の号/正例(27-2 S1): published_date_onlyの出典は書類一覧2つと、日付だけを書いたC08・C10の4件",
+            "見本の号/正例(27-2 S1): published_date_onlyの出典は書類一覧2つと、日付だけを書いたC08・C10・C11・C12・C13の7件",
             v.get("published_date_only_sources"),
-            {"count": 4, "source_ids": ["SRC-EDINET-LIST", "SRC-EDINET-LIST-PREV", "C08", "C10"]},
+            {"count": 7, "source_ids": ["SRC-EDINET-LIST", "SRC-EDINET-LIST-PREV", "C08", "C10", "C11", "C12", "C13"]},
         )
         check(
             "見本の号/正例(27-2 S1): AIがpublished_date_only=falseと書いたC08(日付だけ)は機械が真に上書きする",
@@ -5933,6 +6119,37 @@ def test_canary_edition():
         check(
             "見本の号/負例(27-2 S4): 公表時刻が読めず落ちた行は0(unknown_published_at_hits)",
             v.get("unknown_published_at_hits"), 0,
+        )
+
+        # --- 改修27-2第4回: S2・S3(検査36を必須にし、検査10より先に行う) ---
+        check(
+            "見本の号/正例(27-2 S2): 日付だけの出典で、本文に日付が無いC11(L-13)と、本文のファイルが無いC13(L-15)は"
+            "日付不明になり、changeの枠のその行が落ちる。理由はC11=not_in_body・C13=body_missing",
+            v.get("published_date_not_found"),
+            {"count": 2, "source_ids": ["C11", "C13"], "reasons": {"C11": "not_in_body", "C13": "body_missing"},
+             "dropped_line_ids": ["L-13", "L-15"]},
+        )
+        check(
+            "見本の号/負例(27-2 S2): 本文に日本語の全角の日付があるC08(L-11)と、英語の日付があるC12(L-14)は、changeの枠に残る",
+            ("L-11" in change_line_ids, "L-14" in change_line_ids, "L-13" in change_line_ids, "L-15" in change_line_ids),
+            (True, True, False, False),
+        )
+        big_line_ids = [l["line_id"] for l in after_edition["sections"][1]["articles"][0]["lines"]]
+        check(
+            "見本の号/負例(27-2 S2): 同じ日付不明のC11を参照していても、changeでない枠(big)のL-16は落とさない",
+            "L-16" in big_line_ids, True,
+        )
+        check(
+            "見本の号/正例(27-2 S3): 本文に日付があるが古いC10(L-12)は日付不明にならず、検査10で落ちる。"
+            "日付不明で落ちたL-13・L-15は検査10で二重に数えず、stale_source_hitsは1・unknown_published_at_hitsは0のまま",
+            ("C10" in v["published_date_not_found"]["source_ids"], v.get("stale_source_hits"),
+             v.get("stale_source_hits_by_kind"), v.get("unknown_published_at_hits")),
+            (False, 1, {"timed": 0, "date_only": 1}, 0),
+        )
+        check(
+            "見本の号/負例(27-2 S2): 時刻付きの出典C01〜C07は記録だけで(published_at_unverified_hitsは7のまま)、行は落とさない",
+            (v.get("published_at_unverified_hits"), sorted(v.get("published_at_unverified_sources") or [])),
+            (7, ["C01", "C02", "C03", "C04", "C05", "C06", "C07"]),
         )
 
         # --- 4-11: RECENT-HEADLINES.jsonを置いていないので失敗として記録される(号は止まらない) ---
@@ -6331,7 +6548,7 @@ def main():
     test_check12_removed_direction_not_read()
     test_is_date_only_string()
     test_apply_published_date_only()
-    test_check36_still_applies_to_ai_date_only_sources()
+    test_check36_timed_only_record_skips_date_only()
     test_empty_title_or_url_refs()
     test_reported_relation_text_mismatch()
     test_round1_27_2_end_to_end_default_keys_without_hypotheses()
@@ -6346,6 +6563,11 @@ def main():
     # 改修27-2(第3回): 検査10の「新しい」の条件を出典の種類で分ける(S4)のテスト。
     test_stale_sources_by_source_kind()
     test_prev_edinet_list_dropped_from_change_on_monday()
+
+    # 改修27-2(第4回): 検査36を必須にし(S2)、検査10より先に行う(S3)。英語の日付・
+    # 別の日に一致しないための規則のテスト。
+    test_date_found_in_text()
+    test_published_date_only_required()
 
     # 改修27-1(4-15): 見本の号(Canary)。
     test_canary_edition()

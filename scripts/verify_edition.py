@@ -976,10 +976,31 @@ def _reiwa_year(seireki_year):
     return seireki_year - 2018
 
 
+_ENGLISH_MONTH_NAMES = (
+    "January", "February", "March", "April", "May", "June", "July",
+    "August", "September", "October", "November", "December",
+)
+
+
+def _english_month_forms(month):
+    """英語の日付に使う月の書き方の一覧。正式名(September)と、3文字の略記(Sep.・Sep)。
+    9月だけは4文字の略記(Sept.・Sept)も加える。"""
+    full = _ENGLISH_MONTH_NAMES[month - 1]
+    abbr = full[:3]
+    forms = [full, abbr + ".", abbr]
+    if month == 9:
+        forms += ["Sept.", "Sept"]
+    return list(dict.fromkeys(forms))  # 順番を保ったまま重複を除く(Mayなど)
+
+
 def published_at_candidates(year, month, day):
-    """検査36で本文を探す、発表日の書き方の候補(要件定義書v12 13章の6通り)。
-    月日にゼロ埋めが要る書き方(2件)以外は、ゼロ埋めしない元の月日をそのまま使う。"""
-    return [
+    """検査36で本文を探す、発表日の書き方の候補。
+    日本語・数字の6通り(要件定義書v12 13章)と、改修27-2第4回で足した英語
+    (September 18, 2026 / Sept. 18, 2026 / Sep. 18, 2026 / Sep 18, 2026)。
+    月日にゼロ埋めが要る書き方(2件)以外は、ゼロ埋めしない元の月日をそのまま使う
+    (英語の日も September 1, 2026 のようにゼロ埋めしない)。大文字・小文字の違いは
+    date_found_in_text()が同じとみなす。"""
+    forms = [
         f"{year:04d}-{month:02d}-{day:02d}",
         f"{year:04d}/{month:02d}/{day:02d}",
         f"{year:04d}/{month}/{day}",
@@ -987,36 +1008,94 @@ def published_at_candidates(year, month, day):
         f"令和{_reiwa_year(year)}年{month}月{day}日",
         f"{month}月{day}日",
     ]
+    forms += [f"{name} {day}, {year:04d}" for name in _english_month_forms(month)]
+    return forms
 
 
-def run_check_published_at(edition, cache_dir):
-    """検査36(要件定義書v12 5.6・13章): 出典のpublished_at(発表日)が本物かどうかを、
-    出典本文にその日付の書き方(published_at_candidates()の6通り)のどれかが含まれて
-    いるかで確かめる。7日間は記録するだけで、行は一切落とさない(markは変更しない)。
+def _normalize_for_date_search(text):
+    """日付を探すための正規化。normalize_text()と同じく、NFKC(全角数字・全角英字を半角に)・
+    ダッシュ類の統一・空白の除去を行うが、次の2点が違う。
+      ・数字の間のカンマを取り除かない(英語の日付 'September 18, 2026, 3:00 p.m.' の
+        年の後ろのカンマが消えて、時刻の数字とくっつくのを防ぐため)
+      ・英字を小文字にそろえる(September と september を同じとみなす)"""
+    if not text:
+        return ""
+    text = unicodedata.normalize("NFKC", text)
+    for ch in _DASH_CHARS:
+        text = text.replace(ch, "-")
+    return _WS_RE.sub("", text).lower()
 
-    対象は、published_atが空でなく、かつキャッシュに本文のファイルがあって読める
-    出典だけ。published_atがnull、キャッシュが無い・読めない出典は対象外(件数にも
-    入れない)。判定は出典ごとに1回だけ行う(同じ出典を参照する行が複数あっても、
-    本文の読み込みと照合は1回)。
 
-    改修27-1(4-3): 書類一覧そのものの出典(published_date_onlyが真で、source_idが
-    EDINET_DOCLIST_SOURCE_IDSのどちらか。published_atは一覧の取得条件から来る日付だけで、
-    本文の日付表記と比べる意味が無い)は、この検査の対象から外す(件数にも入れない)。
-    改修27-2第1回: published_date_onlyは機械が全出典に書くようになったため、除外の条件を
-    書類一覧の2つに限った(AIが日付だけを書いた出典は今までどおりこの検査にかかる。
-    必須にするのは27-2第4回)。
+def date_found_in_text(text, candidates):
+    """本文(text、未加工)の中に、候補(published_at_candidates()の書き方)のどれかが
+    日付として現れるかを返す。
 
-    戻り値: (確認できなかった出典を参照する本文の行の数, 確認できなかった出典IDの一覧)。"""
-    line_counts_by_source = {}
+    改修27-2第4回: ゼロ埋めしない書き方(2026/9/1・9月1日・September 1, 2026)が、
+    別の日の書き方(2026/9/12・12月1日・September 12, 2026など)の一部に一致して
+    しまわないよう、次の規則で一致を判定する。
+      ・候補が数字で始まるとき: 見つかった箇所の直前の文字が数字なら一致としない
+        (例: 「12026/9/1」の中の「2026/9/1」、「12月1日」の中の「2月1日」)
+      ・候補が数字で終わるとき: 見つかった箇所の直後の文字が数字なら一致としない
+        (例: 「2026/9/12」の中の「2026/9/1」)
+      ・候補が「日」や「,2026」ではなく漢字で終わるとき(「9月18日」など)は、直後に
+        数字が続いてよい(「9月18日15時」の「日」は日付の終わりを示しているため)。
+    これは、依頼の「直後の文字が数字なら一致としない」を、日付の終わりが数字でない
+    書き方まで機械的に当てはめると「9月18日15時30分」まで落としてしまうため、
+    候補の端が数字のときだけに限ったもの。"""
+    haystack = _normalize_for_date_search(text)
+    for candidate in candidates:
+        needle = _normalize_for_date_search(candidate)
+        if not needle:
+            continue
+        check_before = _is_half_width_digit(needle[0])
+        check_after = _is_half_width_digit(needle[-1])
+        start = 0
+        while True:
+            idx = haystack.find(needle, start)
+            if idx == -1:
+                break
+            end = idx + len(needle)
+            before = haystack[idx - 1] if idx > 0 else ""
+            after = haystack[end] if end < len(haystack) else ""
+            if not ((check_before and _is_half_width_digit(before)) or (check_after and _is_half_width_digit(after))):
+                return True
+            start = idx + 1
+    return False
+
+
+def _count_lines_by_source(edition):
+    counts = {}
     for _section, _article, line in iter_lines(edition):
         ref = line.get("source_ref")
         if ref:
-            line_counts_by_source[ref] = line_counts_by_source.get(ref, 0) + 1
+            counts[ref] = counts.get(ref, 0) + 1
+    return counts
+
+
+def run_check_published_at(edition, cache_dir):
+    """検査36(要件定義書v12 5.6・13章)の、時刻付きの出典の分: 出典のpublished_at(発表日)が
+    本物かどうかを、出典本文にその日付の書き方(published_at_candidates())のどれかが
+    含まれているかで確かめる。時刻付きの出典は記録するだけで、行は一切落とさない
+    (markは変更しない)。日付だけの出典の分は、行を落とす
+    run_check_published_date_only_required()が別に行う。
+
+    対象は、published_atが空でなく、かつキャッシュに本文のファイルがあって読める
+    時刻付きの出典だけ。published_atがnull、キャッシュが無い・読めない出典は対象外(件数にも
+    入れない)。判定は出典ごとに1回だけ行う(同じ出典を参照する行が複数あっても、
+    本文の読み込みと照合は1回)。
+
+    published_date_onlyが真の出典(日付だけ)は、書類一覧の2つも含めて、この関数の
+    対象から外す(件数にも入れない)。書類一覧はpublished_atが一覧の取得条件から来る
+    日付だけで本文の日付表記と比べる意味が無く、それ以外の日付だけの出典は
+    run_check_published_date_only_required()が扱う(改修27-2第4回)。
+
+    戻り値: (確認できなかった出典を参照する本文の行の数, 確認できなかった出典IDの一覧)。"""
+    line_counts_by_source = _count_lines_by_source(edition)
 
     unverified_hits = 0
     unverified_sources = []
     for source in edition.get("sources", []):
-        if source.get("published_date_only") and source.get("source_id") in EDINET_DOCLIST_SOURCE_IDS:
+        if source.get("published_date_only"):
             continue
         source_id = source.get("source_id")
         published_dt = parse_datetime_assume_jst(source.get("published_at"))
@@ -1030,15 +1109,77 @@ def run_check_published_at(edition, cache_dir):
         if body_text is None:
             continue
 
-        body_norm = normalize_text(body_text)
         local_dt = published_dt.astimezone(JST)
         candidates = published_at_candidates(local_dt.year, local_dt.month, local_dt.day)
-        found = any(normalize_text(candidate) in body_norm for candidate in candidates)
-        if not found:
+        if not date_found_in_text(body_text, candidates):
             unverified_hits += line_counts_by_source.get(source_id, 0)
             unverified_sources.append(source_id)
 
     return unverified_hits, unverified_sources
+
+
+def run_check_published_date_only_required(edition, cache_dir):
+    """検査36(改修27-2第4回・S2): 日付だけの出典(published_date_onlyが真。書類一覧の
+    2つ SRC-EDINET-LIST・SRC-EDINET-LIST-PREV は除く)は、本文にその日付が書かれて
+    いなければ「日付不明」とし、その出典を参照する「新しい変化」(section_idがchange)の
+    行を、その場で落とす。change以外の枠(big・ripple・deep)の行は落とさない
+    (鮮度の条件はchange枠だけのため)。
+
+    日付不明にする理由は次の3つで、理由を分けて記録する。
+      ・not_in_body: 本文は読めたが、published_atの日付がどの書き方でも見つからない
+      ・body_missing: キャッシュに本文のファイルが無い(取得していない出典など)
+      ・body_unreadable: 本文のファイルはあるが、文字コードの問題で読めない
+    時刻付きの出典は対象外(記録だけの run_check_published_at() が扱う)。
+
+    検査10(run_check_e_stale_sources)より前に呼ぶこと。ここで落とした行は検査10に
+    届かないので、unknown_published_at_hits・stale_source_hitsには数えない
+    (published_date_not_foundだけで数える)。
+
+    戻り値: {"count": 日付不明にした出典の数(参照する行の有無・枠を問わない),
+             "source_ids": [...], "reasons": {source_id: 理由},
+             "dropped_line_ids": [落とした行のline_id]}。"""
+    not_found = {}
+    for source in edition.get("sources", []):
+        if not source.get("published_date_only"):
+            continue
+        source_id = source.get("source_id")
+        if source_id in EDINET_DOCLIST_SOURCE_IDS:
+            continue
+        published_at = source.get("published_at")
+        if not is_date_only_string(published_at):
+            continue  # 通常は起きない(印はpublished_atの形から機械が書く)。読めない出典は検査10が扱う。
+        cache_path = Path(cache_dir) / f"{source_id}.txt"
+        if not cache_path.is_file():
+            not_found[source_id] = "body_missing"
+            continue
+        body_text = read_source_body_for_checks(cache_path, source)
+        if body_text is None:
+            not_found[source_id] = "body_unreadable"
+            continue
+        published_date = dt.date.fromisoformat(published_at)
+        candidates = published_at_candidates(published_date.year, published_date.month, published_date.day)
+        if not date_found_in_text(body_text, candidates):
+            not_found[source_id] = "not_in_body"
+
+    dropped_line_ids = []
+    for section in edition.get("sections", []):
+        if section.get("section_id") != "change":
+            continue
+        for article in section.get("articles", []):
+            kept = []
+            for line in article.get("lines", []):
+                if line.get("source_ref") in not_found:
+                    dropped_line_ids.append(line.get("line_id"))
+                else:
+                    kept.append(line)
+            article["lines"] = kept
+
+    return {
+        "count": len(not_found),
+        "source_ids": list(not_found),
+        "reasons": dict(not_found),
+        "dropped_line_ids": dropped_line_ids,
+    }
 
 
 NUMBER_COVERAGE_TOKEN_RE = re.compile(r"\d+(?:[.,]\d+)*")
@@ -2473,7 +2614,8 @@ def print_report(edition_path, stats, stop_hits, watch_hits, dropped_inferences,
                   hypothesis_violations, hypothesis_reasons, number_failure_details, ok,
                   baseline_late=False, ticker_crosscheck="skipped", source_usage_invalid_hits=0,
                   industry_report=None, source_policy_unlisted_domains=None,
-                  number_coverage=None, sources_published_at_null=None, rerun_detected=False):
+                  number_coverage=None, sources_published_at_null=None, rerun_detected=False,
+                  published_date_not_found=None):
     print("=" * 60)
     print(f"照合結果: {edition_path}")
     print("=" * 60)
@@ -2523,6 +2665,12 @@ def print_report(edition_path, stats, stop_hits, watch_hits, dropped_inferences,
             print(f"    ・{hit['line_id']}: 「{hit['word']}」 (本文: {hit['text']})")
     print(f"出典が古い行の件数(時刻付きは36時間超、日付だけは号の日付の前日より前か号の日付より後): {stale_hits}")
     print(f"出典の公表時刻が分からず、鮮度を確認できなかったため落とした行の件数: {unknown_published_at_hits}")
+    # 改修27-2第4回(S2): 日付だけの出典で、本文に日付が見つからなかった(または本文が読めなかった)もの。
+    date_not_found = published_date_not_found or {"count": 0, "source_ids": [], "reasons": {}, "dropped_line_ids": []}
+    print(
+        f"日付だけの出典で、本文に日付が見つからず日付不明にした出典: {date_not_found['count']}件"
+        f"(そのため新しい変化の枠から落とした行: {len(date_not_found['dropped_line_ids'])}行)"
+    )
     print(f"出典の日時が読み取れず判定できなかった行の件数: {stale_skipped}")
     # 修正5: change枠に関係なく、出典そのものでpublished_atが無いものを数える
     # (行は落とさない。既存のunknown_published_at_hitsとは別の集計)。
@@ -2813,10 +2961,13 @@ def run_verification(edition_file, hypotheses_file, cache_dir_arg, calendar_dir_
         }
         source_usage_invalid_hits = count_invalid_source_usages(edition)
         dropped_inferences = run_check_d_inferences(edition)
+        # 改修27-2第4回(S2・S3): 検査36を検査10より先に行う。日付だけの出典は、本文に日付が
+        # 見つからなければ日付不明としてchangeの行をここで落とし(検査10に届かないので
+        # 二重に数えない)、時刻付きの出典は今までどおり記録だけ(行は落とさない)。
+        published_date_not_found = run_check_published_date_only_required(edition, cache_dir_arg)
+        published_at_unverified_hits, published_at_unverified_sources = run_check_published_at(edition, cache_dir_arg)
         stale_hits, unknown_published_at_hits, stale_source_hits_by_kind = run_check_e_stale_sources(edition, run_at_dt)
         stale_check_skipped = 0  # run_at_dtは常に読み取れるため、判定を飛ばす理由が無い。
-        # 検査36: 記録だけを取り、行は落とさない(要件定義書v12 13章。7日間の様子見)。
-        published_at_unverified_hits, published_at_unverified_sources = run_check_published_at(edition, cache_dir_arg)
         # 修正5: 枠(change)に関係なく、出典そのものでpublished_atが無いものを数える。
         sources_published_at_null = count_sources_published_at_null(edition)
 
@@ -3061,6 +3212,9 @@ def run_verification(edition_file, hypotheses_file, cache_dir_arg, calendar_dir_
             "horizon_recount_skipped": hypothesis_extra["horizon_recount_skipped"],
             # 改修27-1(4-10): tob_sideの決定でsubjectEdinetCodeが取れなかった件数(記録専用)。
             "tob_side_subject_code_missing": hypothesis_extra["tob_side_subject_code_missing"],
+            # 改修27-2第4回(S2): 日付だけの出典で、本文に日付が見つからず(または本文が読めず)
+            # 日付不明にした出典と、そのためにchangeの枠から落とした行。
+            "published_date_not_found": published_date_not_found,
             "published_at_unverified_hits": published_at_unverified_hits,
             "published_at_unverified_sources": published_at_unverified_sources,
             # 修正5: 記録専用(判定には使わない)。既存のunknown_published_at_hitsは変えない。
@@ -3107,6 +3261,7 @@ def run_verification(edition_file, hypotheses_file, cache_dir_arg, calendar_dir_
             number_coverage=number_coverage,
             sources_published_at_null=sources_published_at_null,
             rerun_detected=rerun_detected,
+            published_date_not_found=published_date_not_found,
         )
         return 0
 
