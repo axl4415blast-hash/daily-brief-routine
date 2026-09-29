@@ -1807,6 +1807,106 @@ def recent_business_days(business_days, date_str, count):
     return upto[-count:]
 
 
+# 改修27-2第9回: 号をまたいで比べる範囲(号をまたぐ重複・続報の判定・scripts/recent_headlines.py
+# で共通)。一覧(editions/index.json)は作業フォルダ基準の固定パスで読む(照合のコマンドに
+# 引数は足さない)。一覧の中のedition_path/hypotheses_pathも作業フォルダ基準。
+EDITIONS_INDEX_PATH = "editions/index.json"
+RECENT_WINDOW_BUSINESS_DAYS = 3
+SLOT_ORDER = {"morning": 0, "noon": 1, "evening": 2}
+
+
+def is_before(entry_date, entry_slot, target_date, target_slot):
+    """entry(既にある号)が、target(今回の号)より前かどうかを判定する。
+    日付が違えばその前後だけで決まる。同じ日付なら、時間帯の順(朝<昼<夕方)で
+    比べる。slot名が想定外(SLOT_ORDERに無い)の場合は、安全側でFalse(対象外)にする。
+    (改修27-2第9回でscripts/recent_headlines.pyから移した)"""
+    if entry_date != target_date:
+        return entry_date < target_date
+    entry_order = SLOT_ORDER.get(entry_slot)
+    target_order = SLOT_ORDER.get(target_slot)
+    if entry_order is None or target_order is None:
+        return False
+    return entry_order < target_order
+
+
+def select_recent_editions(index_entries, business_days, edition_date, edition_slot, edition_id,
+                           count=RECENT_WINDOW_BUSINESS_DAYS):
+    """改修27-2第9回: editions/index.jsonの号(index_entries)のうち、比べる範囲に入る号を
+    日付・時間帯の古い順で返す(ファイルは読まず、選ぶだけ)。
+      ・範囲は、recent_business_days(business_days, edition_date, count)の最も古い日から
+        edition_dateまでの暦日のすべての日(土日・祝日の号も含める)
+      ・同じ日付の号は、時間帯の順で今回より前のものだけ
+      ・今回の号と同じedition_idの号は外す
+    dateが文字でない等、形の壊れた行は飛ばす。営業日が1つも無ければ空配列。"""
+    window = recent_business_days(business_days, edition_date, count)
+    if not window:
+        return []
+    start = window[0]
+    selected = []
+    for entry in index_entries:
+        if not isinstance(entry, dict):
+            continue
+        entry_date = entry.get("date")
+        if not isinstance(entry_date, str) or not (start <= entry_date <= edition_date):
+            continue
+        if not is_before(entry_date, entry.get("slot"), edition_date, edition_slot):
+            continue
+        if entry.get("edition_id") == edition_id:
+            continue
+        selected.append(entry)
+    selected.sort(key=lambda e: (e["date"], SLOT_ORDER.get(e.get("slot"), -1)))
+    return selected
+
+
+def load_editions_index(path=EDITIONS_INDEX_PATH):
+    """改修27-2第9回: editions/index.jsonを読み、号の一覧(editions配列)を返す。
+    ファイルが無い・壊れている・editionsが配列でない場合はNone(号は止めない)。"""
+    try:
+        doc = load_json(path)
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+        return None
+    entries = doc.get("editions") if isinstance(doc, dict) else None
+    if not isinstance(entries, list):
+        return None
+    return entries
+
+
+def load_recent_editions(entries):
+    """改修27-2第9回: select_recent_editions()で選んだ号の紙面・仮説のファイルを読む。
+    戻り値: (読めた号の一覧, 読めなかったものの一覧)。
+      ・読めた号: {"entry", "edition", "hypotheses"}。hypothesesは仮説の配列で、仮説ファイルが
+        読めなかった号はNone(その号は号をまたぐ重複の判定だけ飛ばす)。
+      ・読めなかったもの: {"edition_id", "file": "edition"|"hypotheses"}。紙面が読めなければ
+        その号は丸ごと飛ばす。仮説ファイルが無く、hypotheses_countが0なら正常(仮説0件)。"""
+    loaded = []
+    unreadable = []
+    for entry in entries:
+        edition_id = entry.get("edition_id")
+        try:
+            edition = load_json(entry.get("edition_path"))
+        except (TypeError, OSError, json.JSONDecodeError, UnicodeDecodeError):
+            edition = None
+        if not isinstance(edition, dict):
+            unreadable.append({"edition_id": edition_id, "file": "edition"})
+            continue
+
+        hyp_path = entry.get("hypotheses_path")
+        hypotheses = None
+        if entry.get("hypotheses_count") == 0 and not (isinstance(hyp_path, str) and Path(hyp_path).exists()):
+            hypotheses = []
+        else:
+            try:
+                hyp_doc = load_json(hyp_path)
+            except (TypeError, OSError, json.JSONDecodeError, UnicodeDecodeError):
+                hyp_doc = None
+            if isinstance(hyp_doc, dict) and isinstance(hyp_doc.get("hypotheses"), list):
+                hypotheses = hyp_doc["hypotheses"]
+            else:
+                unreadable.append({"edition_id": edition_id, "file": "hypotheses"})
+        loaded.append({"entry": entry, "edition": edition, "hypotheses": hypotheses})
+    return loaded, unreadable
+
+
 def compute_deadline(business_days, baseline_date, horizon):
     try:
         idx = business_days.index(baseline_date)
@@ -3271,6 +3371,63 @@ def run_slot_allocation(hypotheses_doc, edition):
     return total_violations, reasons
 
 
+def hypothesis_ticker_doc_key(hyp, sources_by_id):
+    """改修27-2第9回: 号をまたぐ重複の比べる鍵(ticker, 書類管理番号)。tickerが文字で、
+    evidence_source_refの指す出典のURLから書類管理番号が取れる仮説だけ。それ以外はNone。"""
+    ticker = hyp.get("ticker")
+    if not isinstance(ticker, str) or not ticker:
+        return None
+    ref = hyp.get("evidence_source_ref")
+    source = sources_by_id.get(ref) if isinstance(ref, str) else None
+    url = source.get("url") if isinstance(source, dict) else None
+    doc_id = extract_edinet_doc_id(url) if isinstance(url, str) else None
+    if doc_id is None:
+        return None
+    return (ticker, doc_id)
+
+
+def apply_cross_edition_duplicates(hyps, sources_by_id, recent_loaded):
+    """改修27-2第9回(要件3.4(2)): 上段の仮説(すべての検査と枠の配分の後に残ったもの)を、
+    比べる範囲の過去の号の仮説と(ticker, 書類管理番号)で比べる。過去の号の書類管理番号は、
+    その過去の号の紙面の出典からevidence_source_refで引く。
+    一致すれば、duplicate_ofに一致した中で最も古い号の"edition_id:hypothesis_id"を書き、
+    auto_check_targetを偽にする(仮説は削除しない)。一致しなければduplicate_ofはnull、
+    auto_check_targetは機械の値のまま。duplicate_ofはAIの値を使わず、すべての仮説に書く。
+    recent_loadedはload_recent_editions()の結果(古い順)。
+    戻り値: {"count", "duplicates": [{hypothesis_id, company_name, ticker, doc_id, duplicate_of}]}。"""
+    past_keys = {}
+    for item in recent_loaded:
+        if item["hypotheses"] is None:
+            continue
+        past_sources = item["edition"].get("sources")
+        past_sources_by_id = {
+            s.get("source_id"): s for s in (past_sources if isinstance(past_sources, list) else [])
+            if isinstance(s, dict)
+        }
+        for past_hyp in item["hypotheses"]:
+            if not isinstance(past_hyp, dict):
+                continue
+            key = hypothesis_ticker_doc_key(past_hyp, past_sources_by_id)
+            if key is not None and key not in past_keys:
+                past_keys[key] = f"{item['entry'].get('edition_id')}:{past_hyp.get('hypothesis_id')}"
+
+    duplicates = []
+    for hyp in hyps:
+        key = hypothesis_ticker_doc_key(hyp, sources_by_id)
+        duplicate_of = past_keys.get(key) if key is not None else None
+        hyp["duplicate_of"] = duplicate_of
+        if duplicate_of is not None:
+            hyp["auto_check_target"] = False
+            duplicates.append({
+                "hypothesis_id": hyp.get("hypothesis_id"),
+                "company_name": hyp.get("company_name"),
+                "ticker": key[0],
+                "doc_id": key[1],
+                "duplicate_of": duplicate_of,
+            })
+    return {"count": len(duplicates), "duplicates": duplicates}
+
+
 def print_report(edition_path, stats, stop_hits, watch_hits, dropped_inferences, stale_hits,
                   unknown_published_at_hits, stale_skipped,
                   hypothesis_violations, hypothesis_reasons, number_failure_details, ok,
@@ -3638,6 +3795,16 @@ def run_verification(edition_file, hypotheses_file, cache_dir_arg, calendar_dir_
             cache_dir_arg, edition.get("date"), edition.get("slot")
         )
 
+        # 改修27-2第9回: 号をまたいで比べる範囲の号(editions/index.jsonに載った号)を読む。
+        # 一覧が読めなければ比べる号は無しとして進め、個々の号のファイルが読めなければ
+        # その号だけ飛ばす(どちらも記録するだけで、号は止めない)。
+        editions_index = load_editions_index()
+        recent_editions_index_unavailable = editions_index is None
+        recent_entries = select_recent_editions(
+            editions_index or [], business_days, edition.get("date"), edition.get("slot"), edition.get("edition_id"),
+        )
+        recent_loaded, recent_editions_unreadable = load_recent_editions(recent_entries)
+
         ng_words = load_ng_words(ng_words_path)
         ng_words_exclude = load_ng_words(ng_words_exclude_path)
 
@@ -3726,6 +3893,8 @@ def run_verification(edition_file, hypotheses_file, cache_dir_arg, calendar_dir_
         }
         # 改修27-2(S13): --hypotheses未指定でもキーがそろうよう、既定値(0件)にしておく。
         reported_relation_text_mismatch = {"count": 0, "hypothesis_ids": []}
+        # 改修27-2第9回: --hypotheses未指定でもキーがそろうよう、既定値(0件)にしておく。
+        cross_edition_duplicates = {"count": 0, "duplicates": []}
         if hypotheses_file:
             try:
                 hypotheses_doc = load_json(hypotheses_file)
@@ -3833,6 +4002,14 @@ def run_verification(edition_file, hypotheses_file, cache_dir_arg, calendar_dir_
                         "generic_name_dropped", {"count": 0, "names": []}
                     ),
                 }
+
+            # 改修27-2第9回(要件3.4(2)): 号をまたぐ重複。すべての検査と枠の配分(検査29)の後に
+            # 残った上段の仮説を、比べる範囲の過去の号の仮説と比べる(削除はしない)。
+            cross_edition_duplicates = apply_cross_edition_duplicates(
+                hypotheses_doc["hypotheses"],
+                {s.get("source_id"): s for s in edition.get("sources", [])},
+                recent_loaded,
+            )
 
         # 修正2: first_runが無ければ今回の値で作る。あれば中身を一切書き換えず、
         # そのまま引き継ぐ(2回目以降の照合でAIの初回申告が消えないように)。
@@ -3979,6 +4156,13 @@ def run_verification(edition_file, hypotheses_file, cache_dir_arg, calendar_dir_
             # 改修27-2(S13): reportedの上段の会社のうち、relation_textが定型文と違うもの
             # (記録専用。会社は消さない)。
             "reported_relation_text_mismatch": reported_relation_text_mismatch,
+            # 改修27-2第9回: 号をまたいで比べる範囲の号について、一覧(editions/index.json)が
+            # 読めなかったか・読めなかった号(edition_idと、紙面・仮説のどちらか)(記録専用)。
+            "recent_editions_index_unavailable": recent_editions_index_unavailable,
+            "recent_editions_unreadable": recent_editions_unreadable,
+            # 改修27-2第9回(要件3.4(2)): 範囲内の過去の号と(ticker, 書類管理番号)が一致した
+            # 上段の仮説(duplicate_ofを書き、auto_check_targetを偽にした。削除はしない)。
+            "cross_edition_duplicates": cross_edition_duplicates,
         }
         if industry_report is not None:
             edition["verification"].update(industry_report)

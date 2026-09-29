@@ -5075,17 +5075,21 @@ def test_check_recent_headlines_status():
 
 
 def test_recent_headlines_is_before_and_select():
-    """改修27-1(4-11、Q5の回答): is_before()・select_recent_index_entries()の
-    正例・負例(日付が違えばその前後、同じ日なら時間帯の順、対象窓に無い日付は除く)。"""
-    check("recent_headlines.is_before/正例: 日付が前なら真", rh.is_before("2026-09-24", "evening", "2026-09-28", "morning"), True)
-    check("recent_headlines.is_before/負例: 日付が後なら偽", rh.is_before("2026-09-29", "morning", "2026-09-28", "evening"), False)
+    """改修27-1(4-11、Q5の回答): is_before()と、号を選ぶ関数の正例・負例(日付が違えばその前後、
+    同じ日なら時間帯の順、範囲に無い日付は除く)。改修27-2第9回で、is_before()と号を選ぶ関数を
+    verify_edition.py(is_before・select_recent_editions)へ移したため、呼ぶ先をそちらに
+    書き直した(期待値の意味は変えない)。以前は窓の日付を手で並べて渡していたが、新しい関数は
+    営業日カレンダーを受け取るため、本物のカレンダーを渡す(2026-09-28の直近3営業日は
+    9/24・9/25・9/28なので、範囲は9/24〜9/28。A・Bが選ばれ、C・Dが除かれる点は同じ)。"""
+    check("recent_headlines.is_before/正例: 日付が前なら真", ve.is_before("2026-09-24", "evening", "2026-09-28", "morning"), True)
+    check("recent_headlines.is_before/負例: 日付が後なら偽", ve.is_before("2026-09-29", "morning", "2026-09-28", "evening"), False)
     check(
         "recent_headlines.is_before/正例: 同じ日でも前の時間帯(morning<evening)なら真",
-        rh.is_before("2026-09-28", "morning", "2026-09-28", "evening"), True,
+        ve.is_before("2026-09-28", "morning", "2026-09-28", "evening"), True,
     )
     check(
         "recent_headlines.is_before/負例: 同じ日で同じ時間帯・後の時間帯は偽",
-        (rh.is_before("2026-09-28", "evening", "2026-09-28", "evening"), rh.is_before("2026-09-28", "evening", "2026-09-28", "morning")),
+        (ve.is_before("2026-09-28", "evening", "2026-09-28", "evening"), ve.is_before("2026-09-28", "evening", "2026-09-28", "morning")),
         (False, False),
     )
 
@@ -5093,13 +5097,91 @@ def test_recent_headlines_is_before_and_select():
         {"date": "2026-09-24", "slot": "evening", "edition_id": "A"},
         {"date": "2026-09-28", "slot": "morning", "edition_id": "B"},
         {"date": "2026-09-28", "slot": "evening", "edition_id": "C"},  # target自身より後なので除外
-        {"date": "2026-09-01", "slot": "evening", "edition_id": "D"},  # 窓の外なので除外
+        {"date": "2026-09-01", "slot": "evening", "edition_id": "D"},  # 範囲の外なので除外
     ]
-    window_dates = ["2026-09-18", "2026-09-24", "2026-09-28"]
-    selected = rh.select_recent_index_entries(index_entries, window_dates, "2026-09-28", "evening")
+    business_days = ve.load_business_days(CALENDAR_DIR)
+    selected = ve.select_recent_editions(index_entries, business_days, "2026-09-28", "evening", "2026-09-28-evening")
     check(
         "recent_headlines.select_recent_index_entries/正例: 窓の中・targetより前の号だけ選ばれ、日付昇順になる",
         [e["edition_id"] for e in selected], ["A", "B"],
+    )
+
+
+def test_select_recent_editions():
+    """改修27-2第9回: 比べる範囲を決める関数(select_recent_editions)。範囲は、直近3営業日の
+    最も古い日から号の日付までの暦日のすべての号(土日・祝日の号も含む)。同じ日付は時間帯の
+    順で今回より前だけ。今回と同じedition_idの号は外す。本物のカレンダーでは、2026-09-24の
+    直近3営業日は9/17・9/18・9/24(9/19〜9/23は土日・祝日)なので、範囲は9/17〜9/24。"""
+    business_days = ve.load_business_days(CALENDAR_DIR)
+    index_entries = [
+        {"date": "2026-09-24", "slot": "morning", "edition_id": "2026-09-24-morning"},
+        {"date": "2026-09-20", "slot": "evening", "edition_id": "2026-09-20-evening"},  # 日曜
+        {"date": "2026-09-19", "slot": "evening", "edition_id": "2026-09-19-evening"},  # 土曜
+        {"date": "2026-09-17", "slot": "evening", "edition_id": "2026-09-17-evening"},
+        {"date": "2026-09-16", "slot": "evening", "edition_id": "2026-09-16-evening"},  # 範囲の外
+        # 同じ日の前の時間帯だが、今回の号と同じedition_idなので外す
+        {"date": "2026-09-24", "slot": "noon", "edition_id": "2026-09-24-evening"},
+        {"date": "2026-09-24", "slot": "evening", "edition_id": "2026-09-24-evening"},  # 今回の号自身
+        "壊れた行", {"date": None, "slot": "evening", "edition_id": "X"}, {"slot": "noon"},
+    ]
+    selected = ve.select_recent_editions(index_entries, business_days, "2026-09-24", "evening", "2026-09-24-evening")
+    check(
+        "select_recent_editions/正例(27-2第9回): 範囲は暦日の9/17〜9/24で、土曜(9/19)・日曜(9/20)の号も入る。"
+        "9/16は範囲の外、同じedition_idの号と今回の号自身は外れ、形の壊れた行は飛ばす。日付・時間帯の古い順",
+        [e["edition_id"] for e in selected],
+        ["2026-09-17-evening", "2026-09-19-evening", "2026-09-20-evening", "2026-09-24-morning"],
+    )
+    check(
+        "select_recent_editions/正例(27-2第9回): 今の号が日曜(9/20)でも、直近3営業日(9/16〜9/18)の最も古い日から"
+        "9/20までの号が入る(9/19の土曜の号を含む)",
+        [e["edition_id"] for e in ve.select_recent_editions(index_entries, business_days, "2026-09-20", "evening", "2026-09-20-evening")],
+        ["2026-09-16-evening", "2026-09-17-evening", "2026-09-19-evening"],
+    )
+    check(
+        "select_recent_editions/負例(27-2第9回): 営業日が1つも無ければ空",
+        ve.select_recent_editions(index_entries, [], "2026-09-24", "evening", "2026-09-24-evening"), [],
+    )
+
+
+def test_load_editions_index():
+    """改修27-2第9回: editions/index.jsonを読む関数。読めなければNone(号は止めない)。"""
+    with tempfile.TemporaryDirectory() as d:
+        good = write(d, "good.json", json.dumps({"editions": [{"edition_id": "A"}]}))
+        broken = write(d, "broken.json", "{壊れたJSON")
+        not_list = write(d, "not_list.json", json.dumps({"editions": {"edition_id": "A"}}))
+        not_dict = write(d, "not_dict.json", json.dumps([1, 2]))
+        check("load_editions_index/正例(27-2第9回): 読めればeditionsの配列を返す", ve.load_editions_index(str(good)), [{"edition_id": "A"}])
+        check(
+            "load_editions_index/負例(27-2第9回): ファイルが無い・壊れている・editionsが配列でない・全体が辞書でないならNone",
+            [ve.load_editions_index(str(Path(d) / "none.json")), ve.load_editions_index(str(broken)),
+             ve.load_editions_index(str(not_list)), ve.load_editions_index(str(not_dict))],
+            [None, None, None, None],
+        )
+    check("load_editions_index/正例(27-2第9回): 既定の場所は作業フォルダ基準のeditions/index.json", ve.EDITIONS_INDEX_PATH, "editions/index.json")
+
+
+def test_hypothesis_ticker_doc_key():
+    """改修27-2第9回: 号をまたぐ重複の比べる鍵(ticker, 書類管理番号)。tickerが文字で、
+    evidence_source_refの出典のURLから書類管理番号が取れる仮説だけ。"""
+    sources = {
+        "E1": {"source_id": "E1", "url": "https://disclosure2.edinet-fsa.go.jp/api/v2/documents/S100ABCD?type=1"},
+        "N1": {"source_id": "N1", "url": "https://www.example.test/news/1"},
+        "L1": {"source_id": "L1", "url": "https://api.edinet-fsa.go.jp/api/v2/documents.json?date=2026-09-24&type=2"},
+    }
+    check(
+        "hypothesis_ticker_doc_key/正例(27-2第9回): tickerが文字でEDINETの書類なら(ticker, 書類管理番号)",
+        ve.hypothesis_ticker_doc_key({"ticker": "1111", "evidence_source_ref": "E1"}, sources), ("1111", "S100ABCD"),
+    )
+    check(
+        "hypothesis_ticker_doc_key/負例(27-2第9回): tickerが数値・空・無い、出典番号が無い・出典が無い、"
+        "EDINETの書類でない(報道・書類一覧)ならNone(比べない)",
+        [ve.hypothesis_ticker_doc_key(h, sources) for h in (
+            {"ticker": 1111, "evidence_source_ref": "E1"}, {"ticker": "", "evidence_source_ref": "E1"},
+            {"evidence_source_ref": "E1"}, {"ticker": "1111", "evidence_source_ref": None},
+            {"ticker": "1111", "evidence_source_ref": "X9"}, {"ticker": "1111", "evidence_source_ref": "N1"},
+            {"ticker": "1111", "evidence_source_ref": "L1"},
+        )],
+        [None] * 7,
     )
 
 
@@ -5182,6 +5264,228 @@ def test_recent_headlines_script_end_to_end():
             "改修27-1(4-11)/負例: 失敗した実行はcheck_recent_headlines_status()で失敗と判定される",
             ve.check_recent_headlines_status(str(work_dir / "cache2"), "2026-09-28", "morning"), True,
         )
+
+
+def test_recent_headlines_round9_range():
+    """改修27-2第9回: recent_headlines.pyの号の選び方を、照合と共通の関数に置き換えたことの確認。
+    本物のカレンダーで2026-09-24のevening号の一覧を作ると、土曜(9/19)の号が入り、今回の号と同じ
+    edition_id(2026-09-24-evening)の号は外れる。出力の形(キー)とwindow_business_days
+    (3つの営業日)は今までどおり。"""
+    with tempfile.TemporaryDirectory() as d:
+        work_dir = Path(d)
+        entries = []
+        for date_str, slot, edition_id in (
+            ("2026-09-19", "evening", "2026-09-19-evening"),   # 土曜
+            ("2026-09-24", "noon", "2026-09-24-evening"),      # 同じedition_idなので外れる
+            ("2026-09-18", "evening", "2026-09-18-evening"),
+        ):
+            edition_file = work_dir / "editions" / date_str / f"{slot}.json"
+            edition_file.parent.mkdir(parents=True, exist_ok=True)
+            edition_file.write_text(json.dumps({
+                "sections": [{"section_id": "big", "articles": [{
+                    "article_id": f"A-{date_str}-{slot}", "headline": f"{date_str}の{slot}の見出し",
+                    "lines": [{"line_id": "L-1", "source_ref": "S1"}],
+                }]}],
+                "sources": [{"source_id": "S1", "url": f"https://example.test/{date_str}/{slot}"}],
+            }, ensure_ascii=False), encoding="utf-8")
+            entries.append({"date": date_str, "slot": slot, "edition_id": edition_id, "edition_path": str(edition_file)})
+        index_path = work_dir / "editions" / "index.json"
+        index_path.write_text(json.dumps({"editions": entries}, ensure_ascii=False), encoding="utf-8")
+        record = rh.build_result("2026-09-24", "evening", str(CALENDAR_DIR), str(index_path))
+    check(
+        "recent_headlines.py/正例(27-2第9回): 土曜(9/19)の号が入り、同じedition_idの号は外れる(古い順)",
+        record["editions"], ["2026-09-18-evening", "2026-09-19-evening"],
+    )
+    check(
+        "recent_headlines.py/正例(27-2第9回): window_business_daysは今までどおり3つの営業日、出力のキーも同じ",
+        (record["window_business_days"], sorted(record.keys())),
+        (["2026-09-17", "2026-09-18", "2026-09-24"],
+         ["articles", "date", "editions", "generated_at", "slot", "status", "window_business_days"]),
+    )
+
+
+PAST_DOC_URL = "https://disclosure2.edinet-fsa.go.jp/api/v2/documents/{doc_id}?type=1"
+
+
+def _write_past_edition(work_dir, date_str, slot, hyps, edition_id=None, hypotheses_count=None,
+                        edition_text=None, hyp_text=None, write_hyp=True):
+    """改修27-2第9回: 作業フォルダ(work_dir)の中に、過去の号の紙面・仮説ファイルを作り、
+    editions/index.jsonに載せる1行(dict)を返す。hypsは(hypothesis_id, ticker, 書類管理番号)の
+    一覧で、書類管理番号ごとに出典(P1, P2, ...)を作ってevidence_source_refで指す。
+    edition_text/hyp_textを渡すと、その文字列をそのままファイルに書く(壊れたファイル用)。"""
+    work_dir = Path(work_dir)
+    edition_id = edition_id or f"{date_str}-{slot}"
+    edition_rel = f"editions/{date_str}/{slot}.json"
+    hyp_rel = f"hypotheses/{date_str}-{slot}.json"
+    sources = []
+    hyp_objs = []
+    for number, (hypothesis_id, ticker, doc_id) in enumerate(hyps, start=1):
+        sources.append({"source_id": f"P{number}", "url": PAST_DOC_URL.format(doc_id=doc_id)})
+        hyp_objs.append({"hypothesis_id": hypothesis_id, "ticker": ticker, "evidence_source_ref": f"P{number}"})
+    edition_file = work_dir / edition_rel
+    edition_file.parent.mkdir(parents=True, exist_ok=True)
+    edition_file.write_text(
+        edition_text if edition_text is not None else json.dumps(
+            {"edition_id": edition_id, "date": date_str, "slot": slot, "sources": sources, "sections": []},
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    if write_hyp:
+        hyp_file = work_dir / hyp_rel
+        hyp_file.parent.mkdir(parents=True, exist_ok=True)
+        hyp_file.write_text(
+            hyp_text if hyp_text is not None else json.dumps({"hypotheses": hyp_objs}, ensure_ascii=False),
+            encoding="utf-8",
+        )
+    return {
+        "date": date_str, "slot": slot, "edition_id": edition_id,
+        "hypotheses_count": len(hyp_objs) if hypotheses_count is None else hypotheses_count,
+        "edition_path": edition_rel, "hypotheses_path": hyp_rel,
+    }
+
+
+def _run_canary_with_past_editions(make_entries, hyp_edit=None):
+    """改修27-2第9回: 見本の号(今日のevening号)を、作業フォルダにeditions/index.jsonを置いた
+    状態で照合する。make_entries(work_dir, 日付を返す関数)が一覧の行を返す。日付を返す関数は、
+    今日から何日前かを受け取る(一時カレンダーは全日が営業日なので、直近3営業日は今日・1日前・
+    2日前で、3日前は範囲の外)。hyp_editを渡すと、照合の前に見本の号の仮説(dict)を書き換える。
+    戻り値: (終了コード, verification, 残った上段の仮説, 日付を返す関数)。"""
+    with tempfile.TemporaryDirectory() as d:
+        work_dir = Path(d)
+        edition_path, hyp_path, cache_dir, today_str, prev_str = _rebuild_canary_as_today(work_dir)
+        calendar_dir = _write_temp_calendar(
+            work_dir, dt.datetime.strptime(prev_str, "%Y-%m-%d").date() - dt.timedelta(days=3), 60,
+        )
+        today = dt.datetime.strptime(today_str, "%Y-%m-%d").date()
+
+        def days_ago(n):
+            return (today - dt.timedelta(days=n)).strftime("%Y-%m-%d")
+
+        entries = make_entries(work_dir, days_ago)
+        (work_dir / "editions" / "index.json").write_text(
+            json.dumps({"editions": entries}, ensure_ascii=False), encoding="utf-8",
+        )
+        if hyp_edit is not None:
+            hyp_doc = json.loads(hyp_path.read_text(encoding="utf-8"))
+            hyp_edit(hyp_doc)
+            hyp_path.write_text(json.dumps(hyp_doc, ensure_ascii=False, indent=1), encoding="utf-8")
+        with _patched_codelist(_fake_codelist_rows(CANARY_CODELIST_ENTRIES)):
+            result = _run_verify(work_dir, edition_path, hyp_path, cache_dir, calendar_dir)
+        v = json.loads(edition_path.read_text(encoding="utf-8")).get("verification") or {}
+        hyps = json.loads(hyp_path.read_text(encoding="utf-8")).get("hypotheses") or []
+        return result.returncode, v, hyps, days_ago
+
+
+def test_cross_edition_duplicates_end_to_end():
+    """改修27-2第9回(要件3.4(2)): 号をまたぐ上段の会社の重複を、見本の号の照合全体で確かめる。
+    見本の号で残る上段はH-1(1111・S-CANARY-01)・H-2(2222・S-CANARY-02)・H-3(5678・S-CANARY-03)・
+    H-4(4444・S-CANARY-04)・H-5(5555・S-CANARY-05)。H-1・H-2は機械の判定でauto_check_targetが真。"""
+    def make_entries(work_dir, days_ago):
+        return [
+            # 3日前(4営業日前)は範囲の外: H-2と同じでも重複にしない
+            _write_past_edition(work_dir, days_ago(3), "evening", [("OUT-1", "2222", "S-CANARY-02")]),
+            # 2日前と1日前の両方にH-1と同じものがある: 古い方(2日前)を指す
+            _write_past_edition(work_dir, days_ago(2), "evening", [("OLD-1", "1111", "S-CANARY-01")]),
+            _write_past_edition(work_dir, days_ago(1), "noon", [
+                ("NEW-1", "1111", "S-CANARY-01"),
+                ("DIFF-1", "4444", "S-CANARY-99"),  # H-4とtickerは同じで書類管理番号が違う: 重複にしない
+            ]),
+            # 今回の号と同じedition_idの号は比べない(H-5と同じでも重複にしない)
+            _write_past_edition(work_dir, days_ago(1), "evening", [("SAME-1", "5555", "S-CANARY-05")],
+                                edition_id=f"{days_ago(0)}-evening"),
+            # 同じ日の前の時間帯(朝)の号は比べる: H-3と同じ
+            _write_past_edition(work_dir, days_ago(0), "morning", [("AM-1", "5678", "S-CANARY-03")]),
+        ]
+
+    def hyp_edit(hyp_doc):
+        # AIが自分でduplicate_ofを書いてきても、機械の値で上書きされる
+        for h in hyp_doc["hypotheses"]:
+            if h.get("hypothesis_id") == "H-1":
+                h["duplicate_of"] = "AIが書いた値"
+            if h.get("hypothesis_id") == "H-2":
+                h["duplicate_of"] = "AIが書いた値"
+
+    returncode, v, hyps, days_ago = _run_canary_with_past_editions(make_entries, hyp_edit)
+    by_id = {h["hypothesis_id"]: h for h in hyps}
+    check("号をまたぐ重複/正例(27-2第9回): 重複があっても正常終了する(終了コード0)", returncode, 0)
+    check(
+        "号をまたぐ重複/正例(27-2第9回): 重複した会社も削除せず、上段はH-1〜H-5の5社のまま",
+        [h["hypothesis_id"] for h in hyps], ["H-1", "H-2", "H-3", "H-4", "H-5"],
+    )
+    check(
+        "号をまたぐ重複/正例(27-2第9回): H-1は、2日前と1日前の両方に一致し、古い方(2日前の号)を指す。"
+        "auto_check_targetは真から偽になる",
+        (by_id["H-1"].get("duplicate_of"), by_id["H-1"].get("auto_check_target")),
+        (f"{days_ago(2)}-evening:OLD-1", False),
+    )
+    check(
+        "号をまたぐ重複/正例(27-2第9回): H-3は、同じ日の前の時間帯(朝)の号と一致する",
+        by_id["H-3"].get("duplicate_of"), f"{days_ago(0)}-morning:AM-1",
+    )
+    check(
+        "号をまたぐ重複/負例(27-2第9回): H-2(一致は範囲の外の号だけ。AIが書いたduplicate_ofは上書き)・"
+        "H-4(tickerは同じで書類管理番号が違う)・H-5(一致は同じedition_idの号だけ)はnull",
+        [by_id[i].get("duplicate_of") for i in ("H-2", "H-4", "H-5")], [None, None, None],
+    )
+    check(
+        "号をまたぐ重複/負例(27-2第9回): 重複でないH-2のauto_check_targetは機械の値(真)のまま",
+        by_id["H-2"].get("auto_check_target"), True,
+    )
+    check(
+        "号をまたぐ重複/正例(27-2第9回): cross_edition_duplicatesは2件(H-1・H-3)で、社名・ticker・書類管理番号・duplicate_ofを持つ",
+        v.get("cross_edition_duplicates"),
+        {"count": 2, "duplicates": [
+            {"hypothesis_id": "H-1", "company_name": by_id["H-1"].get("company_name"), "ticker": "1111",
+             "doc_id": "S-CANARY-01", "duplicate_of": f"{days_ago(2)}-evening:OLD-1"},
+            {"hypothesis_id": "H-3", "company_name": by_id["H-3"].get("company_name"), "ticker": "5678",
+             "doc_id": "S-CANARY-03", "duplicate_of": f"{days_ago(0)}-morning:AM-1"},
+        ]},
+    )
+    check(
+        "号をまたぐ重複/正例(27-2第9回): 一覧は読めた(recent_editions_index_unavailableは偽)・読めなかった号は無い",
+        (v.get("recent_editions_index_unavailable"), v.get("recent_editions_unreadable")), (False, []),
+    )
+
+
+def test_cross_edition_duplicates_unreadable():
+    """改修27-2第9回: 範囲内の過去の号のファイルが読めない場合は、その号だけ飛ばして記録する
+    (号は止めない)。仮説ファイルが無く、hypotheses_countが0なら正常。紙面は読めて仮説だけ
+    読めない号は、号をまたぐ重複の判定だけ飛ばす。"""
+    def make_entries(work_dir, days_ago):
+        return [
+            # 仮説ファイルが壊れている(H-1と同じものが入っているつもりでも読めない): 飛ばす
+            _write_past_edition(work_dir, days_ago(2), "morning", [("B-1", "1111", "S-CANARY-01")],
+                                hyp_text="{壊れたJSON"),
+            # 紙面が壊れている: 飛ばす
+            _write_past_edition(work_dir, days_ago(2), "noon", [("C-1", "2222", "S-CANARY-02")],
+                                edition_text="{壊れたJSON"),
+            # 仮説ファイルが無く、hypotheses_countが0: 正常(記録しない)
+            _write_past_edition(work_dir, days_ago(2), "evening", [], write_hyp=False),
+            # 仮説ファイルが無いのに、hypotheses_countが2: 読めなかったものとして記録する
+            _write_past_edition(work_dir, days_ago(1), "morning", [], hypotheses_count=2, write_hyp=False),
+            # 読める号: H-5と同じ
+            _write_past_edition(work_dir, days_ago(1), "noon", [("OK-1", "5555", "S-CANARY-05")]),
+        ]
+
+    returncode, v, hyps, days_ago = _run_canary_with_past_editions(make_entries)
+    by_id = {h["hypothesis_id"]: h for h in hyps}
+    check("号をまたぐ重複/負例(27-2第9回): 過去の号のファイルが読めなくても正常終了する(終了コード0)", returncode, 0)
+    check(
+        "号をまたぐ重複/負例(27-2第9回): recent_editions_unreadableに、仮説が壊れた号・紙面が壊れた号・"
+        "仮説ファイルが無いのに件数が2の号が、どちらのファイルか付きで入る(件数0で仮説ファイルが無い号は入らない)",
+        v.get("recent_editions_unreadable"),
+        [
+            {"edition_id": f"{days_ago(2)}-morning", "file": "hypotheses"},
+            {"edition_id": f"{days_ago(2)}-noon", "file": "edition"},
+            {"edition_id": f"{days_ago(1)}-morning", "file": "hypotheses"},
+        ],
+    )
+    check(
+        "号をまたぐ重複/負例(27-2第9回): 読めなかった号とは比べず(H-1・H-2はnull)、読めた号とは比べる(H-5は重複)",
+        [by_id[i].get("duplicate_of") for i in ("H-1", "H-2", "H-5")], [None, None, f"{days_ago(1)}-noon:OK-1"],
+    )
+    check("号をまたぐ重複/負例(27-2第9回): 一覧自体は読めた", v.get("recent_editions_index_unavailable"), False)
 
 
 def test_build_index_skips_editions_without_verification():
@@ -5462,6 +5766,11 @@ def test_round1_27_2_end_to_end_default_keys_without_hypotheses():
         (2, ["C11", "C13"]),
     )
     check("27-2 S15/正例: empty_title_or_url_refsは紙面だけで決まるのでL-10の1件", v.get("empty_title_or_url_refs"), {"count": 1, "line_ids": ["L-10"]})
+    check(
+        "27-2第9回/正例: --hypothesesなしでも、cross_edition_duplicatesは0件・空、一覧の記録キーもそろう",
+        (v.get("cross_edition_duplicates"), v.get("recent_editions_index_unavailable"), v.get("recent_editions_unreadable")),
+        ({"count": 0, "duplicates": []}, True, []),
+    )
 
 
 def test_check_edition_slot():
@@ -7519,6 +7828,19 @@ def test_canary_edition():
             v.get("recent_headlines_failed"), True,
         )
 
+        # --- 改修27-2第9回: 作業フォルダにeditions/index.jsonが無いので、一覧が読めない場面になる ---
+        check(
+            "見本の号/正例(27-2第9回): editions/index.jsonが無いので、recent_editions_index_unavailableは真・"
+            "読めなかった号は無し・号をまたぐ重複は0件(それでも号は保存される)",
+            (v.get("recent_editions_index_unavailable"), v.get("recent_editions_unreadable"), v.get("cross_edition_duplicates")),
+            (True, [], {"count": 0, "duplicates": []}),
+        )
+        check(
+            "見本の号/正例(27-2第9回): 上段の仮説すべてにduplicate_of(null)が機械で書かれる",
+            [(h["hypothesis_id"], "duplicate_of" in h, h.get("duplicate_of")) for h in after_hyp.get("hypotheses") or []],
+            [(i, True, None) for i in ("H-1", "H-2", "H-3", "H-4", "H-5")],
+        )
+
     _assert_testdata_untouched("見本の号(canary)テスト")
 
 
@@ -7968,6 +8290,14 @@ def main():
     test_type_validation_units()
     test_type_validation_end_to_end()
     test_type_mutation_all_positions()
+
+    # 改修27-2(第9回の1回目): 比べる範囲の関数・recent_headlines.pyの置き換え・号をまたぐ重複のテスト。
+    test_select_recent_editions()
+    test_load_editions_index()
+    test_hypothesis_ticker_doc_key()
+    test_recent_headlines_round9_range()
+    test_cross_edition_duplicates_end_to_end()
+    test_cross_edition_duplicates_unreadable()
 
     # 改修27-1(4-15): 見本の号(Canary)。
     test_canary_edition()

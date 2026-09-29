@@ -11,11 +11,12 @@
 verification(照合結果)の無い号を一覧から外すため、未照合の号はここでも
 対象にならない)。
 
-「3営業日」の数え方は、verify_edition.recent_business_days()を使う(1か所に
-まとめてあり、27-2で作る続報の判定からも同じ関数を使う)。--date自身を含めて
-直近3営業日分を数える。対象になる号は、その3営業日のうち --date より前の日の
-号すべてと、--date当日については --slot より前の時間帯(朝<昼<夕方)の号だけ
-(まだ発行されていない、または今まさに検査中の号自身は含めない)。
+対象になる号の選び方は、verify_edition.select_recent_editions()を使う(改修27-2第9回で
+1か所にまとめ、照合スクリプトの号をまたぐ重複・続報の判定と同じ関数を使う)。
+--date自身を含めて直近3営業日を数え、その最も古い日から --date までの暦日の
+すべての号(土日・祝日の号も含む)。--date当日については --slot より前の時間帯
+(朝<昼<夕方)の号だけ(まだ発行されていない、または今まさに検査中の号自身は
+含めない)。今回の号と同じedition_id({date}-{slot})の号も外す。
 
 改修27-1(4-11): このスクリプトは実行のたびに必ず --out へ結果を書く。成功すれば
 status:"ok"、想定内の失敗(一覧が読めない等)ならstatus:"error"で理由を添えて
@@ -42,11 +43,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import verify_edition as ve
 
 DEFAULT_CALENDAR_DIR = "calendar"
-DEFAULT_EDITIONS_INDEX = "editions/index.json"
+DEFAULT_EDITIONS_INDEX = ve.EDITIONS_INDEX_PATH
 DEFAULT_OUT_PATH = ".cache/sources/RECENT-HEADLINES.json"
-WINDOW_BUSINESS_DAYS = 3
-
-SLOT_ORDER = {"morning": 0, "noon": 1, "evening": 2}
+WINDOW_BUSINESS_DAYS = ve.RECENT_WINDOW_BUSINESS_DAYS
 
 
 class RecentHeadlinesError(Exception):
@@ -56,32 +55,6 @@ class RecentHeadlinesError(Exception):
 def load_json(path):
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
-
-
-def is_before(entry_date, entry_slot, target_date, target_slot):
-    """entry(既にある号)が、target(今回の号)より前かどうかを判定する。
-    日付が違えばその前後だけで決まる。同じ日付なら、時間帯の順(朝<昼<夕方)で
-    比べる(依頼のQ5の回答: 同じ日の、今の号より前の時間帯の号も含める)。
-    slot名が想定外(SLOT_ORDERに無い)の場合は、安全側でFalse(対象外)にする。"""
-    if entry_date != target_date:
-        return entry_date < target_date
-    entry_order = SLOT_ORDER.get(entry_slot)
-    target_order = SLOT_ORDER.get(target_slot)
-    if entry_order is None or target_order is None:
-        return False
-    return entry_order < target_order
-
-
-def select_recent_index_entries(index_entries, window_dates, target_date, target_slot):
-    """editions/index.jsonのentries(build_index.pyが書く形)から、直近3営業日の
-    窓(window_dates)に入り、かつtargetより前の号だけを選ぶ。"""
-    window_set = set(window_dates)
-    selected = [
-        e for e in index_entries
-        if e.get("date") in window_set and is_before(e.get("date"), e.get("slot"), target_date, target_slot)
-    ]
-    selected.sort(key=lambda e: (e.get("date", ""), SLOT_ORDER.get(e.get("slot"), -1)))
-    return selected
 
 
 def collect_articles(entry):
@@ -141,7 +114,12 @@ def build_result(target_date, target_slot, calendar_dir, editions_index_path):
     if not isinstance(index_entries, list):
         raise RecentHeadlinesError(f"号の一覧 '{index_path}' のeditionsが配列ではありません。")
 
-    selected_entries = select_recent_index_entries(index_entries, window_dates, target_date, target_slot)
+    # 改修27-2第9回: 今回の号のedition_idは{date}-{slot}とみなす(照合スクリプトの
+    # check_b_edition_id()が、号のedition_idをこの形に決めているため)。
+    selected_entries = ve.select_recent_editions(
+        index_entries, business_days, target_date, target_slot, f"{target_date}-{target_slot}",
+        WINDOW_BUSINESS_DAYS,
+    )
 
     articles = []
     for entry in selected_entries:
