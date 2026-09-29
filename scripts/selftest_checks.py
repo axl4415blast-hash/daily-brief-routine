@@ -19,15 +19,20 @@ scripts/testdata の中身が書き換わってしまう(過去に2回、この�
 
 1件でも期待と異なれば、終了コード1で終わる。
 """
+import contextlib
 import copy
 import datetime as dt
 import hashlib
 import io
 import json
+import os
+import re
 import shutil
 import subprocess
 import sys
 import tempfile
+import time
+import types
 import zipfile
 from pathlib import Path
 
@@ -1930,7 +1935,7 @@ def test_testdata_copy_integration():
         cache_dir = dst / "cache"
         calendar_dir = _write_temp_calendar(d, dt.datetime.strptime(today_str, "%Y-%m-%d").date(), 40)
 
-        result = _run_verify_cli(d, edition_path, hyp_path, cache_dir, calendar_dir)
+        result = _run_verify(d, edition_path, hyp_path, cache_dir, calendar_dir)
         check(
             "testdata統合/コピーしたtestdataに対してCLI(main)が正常終了する(終了コード0)",
             result.returncode, 0,
@@ -1978,7 +1983,7 @@ def test_verify_edition_industry_integration():
         (codelist_dir / "EdinetcodeDlInfo_2026-09-24.csv").write_bytes(csv_text.encode("cp932"))
 
         def run_once():
-            return _run_verify_cli(work_dir, edition_path, hyp_path, cache_dir, calendar_dir)
+            return _run_verify(work_dir, edition_path, hyp_path, cache_dir, calendar_dir)
 
         result1 = run_once()
         check(
@@ -2559,9 +2564,11 @@ def test_find_number_leading_zero():
 
 
 # ============ 16-2b: 修正2・3・4の統合テスト用の共通部品 ============
-# first_run/skip_companies/検査24はmain()の中に組み込まれているため、これらを
-# 確かめるにはCLI全体(subprocess)を走らせる必要がある。scripts/testdataは
-# 一時フォルダにコピーしてから使う(本体を書き換えないため)。
+# first_run/skip_companies/検査24は照合の本体(run_verification)の中に組み込まれて
+# いるため、これらを確かめるには本体全体を走らせる必要がある。改修27-2第2回から、
+# 別に起動するのではなく_run_verify()で同じプロセスの中から固定した時刻で呼ぶ
+# (コマンドとしての動作は test_cli_runs_with_current_time の1本だけで確かめる)。
+# scripts/testdataは一時フォルダにコピーしてから使う(本体を書き換えないため)。
 
 
 def _copy_testdata_to(tmp_root):
@@ -2570,13 +2577,49 @@ def _copy_testdata_to(tmp_root):
     return dst
 
 
-def _run_verify_cli(work_dir, edition_path, hyp_path, cache_dir, calendar_dir=None):
-    return subprocess.run(
-        [sys.executable, str(REPO_ROOT / "scripts" / "verify_edition.py"),
-         "--edition", str(edition_path), "--hypotheses", str(hyp_path),
-         "--cache", str(cache_dir), "--calendar", str(calendar_dir or CALENDAR_DIR)],
-        capture_output=True, text=True, cwd=str(work_dir),
-    )
+# 改修27-2第2回: 同じプロセスの中から照合の本体を呼ぶときに使う、時間帯ごとの
+# 固定の実行時刻(日本時間)。どれも時間帯の境目や朝号の門限(8:50)から離した時刻。
+FIXED_RUN_TIME_BY_SLOT = {"morning": dt.time(7, 30), "noon": dt.time(13, 0), "evening": dt.time(18, 0)}
+
+
+def fixed_run_at_for_edition(edition_path):
+    """号のファイルに書かれたdateとslotから、その号を正しく照合できる固定の実行時刻を
+    作る(例: 2026-09-29のevening号なら2026-09-29T18:00:00+09:00)。"""
+    edition = json.loads(Path(edition_path).read_text(encoding="utf-8"))
+    day = dt.datetime.strptime(edition["date"], "%Y-%m-%d").date()
+    return dt.datetime.combine(day, FIXED_RUN_TIME_BY_SLOT[edition["slot"]], tzinfo=ve.JST)
+
+
+def _run_verify(work_dir, edition_path, hyp_path, cache_dir, calendar_dir=None, run_at_dt=None):
+    """改修27-2第2回: 照合の本体(verify_edition.run_verification)を、同じプロセスの中から
+    固定した実行時刻で呼ぶ。以前はverify_edition.pyを別に起動していたが、それでは
+    実行時刻を固定できず、時間帯のずれで号を止める検査24(S14)を入れると、テストを
+    実行した時刻によって結果が変わってしまうため。
+
+    run_at_dtを省略したときは、号のファイルのdate・slotからfixed_run_at_for_edition()で
+    決める(その号の時間帯の中の時刻)。わざと食い違わせたいテストはrun_at_dtを渡す。
+    別に起動していたときと同じく、作業フォルダ(work_dir)をカレントにして実行し
+    (.cache/referenceなどの相対パスがwork_dirを指すようにするため)、終わったら戻す。
+    戻り値は別に起動していたときと同じく、returncode・stdout・stderrを持つ。
+    予期しない例外は、コマンドと同じく終了コード2として返す。"""
+    if run_at_dt is None:
+        run_at_dt = fixed_run_at_for_edition(edition_path)
+    out, err = io.StringIO(), io.StringIO()
+    prev_cwd = os.getcwd()
+    os.chdir(str(work_dir))
+    try:
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            try:
+                returncode = ve.run_verification(
+                    str(edition_path), str(hyp_path) if hyp_path is not None else None,
+                    str(cache_dir), str(calendar_dir or CALENDAR_DIR), run_at_dt,
+                )
+            except Exception as e:  # コマンドの「スクリプト自体のエラー」(終了コード2)と同じ扱い
+                print(f"[スクリプトエラー] {type(e).__name__}: {e}", file=sys.stderr)
+                returncode = 2
+    finally:
+        os.chdir(prev_cwd)
+    return types.SimpleNamespace(returncode=returncode, stdout=out.getvalue(), stderr=err.getvalue())
 
 
 def _write_temp_calendar(work_dir, start_date, days):
@@ -2768,7 +2811,7 @@ def test_first_run_created_on_first_verification():
         edition["generated_at"] = "壊れた日時"
         edition_path.write_text(json.dumps(edition, ensure_ascii=False, indent=1), encoding="utf-8")
 
-        result = _run_verify_cli(d, edition_path, hyp_path, cache_dir)
+        result = _run_verify(d, edition_path, hyp_path, cache_dir)
         check("first_run/正例: 初回照合は正常終了する(終了コード0)", result.returncode, 0)
 
         after = json.loads(edition_path.read_text(encoding="utf-8"))
@@ -2802,11 +2845,11 @@ def test_first_run_unchanged_on_second_run():
         edition["slot"] = "evening"  # 門限(検査20)の対象外にして、baseline_lateを気にせず済むようにする
         edition_path.write_text(json.dumps(edition, ensure_ascii=False, indent=1), encoding="utf-8")
 
-        r1 = _run_verify_cli(d, edition_path, hyp_path, cache_dir)
+        r1 = _run_verify(d, edition_path, hyp_path, cache_dir)
         check("first_run/正例: 1回目の照合は正常終了する", r1.returncode, 0)
         first_run_1 = json.loads(edition_path.read_text(encoding="utf-8"))["verification"]["first_run"]
 
-        r2 = _run_verify_cli(d, edition_path, hyp_path, cache_dir)
+        r2 = _run_verify(d, edition_path, hyp_path, cache_dir)
         check("first_run/正例: 2回目の照合も正常終了する", r2.returncode, 0)
         first_run_2 = json.loads(edition_path.read_text(encoding="utf-8"))["verification"]["first_run"]
 
@@ -3019,7 +3062,7 @@ def test_skip_companies_when_market_closed():
             encoding="utf-8",
         )
 
-        result = _run_verify_cli(d, edition_path, hyp_path, cache_dir, calendar_dir)
+        result = _run_verify(d, edition_path, hyp_path, cache_dir, calendar_dir)
         check("検査14/正例: 休場日の号は正常終了する", result.returncode, 0)
 
         edition_after = json.loads(edition_path.read_text(encoding="utf-8"))
@@ -3103,7 +3146,7 @@ def test_industry_examples_not_skipped_when_market_open_and_not_late():
             _write_fake_codelist(d, codelist_rows)
             calendar_dir = _write_temp_calendar(d, dt.datetime.strptime(today, "%Y-%m-%d").date(), 5)
 
-            result = _run_verify_cli(d, edition_path, hyp_path, cache_dir, calendar_dir)
+            result = _run_verify(d, edition_path, hyp_path, cache_dir, calendar_dir)
             check(f"検査14/負例({label}): 正常終了する", result.returncode, 0)
 
             edition_after = json.loads(edition_path.read_text(encoding="utf-8"))
@@ -3187,7 +3230,10 @@ def test_edition_date_check_always_runs_even_with_first_run():
         }}
         edition_path.write_text(json.dumps(edition, ensure_ascii=False, indent=1), encoding="utf-8")
 
-        result = _run_verify_cli(d, edition_path, hyp_path, cache_dir)
+        # 改修27-2第2回: 実行時刻を固定(2026-09-24の朝号の時間帯。号のslotはmorningなので
+        # 時間帯は合っていて、日付だけが食い違う)。
+        result = _run_verify(d, edition_path, hyp_path, cache_dir,
+                             run_at_dt=dt.datetime.fromisoformat("2026-09-24T07:30:00+09:00"))
         check(
             "検査24/F.3: first_runが既にあっても日付が食い違えば保存できない(終了コード1)",
             result.returncode, 1,
@@ -3217,7 +3263,9 @@ def test_edition_date_check_cannot_be_bypassed_by_forged_first_run():
         before_text = json.dumps(edition, ensure_ascii=False, indent=1)
         edition_path.write_text(before_text, encoding="utf-8")
 
-        result = _run_verify_cli(d, edition_path, hyp_path, cache_dir)
+        # 改修27-2第2回: 実行時刻を固定(時間帯は合っていて、日付だけが食い違う)。
+        result = _run_verify(d, edition_path, hyp_path, cache_dir,
+                             run_at_dt=dt.datetime.fromisoformat("2026-09-24T07:30:00+09:00"))
         check(
             "検査24/捏造対策: first_run.baseline_late=falseを書いても保存できない(終了コード1)",
             result.returncode, 1,
@@ -3651,7 +3699,7 @@ def test_round1_end_to_end_missing_ai_fields():
         cache_dir.mkdir(parents=True)
         calendar_dir = _write_temp_calendar(work_dir, dt.datetime.strptime(today_str, "%Y-%m-%d").date(), 40)
 
-        result = _run_verify_cli(work_dir, edition_path, hyp_path, cache_dir, calendar_dir)
+        result = _run_verify(work_dir, edition_path, hyp_path, cache_dir, calendar_dir)
         check("改修27-1/統合: 正常終了する(終了コード0)", result.returncode, 0)
 
         after_edition = json.loads(edition_path.read_text(encoding="utf-8"))
@@ -4480,7 +4528,7 @@ def test_round2_end_to_end_edinet_published_at_and_tob_side():
 
         calendar_dir = _write_temp_calendar(work_dir, dt.datetime.strptime(today_str, "%Y-%m-%d").date(), 40)
 
-        result = _run_verify_cli(work_dir, edition_path, hyp_path, cache_dir, calendar_dir)
+        result = _run_verify(work_dir, edition_path, hyp_path, cache_dir, calendar_dir)
         check("改修27-1第2回/統合: 正常終了する(終了コード0)", result.returncode, 0)
 
         after_edition = json.loads(edition_path.read_text(encoding="utf-8"))
@@ -4614,7 +4662,7 @@ def test_round3_end_to_end_html_tags_and_doc_files():
 
         calendar_dir = _write_temp_calendar(work_dir, dt.datetime.strptime(today_str, "%Y-%m-%d").date(), 40)
 
-        result = _run_verify_cli(work_dir, edition_path, hyp_path, cache_dir, calendar_dir)
+        result = _run_verify(work_dir, edition_path, hyp_path, cache_dir, calendar_dir)
         check("改修27-1第3回/統合: 正常終了する(終了コード0)", result.returncode, 0)
 
         after_edition = json.loads(edition_path.read_text(encoding="utf-8"))
@@ -4705,7 +4753,7 @@ def test_round4_end_to_end_attribution():
 
         calendar_dir = _write_temp_calendar(work_dir, dt.datetime.strptime(today_str, "%Y-%m-%d").date(), 40)
 
-        result = _run_verify_cli(work_dir, edition_path, hyp_path, cache_dir, calendar_dir)
+        result = _run_verify(work_dir, edition_path, hyp_path, cache_dir, calendar_dir)
         check("改修27-1第4回/統合: 正常終了する(終了コード0)", result.returncode, 0)
 
         after_edition = json.loads(edition_path.read_text(encoding="utf-8"))
@@ -5325,16 +5373,204 @@ def test_round1_27_2_end_to_end_default_keys_without_hypotheses():
         calendar_dir = _write_temp_calendar(
             work_dir, dt.datetime.strptime(prev_str, "%Y-%m-%d").date() - dt.timedelta(days=3), 60,
         )
-        result = subprocess.run(
-            [sys.executable, str(REPO_ROOT / "scripts" / "verify_edition.py"),
-             "--edition", str(edition_path), "--cache", str(cache_dir), "--calendar", str(calendar_dir)],
-            capture_output=True, text=True, encoding="utf-8", cwd=str(work_dir),
-        )
+        result = _run_verify(work_dir, edition_path, None, cache_dir, calendar_dir)
         check("27-2 S15/正例: --hypothesesなしでも正常終了する", result.returncode, 0)
         v = json.loads(edition_path.read_text(encoding="utf-8")).get("verification") or {}
     check("27-2 S15/正例: reported_relation_text_mismatchは0件・空で出る", v.get("reported_relation_text_mismatch"), {"count": 0, "hypothesis_ids": []})
     check("27-2 S15/正例: published_date_only_sourcesは紙面だけで決まるので3件", (v.get("published_date_only_sources") or {}).get("count"), 3)
     check("27-2 S15/正例: empty_title_or_url_refsは紙面だけで決まるのでL-10の1件", v.get("empty_title_or_url_refs"), {"count": 1, "line_ids": ["L-10"]})
+
+
+def test_check_edition_slot():
+    """改修27-2第2回(S14): 号のslotが実行時刻から決まる時間帯と違えば号を保存しない。
+    境目はcompute_expected_slot()のとおり(5:00〜10:59朝・11:00〜15:59昼・16:00〜4:59夕方)。"""
+    def result(slot, date_str, run_at_iso):
+        try:
+            ve.check_edition_slot({"slot": slot, "date": date_str}, dt.datetime.fromisoformat(run_at_iso))
+            return "ok"
+        except ve.EditionInvalid as e:
+            return str(e)
+
+    cases = [
+        # (号の時間帯, 実行時刻, 通るか)
+        ("evening", "2026-09-28T04:59:00+09:00", True),
+        ("morning", "2026-09-28T04:59:00+09:00", False),
+        ("morning", "2026-09-28T05:00:00+09:00", True),
+        ("evening", "2026-09-28T05:00:00+09:00", False),
+        ("morning", "2026-09-28T10:59:00+09:00", True),
+        ("noon", "2026-09-28T10:59:00+09:00", False),
+        ("noon", "2026-09-28T11:00:00+09:00", True),
+        ("morning", "2026-09-28T11:00:00+09:00", False),
+        ("noon", "2026-09-28T15:59:00+09:00", True),
+        ("evening", "2026-09-28T15:59:00+09:00", False),
+        ("evening", "2026-09-28T16:00:00+09:00", True),
+        ("noon", "2026-09-28T16:00:00+09:00", False),
+        ("evening", "2026-09-28T00:00:00+09:00", True),
+        ("evening", "2026-09-28T23:59:00+09:00", True),
+    ]
+    for slot, run_at_iso, ok in cases:
+        label = "通る" if ok else "号を保存しない"
+        check(
+            f"検査24(S14)/境目: {run_at_iso[11:16]}に実行した{slot}号は{label}",
+            result(slot, "2026-09-28", run_at_iso) == "ok", ok,
+        )
+    check(
+        "検査24(S14)/正例: 時間帯が想定外の値(null)の号は保存しない",
+        result(None, "2026-09-28", "2026-09-28T18:00:00+09:00") == "ok", False,
+    )
+    check(
+        "検査24(S14)/正例: UTCで渡した実行時刻も日本時間に直して判定する(UTC 09:00=JST 18:00で夕方)",
+        result("evening", "2026-09-28", "2026-09-28T09:00:00+00:00"), "ok",
+    )
+    msg = result("morning", "2026-09-28", "2026-09-28T18:05:00+09:00")
+    check(
+        "検査24(S14)/エラーの文: 期待した日付・時間帯、号の日付・時間帯、実行時刻がすべて書かれる",
+        all(part in msg for part in (
+            "期待した日付: 2026-09-28", "期待した時間帯: evening",
+            "号の日付: 2026-09-28", "号の時間帯: morning", "実行時刻: 2026-09-28T18:05:00+09:00",
+        )), True,
+    )
+    msg2 = result("morning", "2026-09-28", "2026-09-29T02:10:00+09:00")
+    check(
+        "検査24(S14)/エラーの文: 0:00〜4:59に実行した場合、期待した日付は前日・時間帯はevening",
+        ("期待した日付: 2026-09-28" in msg2, "期待した時間帯: evening" in msg2), (True, True),
+    )
+    try:
+        ve.check_edition_date({"slot": "evening", "date": "2026-09-21"}, dt.datetime.fromisoformat("2026-09-21T00:12:00+09:00"))
+        date_msg = ""
+    except ve.EditionInvalid as e:
+        date_msg = str(e)
+    check(
+        "検査24(日付)/エラーの文: 日付のずれで止まるときも、期待した日付・時間帯、号の日付・時間帯、実行時刻が書かれる",
+        all(part in date_msg for part in (
+            "期待した日付: 2026-09-20", "期待した時間帯: evening",
+            "号の日付: 2026-09-21", "号の時間帯: evening", "実行時刻: 2026-09-21T00:12:00+09:00",
+        )), True,
+    )
+
+
+def test_run_verification_stops_on_slot_mismatch():
+    """改修27-2第2回(S14): 照合の本体全体で、時間帯がずれた号は保存しない(終了コード1、
+    号・仮説のファイルは1文字も書き換えない)。時間帯が合っていれば保存され、
+    slot_mismatchは偽で記録される(キーをそろえるため残している)。"""
+    with tempfile.TemporaryDirectory() as d:
+        work_dir = Path(d)
+        edition_path, hyp_path, cache_dir, today_str, prev_str = _rebuild_canary_as_today(work_dir)
+        calendar_dir = _write_temp_calendar(
+            work_dir, dt.datetime.strptime(prev_str, "%Y-%m-%d").date() - dt.timedelta(days=3), 60,
+        )
+        before_edition = edition_path.read_text(encoding="utf-8")
+        before_hyp = hyp_path.read_text(encoding="utf-8")
+
+        # 夕方号を、同じ日の昼(13:00)に照合する → 時間帯が違うので止まる。
+        noon_run = dt.datetime.fromisoformat(f"{today_str}T13:00:00+09:00")
+        r = _run_verify(work_dir, edition_path, hyp_path, cache_dir, calendar_dir, run_at_dt=noon_run)
+        check("検査24(S14)/統合・正例: 夕方号を13:00に照合すると保存しない(終了コード1)", r.returncode, 1)
+        check(
+            "検査24(S14)/統合・正例: 止まったときの表示に、期待した時間帯(noon)と号の時間帯(evening)が出る",
+            ("期待した時間帯: noon" in r.stdout, "号の時間帯: evening" in r.stdout), (True, True),
+        )
+        check(
+            "検査24(S14)/統合・正例: 止まったとき、号と仮説のファイルは1文字も書き換わらない",
+            (edition_path.read_text(encoding="utf-8") == before_edition, hyp_path.read_text(encoding="utf-8") == before_hyp),
+            (True, True),
+        )
+
+        # 夕方号を同じ日の16:00(夕方の時間帯の始まり)に照合する → 保存される。
+        evening_run = dt.datetime.fromisoformat(f"{today_str}T16:00:00+09:00")
+        r2 = _run_verify(work_dir, edition_path, hyp_path, cache_dir, calendar_dir, run_at_dt=evening_run)
+        check("検査24(S14)/統合・負例: 夕方号を16:00に照合すると保存される(終了コード0)", r2.returncode, 0)
+        v = json.loads(edition_path.read_text(encoding="utf-8")).get("verification") or {}
+        check(
+            "検査24(S14)/統合・負例: 保存された号のslot_mismatchは偽、slot_expectedはevening、run_atは渡した時刻",
+            (v.get("slot_mismatch"), v.get("slot_expected"), v.get("run_at")),
+            (False, "evening", evening_run.isoformat()),
+        )
+
+
+def test_run_verification_requires_run_at():
+    """改修27-2第2回: 照合の本体は実行時刻を必須の引数として受け取る(省略したら現在時刻、
+    という既定値を付けない)。コマンド(main)は引数を増やしていない。"""
+    import inspect
+    params = inspect.signature(ve.run_verification).parameters
+    check(
+        "改修27-2第2回/正例: run_verificationのrun_at_dtには既定値が無い(省略できない)",
+        ("run_at_dt" in params, params["run_at_dt"].default is inspect.Parameter.empty), (True, True),
+    )
+    check(
+        "改修27-2第2回/正例: main()は引数を受け取らない(時刻を渡す経路が無い)",
+        len(inspect.signature(ve.main).parameters), 0,
+    )
+    source = inspect.getsource(ve.main)
+    check(
+        "改修27-2第2回/正例: main()は現在時刻(dt.datetime.now(JST))を取り、環境変数を読まない",
+        ("dt.datetime.now(JST)" in source, "environ" in source, "getenv" in source), (True, False, False),
+    )
+    help_text = subprocess.run(
+        [sys.executable, str(REPO_ROOT / "scripts" / "verify_edition.py"), "--help"],
+        capture_output=True, text=True, encoding="utf-8",
+    ).stdout
+    options = sorted(set(re.findall(r"--[a-z][a-z-]*", help_text)))
+    check(
+        "改修27-2第2回/正例: コマンドの引数は--edition・--hypotheses・--cache・--calendar(と--help)だけ",
+        options, ["--cache", "--calendar", "--edition", "--help", "--hypotheses"],
+    )
+
+
+def _wait_if_near_slot_boundary(margin_seconds=90):
+    """実行時刻が時間帯の境目(5:00・11:00・16:00)の直前margin_seconds秒以内なら、
+    境目を5秒過ぎるまで待つ(号を作ってから照合するまでの間に時間帯が変わり、
+    たまたま止まってしまうのを避けるため)。待った秒数を返す。"""
+    now = dt.datetime.now(ve.JST)
+    for boundary in (dt.time(5, 0), dt.time(11, 0), dt.time(16, 0)):
+        target = dt.datetime.combine(now.date(), boundary, tzinfo=ve.JST)
+        wait = (target - now).total_seconds()
+        if 0 <= wait < margin_seconds:
+            time.sleep(wait + 5)
+            return wait + 5
+    return 0
+
+
+def test_cli_runs_with_current_time():
+    """改修27-2第2回: コマンドとしての動作を確かめる1本だけのテスト。verify_edition.pyを
+    別に起動する(実行時刻はスクリプト自身が現在時刻を取る)。号の日付と時間帯は、
+    テストを実行した時刻から決める(0:00〜4:59は前日の夕方号)。終了コード0になる
+    ことだけを確かめ、件数は確かめない(時間帯によって朝号の門限など結果が変わるため)。"""
+    _wait_if_near_slot_boundary()
+    now = dt.datetime.now(ve.JST)
+    slot = ve.compute_expected_slot(now)
+    date_str = ve.expected_date_for_run(now)
+    with tempfile.TemporaryDirectory() as d:
+        work_dir = Path(d)
+        edition_path, hyp_path, cache_dir, today_str, prev_str = _rebuild_canary_as_today(work_dir)
+        # 見本の号(夕方号として作られる)を、今の時間帯の号に作り直す。
+        edition = json.loads(edition_path.read_text(encoding="utf-8"))
+        hyp = json.loads(hyp_path.read_text(encoding="utf-8"))
+        edition_id = f"{date_str}-{slot}"
+        edition.update({"date": date_str, "slot": slot, "edition_id": edition_id})
+        hyp["edition_id"] = edition_id
+        edition_path.unlink()
+        hyp_path.unlink()
+        new_edition_path = work_dir / "editions" / date_str / f"{slot}.json"
+        new_edition_path.parent.mkdir(parents=True, exist_ok=True)
+        new_edition_path.write_text(json.dumps(edition, ensure_ascii=False, indent=1), encoding="utf-8")
+        new_hyp_path = work_dir / "hypotheses" / f"{edition_id}.json"
+        new_hyp_path.write_text(json.dumps(hyp, ensure_ascii=False, indent=1), encoding="utf-8")
+        calendar_dir = _write_temp_calendar(
+            work_dir, dt.datetime.strptime(date_str, "%Y-%m-%d").date() - dt.timedelta(days=5), 60,
+        )
+        result = subprocess.run(
+            [sys.executable, str(REPO_ROOT / "scripts" / "verify_edition.py"),
+             "--edition", str(new_edition_path), "--hypotheses", str(new_hyp_path),
+             "--cache", str(cache_dir), "--calendar", str(calendar_dir)],
+            capture_output=True, text=True, encoding="utf-8", cwd=str(work_dir),
+        )
+        check(
+            f"コマンド/正例: 実行した時刻の日付・時間帯({date_str}の{slot}号)で作った号は、"
+            "verify_edition.pyを別に起動しても正常終了する(終了コード0)",
+            result.returncode, 0,
+        )
+    _assert_testdata_untouched("コマンドのテスト")
 
 
 def test_canary_edition():
@@ -5356,7 +5592,7 @@ def test_canary_edition():
             work_dir, dt.datetime.strptime(prev_str, "%Y-%m-%d").date() - dt.timedelta(days=3), 60,
         )
 
-        result = _run_verify_cli(work_dir, edition_path, hyp_path, cache_dir, calendar_dir)
+        result = _run_verify(work_dir, edition_path, hyp_path, cache_dir, calendar_dir)
         check("見本の号/正例: 正常終了する(終了コード0)", result.returncode, 0)
 
         after_edition = json.loads(edition_path.read_text(encoding="utf-8"))
@@ -5913,6 +6149,13 @@ def main():
     test_empty_title_or_url_refs()
     test_reported_relation_text_mismatch()
     test_round1_27_2_end_to_end_default_keys_without_hypotheses()
+
+    # 改修27-2(第2回): 検査24の時間帯のずれで止める(S14)・照合の本体を実行時刻を
+    # 引数で受け取る関数に分けたことのテスト。コマンドを別に起動するのは最後の1本だけ。
+    test_check_edition_slot()
+    test_run_verification_stops_on_slot_mismatch()
+    test_run_verification_requires_run_at()
+    test_cli_runs_with_current_time()
 
     # 改修27-1(4-15): 見本の号(Canary)。
     test_canary_edition()

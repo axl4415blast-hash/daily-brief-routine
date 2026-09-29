@@ -386,8 +386,43 @@ def check_edition_date(edition, run_at_dt):
     if actual_date != expected_date:
         raise EditionInvalid(
             f"date '{actual_date}' が期待した日付 '{expected_date}' と一致しません"
-            f"(実行時刻: {run_at_dt.isoformat()}, slot: {slot})。"
+            f"({describe_edition_timing(edition, run_at_dt)})。"
         )
+
+
+def expected_date_for_run(run_at_dt):
+    """改修27-2第2回: 実行時刻(JST)だけから期待する号の日付を返す。0:00〜4:59は前日
+    (前日の夕方号)、それ以外は当日。compute_expected_slot()と組にして、エラーの文に
+    「期待した日付・時間帯」を書くために使う。"""
+    local_dt = run_at_dt.astimezone(JST)
+    if local_dt.time() < SLOT_EXPECTED_MORNING_START:
+        return (local_dt - dt.timedelta(days=1)).strftime("%Y-%m-%d")
+    return local_dt.strftime("%Y-%m-%d")
+
+
+def describe_edition_timing(edition, run_at_dt):
+    """検査24のエラーの文に入れる説明(期待した日付・時間帯、号の日付・時間帯、実行時刻)。"""
+    return (
+        f"期待した日付: {expected_date_for_run(run_at_dt)}, 期待した時間帯: {compute_expected_slot(run_at_dt)}, "
+        f"号の日付: {edition.get('date')}, 号の時間帯: {edition.get('slot')}, "
+        f"実行時刻: {run_at_dt.astimezone(JST).isoformat()}"
+    )
+
+
+def check_edition_slot(edition, run_at_dt):
+    """検査24(改修27-2第2回・S14): 号のslotが、実行時刻(JST)から決まる時間帯
+    (compute_expected_slot())と一致しなければ号を保存しない(終了コード1)。
+      5:00〜10:59 → morning / 11:00〜15:59 → noon / 16:00〜4:59 → evening
+    (0:00〜4:59は前日の夕方号。日付の判定はcheck_edition_date()が行う)。
+    判定に使うのは実行時刻だけで、generated_at(AIの自己申告)は使わない。
+    戻り値: 期待した時間帯(一致した場合)。"""
+    slot_expected = compute_expected_slot(run_at_dt)
+    if edition.get("slot") != slot_expected:
+        raise EditionInvalid(
+            f"slot '{edition.get('slot')}' が期待した時間帯 '{slot_expected}' と一致しません"
+            f"({describe_edition_timing(edition, run_at_dt)})。"
+        )
+    return slot_expected
 
 
 SLOT_EXPECTED_MORNING_START = dt.time(5, 0)
@@ -401,7 +436,7 @@ def compute_expected_slot(run_at_dt):
       11:00〜15:59 → noon
       16:00〜23:59、0:00〜4:59 → evening
     日付(前日か当日か)はcheck_edition_date()が別に判定するため、ここでは時刻だけから
-    時間帯を決める。27-1では記録するだけで、号を止める判定には使わない(27-2で決める)。"""
+    時間帯を決める。改修27-2第2回から、ずれていれば号を止める(check_edition_slot())。"""
     local_time = run_at_dt.astimezone(JST).time()
     if SLOT_EXPECTED_MORNING_START <= local_time < SLOT_EXPECTED_NOON_START:
         return "morning"
@@ -2612,16 +2647,20 @@ def build_first_run_record(run_at, run_at_dt, baseline_late, market_open_reporte
     }
 
 
-def main():
-    run_at_dt = dt.datetime.now(JST)
-    run_at = run_at_dt.isoformat()
+def run_verification(edition_file, hypotheses_file, cache_dir_arg, calendar_dir_arg, run_at_dt):
+    """照合の本体(改修27-2第2回でmain()から分けた)。
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--edition", required=True)
-    parser.add_argument("--hypotheses")
-    parser.add_argument("--cache", required=True)
-    parser.add_argument("--calendar", required=True)
-    args = parser.parse_args()
+    run_at_dt(実行時刻、タイムゾーン付きのdatetime)は必須の引数で、省略したら
+    現在時刻を使う、という既定値は付けない。コマンドとして実行したとき(main())は
+    必ずdt.datetime.now(JST)がここに渡される。コマンドの引数・環境変数・ファイルの
+    どれからも時刻を変えられないようにするため、時刻を渡せるのはPythonの中から
+    この関数を直接呼ぶとき(セルフテストが固定した時刻で確かめるとき)だけにしている。
+
+    edition_file/hypotheses_file/cache_dir_arg/calendar_dir_argは、コマンドの
+    --edition/--hypotheses/--cache/--calendarと同じ意味(hypotheses_fileはNone可)。
+    戻り値: 終了コード(0=保存してよい 1=保存してはいけない)。スクリプト自体の
+    エラー(終了コード2)は、呼び出し元(__main__)が例外として扱う。"""
+    run_at = run_at_dt.isoformat()
 
     script_dir = Path(__file__).resolve().parent
     ng_words_path = script_dir / "ng_words.txt"
@@ -2629,7 +2668,7 @@ def main():
     source_policy_path = script_dir / "source_policy.csv"
 
     try:
-        edition_path = Path(args.edition)
+        edition_path = Path(edition_file)
         try:
             edition = load_json(edition_path)
         except (json.JSONDecodeError, OSError) as e:
@@ -2658,27 +2697,28 @@ def main():
         # 検査を飛ばすと、AIがfirst_runを自分で書いてこの検査を丸ごと避けられる。
         check_edition_date(edition, run_at_dt)
 
-        # 改修27-1(決定4): 実行時刻から期待する時間帯(slot)を出し、号のslotと違えば
-        # 記録するだけにする(号は止めない。止めるかは27-2で決める)。
-        slot_expected = compute_expected_slot(run_at_dt)
+        # 改修27-2第2回(S14): 実行時刻から期待する時間帯(slot)を出し、号のslotと違えば
+        # 号を保存しない(終了コード1)。slot_mismatchは止めるようになった後も、キーを
+        # そろえるために記録する(保存される号では常に偽)。
+        slot_expected = check_edition_slot(edition, run_at_dt)
         slot_mismatch = edition.get("slot") != slot_expected
 
         # usage/publisher_typeはAIの自己申告を信用せず、表の値で必ず上書きする。
         source_policy_result = apply_source_policy(edition, source_policy_path)
 
         # 検査35: market_openはAIの自己申告ではなく営業日カレンダーで確定させる。
-        market_open_result = check_market_open(edition, args.calendar)
+        market_open_result = check_market_open(edition, calendar_dir_arg)
 
         # 改修27-1第2回: business_daysはEDINET書類一覧の「直前の営業日」の特定(4-4)にも
         # 使うため、ここで1回だけ読み込み、仮説の検査(検査17・32等)にも同じものを渡す
         # (同じファイルを2回読む作りにしない)。
-        business_days = load_business_days(args.calendar)
+        business_days = load_business_days(calendar_dir_arg)
 
         # 改修27-1(4-4): --cache フォルダの中のSRC-EDINET-LIST.json(号の日付)と
         # SRC-EDINET-LIST-PREV.json(直前の営業日)の両方を読み、合わせて使う。片方が
         # 読めなければ、読めた方だけで続け、読めなかった日付をedinet_doclist_partialに
         # 記録する。
-        edinet_companies, edinet_doclist_availability = load_edinet_companies(args.cache)
+        edinet_companies, edinet_doclist_availability = load_edinet_companies(cache_dir_arg)
         prev_business_day = last_business_day_before(business_days, edition.get("date")) if business_days else None
         edinet_doclist_partial = []
         if not edinet_doclist_availability["today"]:
@@ -2691,7 +2731,7 @@ def main():
         # ルール)・検査36(published_atの検算)がpublished_at/published_date_onlyを読むより
         # 前に行う。
         edinet_published_at_overwritten, edinet_other_url_hits = apply_edinet_source_published_at(
-            edition, args.cache, edinet_companies
+            edition, cache_dir_arg, edinet_companies
         )
 
         # 改修27-2(S1): 全出典のpublished_date_onlyを、published_atの形から機械で書く
@@ -2701,7 +2741,7 @@ def main():
         # 改修27-1(4-8): EDINETの個々の書類について、edinet_fetch.pyがどのファイルを
         # 本文に選んだかを記録する(選んだ本文自体はキャッシュに既にある。ここでは
         # 記録を写すだけ)。
-        edinet_doc_files = collect_edinet_doc_files(edition, args.cache)
+        edinet_doc_files = collect_edinet_doc_files(edition, cache_dir_arg)
 
         # 改修27-1第6回: EDINETの出典のview_url(読者が実際に開けるURL)を機械で
         # 書き込む。apply_source_attribution()がattribution/processing_noteの
@@ -2724,7 +2764,7 @@ def main():
         # 改修27-1(4-11): scripts/recent_headlines.pyの実行結果(印のファイル)を読み、
         # 失敗したかどうかを記録する(号は止めない)。
         recent_headlines_failed = check_recent_headlines_status(
-            args.cache, edition.get("date"), edition.get("slot")
+            cache_dir_arg, edition.get("date"), edition.get("slot")
         )
 
         ng_words = load_ng_words(ng_words_path)
@@ -2735,7 +2775,7 @@ def main():
 
         watch_hits = check_watch_proximity(edition, ng_words_exclude)
 
-        stats, number_failure_details = run_line_verification(edition, args.cache)
+        stats, number_failure_details = run_line_verification(edition, cache_dir_arg)
         # 改修27-2(S12): titleかurlが空の出典を参照していた行(印はunverifiedにした)。
         empty_title_or_url_refs = {
             "count": len(stats["empty_title_or_url_line_ids"]),
@@ -2746,7 +2786,7 @@ def main():
         stale_hits, unknown_published_at_hits = run_check_e_stale_sources(edition, run_at_dt)
         stale_check_skipped = 0  # run_at_dtは常に読み取れるため、判定を飛ばす理由が無い。
         # 検査36: 記録だけを取り、行は落とさない(要件定義書v12 13章。7日間の様子見)。
-        published_at_unverified_hits, published_at_unverified_sources = run_check_published_at(edition, args.cache)
+        published_at_unverified_hits, published_at_unverified_sources = run_check_published_at(edition, cache_dir_arg)
         # 修正5: 枠(change)に関係なく、出典そのものでpublished_atが無いものを数える。
         sources_published_at_null = count_sources_published_at_null(edition)
 
@@ -2795,8 +2835,8 @@ def main():
         }
         # 改修27-2(S13): --hypotheses未指定でもキーがそろうよう、既定値(0件)にしておく。
         reported_relation_text_mismatch = {"count": 0, "hypothesis_ids": []}
-        if args.hypotheses:
-            hypotheses_doc = load_json(args.hypotheses)
+        if hypotheses_file:
+            hypotheses_doc = load_json(hypotheses_file)
             # 改修27-1(4-1): 仮説ファイルのgenerated_atも、紙面と同じく実行時刻で上書きする。
             hypotheses_generated_at_raw = override_generated_at(hypotheses_doc, run_at)
             hypotheses_doc["baseline_late"] = baseline_late
@@ -2816,7 +2856,7 @@ def main():
             )
 
             hypothesis_violations, hypothesis_reasons, hypothesis_extra = run_hypothesis_checks(
-                hypotheses_doc, edition, business_days, ng_words, args.cache, edinet_companies, codelist_rows
+                hypotheses_doc, edition, business_days, ng_words, cache_dir_arg, edinet_companies, codelist_rows
             )
 
             # 検査14: 休場日(market_openがfalse)、または遅延号(baseline_lateがtrue)の号は、
@@ -2953,8 +2993,8 @@ def main():
             "attribution_overwritten": source_attribution_result["attribution_overwritten"],
             "attribution_generation_skipped": source_attribution_result["attribution_generation_skipped"],
             "baseline_late": baseline_late,
-            # 改修27-1(決定4): 検査24は時間帯のずれを止めずに記録するだけにする
-            # (号を止めるかどうかは27-2で決める)。
+            # 改修27-2第2回(S14): 時間帯がずれていれば号を保存しないため、
+            # 保存される号ではslot_mismatchは常に偽(キーをそろえるために残す)。
             "slot_expected": slot_expected,
             "slot_mismatch": slot_mismatch,
             "source_usage_invalid_hits": source_usage_invalid_hits,
@@ -3019,12 +3059,12 @@ def main():
         with open(edition_path, "w", encoding="utf-8") as f:
             json.dump(edition, f, ensure_ascii=False, indent=1)
 
-        if args.hypotheses:
-            with open(args.hypotheses, "w", encoding="utf-8") as f:
+        if hypotheses_file:
+            with open(hypotheses_file, "w", encoding="utf-8") as f:
                 json.dump(hypotheses_doc, f, ensure_ascii=False, indent=1)
 
         print_report(
-            args.edition, stats, stop_hits, watch_hits, dropped_inferences, stale_hits,
+            edition_file, stats, stop_hits, watch_hits, dropped_inferences, stale_hits,
             unknown_published_at_hits, stale_check_skipped,
             hypothesis_violations, hypothesis_reasons, number_failure_details, ok=True,
             baseline_late=baseline_late, ticker_crosscheck=ticker_crosscheck,
@@ -3039,10 +3079,26 @@ def main():
 
     except EditionInvalid as e:
         print("=" * 60)
-        print(f"照合結果: {args.edition}")
+        print(f"照合結果: {edition_file}")
         print("=" * 60)
         print(f"→ この号は保存できません。理由: {e}")
         return 1
+
+
+def main():
+    """コマンドとしての入口。実行時刻は必ずここで現在時刻(日本時間)を取り、
+    run_verification()に渡すだけにする(引数・環境変数・ファイルから時刻を
+    受け取る経路は作らない)。コマンドの引数と出力の形は改修27-2第2回の前と同じ。"""
+    run_at_dt = dt.datetime.now(JST)
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--edition", required=True)
+    parser.add_argument("--hypotheses")
+    parser.add_argument("--cache", required=True)
+    parser.add_argument("--calendar", required=True)
+    args = parser.parse_args()
+
+    return run_verification(args.edition, args.hypotheses, args.cache, args.calendar, run_at_dt)
 
 
 if __name__ == "__main__":
