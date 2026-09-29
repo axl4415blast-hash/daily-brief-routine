@@ -62,10 +62,16 @@ def collect_articles(entry):
     実行時のカレントディレクトリからの相対パス)を読み、記事ごとの見出し・
     出典URLを取り出す。号のファイル自体が読めない場合は、その号だけ飛ばす
     (一覧全体は失敗にしない)。"""
-    edition_path = Path(entry["edition_path"])
+    # 改修27-2第9回の2回目: 一覧の行・号の中身の形が想定外(edition_pathが無い、source_idが
+    # リスト等)でも止まらず、その号だけ飛ばす(形の確かめ方は照合と同じ関数を使う)。
+    edition_path = entry.get("edition_path")
+    if not isinstance(edition_path, str):
+        return []
     try:
-        edition = load_json(edition_path)
-    except (OSError, json.JSONDecodeError):
+        edition = load_json(Path(edition_path))
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+        return []
+    if not isinstance(edition, dict) or ve.recent_edition_shape_problem(edition) is not None:
         return []
 
     sources_by_id = {s.get("source_id"): s for s in edition.get("sources") or []}

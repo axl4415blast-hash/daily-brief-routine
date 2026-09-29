@@ -57,7 +57,7 @@ import re
 import sys
 import unicodedata
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import parse_qsl, urlencode, urlparse, urlsplit, urlunsplit
 
 import edinet_codelist
 import edinet_fetch
@@ -1822,8 +1822,9 @@ def is_before(entry_date, entry_slot, target_date, target_slot):
     (改修27-2第9回でscripts/recent_headlines.pyから移した)"""
     if entry_date != target_date:
         return entry_date < target_date
-    entry_order = SLOT_ORDER.get(entry_slot)
-    target_order = SLOT_ORDER.get(target_slot)
+    # 改修27-2第9回の2回目: slotがリスト等(文字でない)でも止まらないよう、文字だけを引く。
+    entry_order = SLOT_ORDER.get(entry_slot) if isinstance(entry_slot, str) else None
+    target_order = SLOT_ORDER.get(target_slot) if isinstance(target_slot, str) else None
     if entry_order is None or target_order is None:
         return False
     return entry_order < target_order
@@ -1837,7 +1838,8 @@ def select_recent_editions(index_entries, business_days, edition_date, edition_s
         edition_dateまでの暦日のすべての日(土日・祝日の号も含める)
       ・同じ日付の号は、時間帯の順で今回より前のものだけ
       ・今回の号と同じedition_idの号は外す
-    dateが文字でない等、形の壊れた行は飛ばす。営業日が1つも無ければ空配列。"""
+    date・slot・edition_idが文字でない等、形の壊れた行は飛ばす(改修27-2第9回の2回目で
+    slot・edition_idにも広げた)。営業日が1つも無ければ空配列。"""
     window = recent_business_days(business_days, edition_date, count)
     if not window:
         return []
@@ -1848,6 +1850,8 @@ def select_recent_editions(index_entries, business_days, edition_date, edition_s
             continue
         entry_date = entry.get("date")
         if not isinstance(entry_date, str) or not (start <= entry_date <= edition_date):
+            continue
+        if not isinstance(entry.get("slot"), str) or not isinstance(entry.get("edition_id"), str):
             continue
         if not is_before(entry_date, entry.get("slot"), edition_date, edition_slot):
             continue
@@ -1871,11 +1875,57 @@ def load_editions_index(path=EDITIONS_INDEX_PATH):
     return entries
 
 
+def recent_edition_shape_problem(edition):
+    """改修27-2第9回の2回目: 過去の号の紙面のうち、号をまたぐ比較で読む値の形を確かめる。
+    sources・sections・articles・linesが配列で、その要素が辞書であること、source_id・url・
+    article_id・headline・source_refが文字かnullであること。問題があればその場所(文字列)を、
+    無ければNoneを返す(想定外の形の号は、比べる対象から外すため)。"""
+    sources = edition.get("sources", [])
+    if not isinstance(sources, list):
+        return "sources"
+    for source in sources:
+        if not isinstance(source, dict):
+            return "sources[]"
+        for key in ("source_id", "url"):
+            if not _is_str_or_null(source.get(key)):
+                return f"sources[].{key}"
+    sections = edition.get("sections", [])
+    if not isinstance(sections, list):
+        return "sections"
+    for section in sections:
+        if not isinstance(section, dict) or not isinstance(section.get("articles", []), list):
+            return "sections[]"
+        for article in section.get("articles", []):
+            if not isinstance(article, dict) or not isinstance(article.get("lines", []), list):
+                return "articles[]"
+            for key in ("article_id", "headline"):
+                if not _is_str_or_null(article.get(key)):
+                    return f"articles[].{key}"
+            for line in article.get("lines", []):
+                if not isinstance(line, dict) or not _is_str_or_null(line.get("source_ref")):
+                    return "lines[]"
+    return None
+
+
+def recent_hypotheses_shape_problem(hypotheses):
+    """改修27-2第9回の2回目: 過去の号の仮説の配列のうち、号をまたぐ重複で読む値の形を確かめる
+    (要素が辞書で、hypothesis_id・ticker・evidence_source_refが文字かnull)。"""
+    for hyp in hypotheses:
+        if not isinstance(hyp, dict):
+            return "hypotheses[]"
+        for key in ("hypothesis_id", "ticker", "evidence_source_ref"):
+            if not _is_str_or_null(hyp.get(key)):
+                return f"hypotheses[].{key}"
+    return None
+
+
 def load_recent_editions(entries):
     """改修27-2第9回: select_recent_editions()で選んだ号の紙面・仮説のファイルを読む。
     戻り値: (読めた号の一覧, 読めなかったものの一覧)。
       ・読めた号: {"entry", "edition", "hypotheses"}。hypothesesは仮説の配列で、仮説ファイルが
-        読めなかった号はNone(その号は号をまたぐ重複の判定だけ飛ばす)。
+        読めなかった号はNone(その号は号をまたぐ重複の判定だけ飛ばし、続報の判定には使う)。
+      ・紙面・仮説が読めても、比較で読む値の形が想定外なら読めなかったものとして扱う
+        (recent_edition_shape_problem・recent_hypotheses_shape_problem)。
       ・読めなかったもの: {"edition_id", "file": "edition"|"hypotheses"}。紙面が読めなければ
         その号は丸ごと飛ばす。仮説ファイルが無く、hypotheses_countが0なら正常(仮説0件)。"""
     loaded = []
@@ -1886,7 +1936,8 @@ def load_recent_editions(entries):
             edition = load_json(entry.get("edition_path"))
         except (TypeError, OSError, json.JSONDecodeError, UnicodeDecodeError):
             edition = None
-        if not isinstance(edition, dict):
+        # 改修27-2第9回の2回目: 読めても中身が想定外の形なら、読めなかった号と同じに扱う。
+        if not isinstance(edition, dict) or recent_edition_shape_problem(edition) is not None:
             unreadable.append({"edition_id": edition_id, "file": "edition"})
             continue
 
@@ -1899,7 +1950,8 @@ def load_recent_editions(entries):
                 hyp_doc = load_json(hyp_path)
             except (TypeError, OSError, json.JSONDecodeError, UnicodeDecodeError):
                 hyp_doc = None
-            if isinstance(hyp_doc, dict) and isinstance(hyp_doc.get("hypotheses"), list):
+            if (isinstance(hyp_doc, dict) and isinstance(hyp_doc.get("hypotheses"), list)
+                    and recent_hypotheses_shape_problem(hyp_doc["hypotheses"]) is None):
                 hypotheses = hyp_doc["hypotheses"]
             else:
                 unreadable.append({"edition_id": edition_id, "file": "hypotheses"})
@@ -3386,6 +3438,210 @@ def hypothesis_ticker_doc_key(hyp, sources_by_id):
     return (ticker, doc_id)
 
 
+# 改修27-2第9回の2回目(要件3.1): 続報の判定。
+HUB_URLS_FILENAME = "hub_urls.csv"
+FOLLOWUP_TRACKING_PARAM_PREFIX = "utm_"
+FOLLOWUP_TRACKING_PARAMS = {"fbclid", "gclid", "yclid", "n_cid"}
+FOLLOWUP_HEADLINE_WORD = "続報"
+EDINET_VIEW_HOST = "disclosure2.edinet-fsa.go.jp"
+EDINET_VIEW_PATH = "/wzek0040.aspx"
+_EDINET_VIEW_DOC_ID_RE = re.compile(r"^([A-Za-z0-9]+)")
+
+
+def extract_edinet_view_doc_id(url):
+    """改修27-2第9回の2回目: 読者向けの閲覧画面のURL(WZEK0040.aspx?{書類管理番号})から
+    書類管理番号を取り出す。「?」の直後の英数字の続きだけを取る(後ろの=や,は無視する。
+    実例にWZEK0040.aspx?S100VTPA=の形がある)。形が違えばNone。"""
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        return None
+    if parts.scheme.lower() not in ("http", "https") or (parts.hostname or "") != EDINET_VIEW_HOST:
+        return None
+    if parts.path.lower() != EDINET_VIEW_PATH:
+        return None
+    m = _EDINET_VIEW_DOC_ID_RE.match(parts.query)
+    return m.group(1) if m else None
+
+
+def followup_doc_id(url):
+    """続報の判定で使う書類管理番号。api/v2/documents/{番号}の形(extract_edinet_doc_id。
+    今の動きのまま)と、WZEK0040.aspx?{番号}の形の両方から取り出す。"""
+    return extract_edinet_doc_id(url) or extract_edinet_view_doc_id(url)
+
+
+def normalize_followup_url(url, keep_query=True):
+    """改修27-2第9回の2回目: 続報の判定のためにURLをそろえる。http→https、ホスト名を小文字に、
+    「#」以降を外す、パスの末尾の「/」を外す(パスが「/」だけのときを除く)。「?」以降は、
+    追跡用の値(名前がutm_で始まるもの、fbclid・gclid・yclid・n_cid)だけを外し、残りは
+    名前順に並べて残す(e-Statのように「?」以降で資料を区別するサイトがあるため)。
+    keep_query=Falseなら「?」以降をすべて外す(入口ページの表と比べるとき)。
+    URLとして読めなければNone。"""
+    try:
+        parts = urlsplit(url.strip())
+        pairs = parse_qsl(parts.query, keep_blank_values=True) if keep_query else []
+    except ValueError:
+        return None
+    scheme = parts.scheme.lower()
+    if scheme == "http":
+        scheme = "https"
+    path = parts.path
+    if len(path) > 1 and path.endswith("/"):
+        path = path.rstrip("/") or "/"
+    kept = [
+        (name, value) for name, value in pairs
+        if not name.lower().startswith(FOLLOWUP_TRACKING_PARAM_PREFIX)
+        and name.lower() not in FOLLOWUP_TRACKING_PARAMS
+    ]
+    return urlunsplit((scheme, parts.netloc.lower(), path, urlencode(sorted(kept)), ""))
+
+
+def load_hub_urls(path):
+    """改修27-2第9回の2回目: scripts/hub_urls.csv(入口ページの表。1列目url・2列目note)を読み、
+    「?」以降を除いてそろえたURLの集合を返す。source_policy.csvと同じく、表そのものが読めない・
+    URLとして読めない行がある場合は号の保存を止める(設定ミスに気づけなくなるのを防ぐため)。"""
+    path = Path(path)
+    if not path.is_file():
+        raise EditionInvalid(f"scripts/{HUB_URLS_FILENAME} が読めません: ファイルがありません。")
+    try:
+        with open(path, "r", encoding="utf-8", newline="") as f:
+            rows = list(csv.DictReader(f))
+    except (OSError, UnicodeDecodeError, csv.Error) as e:
+        raise EditionInvalid(f"scripts/{HUB_URLS_FILENAME} が読めません: {e}")
+    hubs = set()
+    for number, row in enumerate(rows, start=2):
+        url = (row.get("url") or "").strip()
+        normalized = normalize_followup_url(url, keep_query=False) if url else None
+        if not normalized or not urlsplit(normalized).netloc:
+            raise EditionInvalid(f"scripts/{HUB_URLS_FILENAME} の{number}行目のurlが読めません: {url!r}")
+        hubs.add(normalized)
+    return hubs
+
+
+def followup_source_key(source, hub_urls):
+    """改修27-2第9回の2回目: 1つの出典の、続報の判定で比べる鍵を返す。
+      ・書類管理番号が取れる → ("doc", 番号)
+      ・取れない → 入口ページ(書類一覧のsource_id・パスが「/」だけか空・hub_urls.csvに載ったURL)
+        ならNone(比べない)。入口ページでなければ ("url", そろえたURL)
+    URLが空・文字でない・URLとして読めない出典もNone。"""
+    url = source.get("url")
+    if not isinstance(url, str) or not url.strip():
+        return None
+    doc_id = followup_doc_id(url)
+    if doc_id is not None:
+        return ("doc", doc_id)
+    if source.get("source_id") in EDINET_DOCLIST_SOURCE_IDS:
+        return None
+    try:
+        path = urlsplit(url.strip()).path
+    except ValueError:
+        return None
+    if path in ("", "/"):
+        return None
+    if normalize_followup_url(url, keep_query=False) in hub_urls:
+        return None
+    normalized = normalize_followup_url(url)
+    return ("url", normalized) if normalized else None
+
+
+def followup_article_keys(edition, hub_urls):
+    """紙面の記事ごとに、行のsource_refが指す出典の鍵を集める。
+    戻り値: [(記事, {鍵: その鍵になった生のURLの集合})](紙面の記事の順)。"""
+    sources_by_id = {
+        s.get("source_id"): s for s in edition.get("sources", [])
+        if isinstance(s, dict) and isinstance(s.get("source_id"), str)
+    }
+    result = []
+    for section in edition.get("sections", []):
+        for article in section.get("articles", []):
+            keys = {}
+            for line in article.get("lines", []):
+                ref = line.get("source_ref")
+                source = sources_by_id.get(ref) if isinstance(ref, str) else None
+                key = followup_source_key(source, hub_urls) if source is not None else None
+                if key is not None:
+                    keys.setdefault(key, set()).add(source["url"])
+            result.append((article, keys))
+    return result
+
+
+def apply_followups(edition, recent_loaded, hub_urls):
+    """改修27-2第9回の2回目(要件3.1): すべての記事に、機械でfollowupを書く(AIの値は使わない)。
+    行を落とす検査(検査7・36・10)がすべて終わった後の紙面で呼ぶこと(残っている行の出典だけを
+    比べる)。過去の号は、recent_loaded(load_recent_editions()の結果、古い順)の紙面の記事の行が
+    参照する出典。
+      ・続報: 比べる鍵が1つでも範囲内の号と重なった記事。first_seen・first_seen_edition_idは
+        重なった中で最も古い号の日付とedition_id。has_new_sourceは、比べる鍵のうち範囲内の
+        どの号にも無いものが1つでもあれば真
+      ・続報でない記事(比べる鍵が1つも無い記事を含む): is_followup偽、他の3つはnull
+    戻り値: verificationに書く4つの記録(followup_counts・followup_without_new_source・
+    url_normalized_matches・followup_headline_mismatch)。記事は消さない。"""
+    past = []
+    for item in recent_loaded:
+        merged = {}
+        for _article, keys in followup_article_keys(item["edition"], hub_urls):
+            for key, raws in keys.items():
+                merged.setdefault(key, set()).update(raws)
+        past.append((item["entry"], merged))
+
+    counts = {"followup": 0, "not_followup": 0}
+    without_new_source = []
+    normalized_matches = []
+    headline_mismatch = []
+    for article, keys in followup_article_keys(edition, hub_urls):
+        article_id = article.get("article_id")
+        first_pos = None
+        has_new_source = False
+        for key in sorted(keys):
+            raws = keys[key]
+            found = [(pos, entry, past_keys[key]) for pos, (entry, past_keys) in enumerate(past) if key in past_keys]
+            if not found:
+                has_new_source = True
+                continue
+            if first_pos is None or found[0][0] < first_pos:
+                first_pos = found[0][0]
+            if key[0] == "url":
+                past_raws = set().union(*(f[2] for f in found))
+                if not (raws & past_raws):
+                    normalized_matches.append({
+                        "article_id": article_id,
+                        "url": sorted(raws)[0],
+                        "matched_url": sorted(found[0][2])[0],
+                        "edition_id": found[0][1].get("edition_id"),
+                    })
+        is_followup = first_pos is not None
+        if is_followup:
+            first_entry = past[first_pos][0]
+            article["followup"] = {
+                "is_followup": True,
+                "first_seen": first_entry.get("date"),
+                "first_seen_edition_id": first_entry.get("edition_id"),
+                "has_new_source": has_new_source,
+            }
+            counts["followup"] += 1
+            if not has_new_source:
+                without_new_source.append(article_id)
+        else:
+            article["followup"] = {
+                "is_followup": False, "first_seen": None, "first_seen_edition_id": None, "has_new_source": None,
+            }
+            counts["not_followup"] += 1
+
+        headline = article.get("headline")
+        headline_has_word = isinstance(headline, str) and FOLLOWUP_HEADLINE_WORD in headline
+        if headline_has_word != is_followup:
+            headline_mismatch.append({
+                "article_id": article_id, "headline_has_word": headline_has_word, "is_followup": is_followup,
+            })
+
+    return {
+        "followup_counts": counts,
+        "followup_without_new_source": {"count": len(without_new_source), "article_ids": without_new_source},
+        "url_normalized_matches": {"count": len(normalized_matches), "matches": normalized_matches},
+        "followup_headline_mismatch": {"count": len(headline_mismatch), "articles": headline_mismatch},
+    }
+
+
 def apply_cross_edition_duplicates(hyps, sources_by_id, recent_loaded):
     """改修27-2第9回(要件3.4(2)): 上段の仮説(すべての検査と枠の配分の後に残ったもの)を、
     比べる範囲の過去の号の仮説と(ticker, 書類管理番号)で比べる。過去の号の書類管理番号は、
@@ -3402,7 +3658,7 @@ def apply_cross_edition_duplicates(hyps, sources_by_id, recent_loaded):
         past_sources = item["edition"].get("sources")
         past_sources_by_id = {
             s.get("source_id"): s for s in (past_sources if isinstance(past_sources, list) else [])
-            if isinstance(s, dict)
+            if isinstance(s, dict) and isinstance(s.get("source_id"), str)
         }
         for past_hyp in item["hypotheses"]:
             if not isinstance(past_hyp, dict):
@@ -3837,6 +4093,11 @@ def run_verification(edition_file, hypotheses_file, cache_dir_arg, calendar_dir_
         stale_hits, unknown_published_at_hits, stale_source_hits_by_kind = run_check_e_stale_sources(edition, run_at_dt)
         record_dropped_lines(edition, known_line_ids, dropped_by, LINE_DROP_CHECK_NAMES["stale_source"])
         stale_check_skipped = 0  # run_at_dtは常に読み取れるため、判定を飛ばす理由が無い。
+
+        # 改修27-2第9回の2回目(要件3.1): 続報の判定。行を落とす検査(検査7・36・10)がすべて
+        # 終わった後に、今紙面に残っている行の出典で比べる。一覧・過去の号が読めない場合は
+        # 比べる号が減るだけで、号は止めない(記録は1回目のrecent_editions_*と同じ)。
+        followup_records = apply_followups(edition, recent_loaded, load_hub_urls(script_dir / HUB_URLS_FILENAME))
         # 修正5: 枠(change)に関係なく、出典そのものでpublished_atが無いものを数える。
         sources_published_at_null = count_sources_published_at_null(edition)
 
@@ -4163,6 +4424,13 @@ def run_verification(edition_file, hypotheses_file, cache_dir_arg, calendar_dir_
             # 改修27-2第9回(要件3.4(2)): 範囲内の過去の号と(ticker, 書類管理番号)が一致した
             # 上段の仮説(duplicate_ofを書き、auto_check_targetを偽にした。削除はしない)。
             "cross_edition_duplicates": cross_edition_duplicates,
+            # 改修27-2第9回の2回目(要件3.1): 続報の判定の記録(記事は消さない)。続報・続報でない
+            # 記事の件数、新しい出典の無い続報、URLをそろえて初めて一致した組、見出しの「続報」と
+            # 機械の判定の食い違い(記録だけ)。
+            "followup_counts": followup_records["followup_counts"],
+            "followup_without_new_source": followup_records["followup_without_new_source"],
+            "url_normalized_matches": followup_records["url_normalized_matches"],
+            "followup_headline_mismatch": followup_records["followup_headline_mismatch"],
         }
         if industry_report is not None:
             edition["verification"].update(industry_report)

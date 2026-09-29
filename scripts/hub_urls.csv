@@ -1,0 +1,3 @@
+url,note
+https://api.edinet-fsa.go.jp/api/v2/documents.json,EDINETの書類一覧(毎号の出典に入る入口)
+https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx,EDINETの閲覧画面(書類管理番号が付かない形)

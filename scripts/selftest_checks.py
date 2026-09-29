@@ -5345,12 +5345,13 @@ def _write_past_edition(work_dir, date_str, slot, hyps, edition_id=None, hypothe
     }
 
 
-def _run_canary_with_past_editions(make_entries, hyp_edit=None):
+def _run_canary_with_past_editions(make_entries, hyp_edit=None, edition_edit=None):
     """改修27-2第9回: 見本の号(今日のevening号)を、作業フォルダにeditions/index.jsonを置いた
     状態で照合する。make_entries(work_dir, 日付を返す関数)が一覧の行を返す。日付を返す関数は、
     今日から何日前かを受け取る(一時カレンダーは全日が営業日なので、直近3営業日は今日・1日前・
     2日前で、3日前は範囲の外)。hyp_editを渡すと、照合の前に見本の号の仮説(dict)を書き換える。
-    戻り値: (終了コード, verification, 残った上段の仮説, 日付を返す関数)。"""
+    edition_editを渡すと、照合の前に見本の号の紙面(dict)を書き換える(第9回の2回目で追加)。
+    戻り値: (終了コード, verification, 残った上段の仮説, 日付を返す関数, 照合後の紙面)。"""
     with tempfile.TemporaryDirectory() as d:
         work_dir = Path(d)
         edition_path, hyp_path, cache_dir, today_str, prev_str = _rebuild_canary_as_today(work_dir)
@@ -5366,15 +5367,20 @@ def _run_canary_with_past_editions(make_entries, hyp_edit=None):
         (work_dir / "editions" / "index.json").write_text(
             json.dumps({"editions": entries}, ensure_ascii=False), encoding="utf-8",
         )
+        if edition_edit is not None:
+            edition_doc = json.loads(edition_path.read_text(encoding="utf-8"))
+            edition_edit(edition_doc)
+            edition_path.write_text(json.dumps(edition_doc, ensure_ascii=False, indent=1), encoding="utf-8")
         if hyp_edit is not None:
             hyp_doc = json.loads(hyp_path.read_text(encoding="utf-8"))
             hyp_edit(hyp_doc)
             hyp_path.write_text(json.dumps(hyp_doc, ensure_ascii=False, indent=1), encoding="utf-8")
         with _patched_codelist(_fake_codelist_rows(CANARY_CODELIST_ENTRIES)):
             result = _run_verify(work_dir, edition_path, hyp_path, cache_dir, calendar_dir)
-        v = json.loads(edition_path.read_text(encoding="utf-8")).get("verification") or {}
+        after_edition = json.loads(edition_path.read_text(encoding="utf-8"))
+        v = after_edition.get("verification") or {}
         hyps = json.loads(hyp_path.read_text(encoding="utf-8")).get("hypotheses") or []
-        return result.returncode, v, hyps, days_ago
+        return result.returncode, v, hyps, days_ago, after_edition
 
 
 def test_cross_edition_duplicates_end_to_end():
@@ -5406,7 +5412,7 @@ def test_cross_edition_duplicates_end_to_end():
             if h.get("hypothesis_id") == "H-2":
                 h["duplicate_of"] = "AIが書いた値"
 
-    returncode, v, hyps, days_ago = _run_canary_with_past_editions(make_entries, hyp_edit)
+    returncode, v, hyps, days_ago, _edition = _run_canary_with_past_editions(make_entries, hyp_edit)
     by_id = {h["hypothesis_id"]: h for h in hyps}
     check("号をまたぐ重複/正例(27-2第9回): 重複があっても正常終了する(終了コード0)", returncode, 0)
     check(
@@ -5468,7 +5474,7 @@ def test_cross_edition_duplicates_unreadable():
             _write_past_edition(work_dir, days_ago(1), "noon", [("OK-1", "5555", "S-CANARY-05")]),
         ]
 
-    returncode, v, hyps, days_ago = _run_canary_with_past_editions(make_entries)
+    returncode, v, hyps, days_ago, _edition = _run_canary_with_past_editions(make_entries)
     by_id = {h["hypothesis_id"]: h for h in hyps}
     check("号をまたぐ重複/負例(27-2第9回): 過去の号のファイルが読めなくても正常終了する(終了コード0)", returncode, 0)
     check(
@@ -5486,6 +5492,445 @@ def test_cross_edition_duplicates_unreadable():
         [by_id[i].get("duplicate_of") for i in ("H-1", "H-2", "H-5")], [None, None, f"{days_ago(1)}-noon:OK-1"],
     )
     check("号をまたぐ重複/負例(27-2第9回): 一覧自体は読めた", v.get("recent_editions_index_unavailable"), False)
+
+
+def _write_past_edition_with_articles(work_dir, date_str, slot, articles, edition_id=None, edition_text=None):
+    """改修27-2第9回の2回目: 作業フォルダの中に、記事と出典を持つ過去の号の紙面を作り、
+    editions/index.jsonに載せる1行(dict)を返す(仮説は0件で、仮説ファイルは作らない)。
+    articlesは(記事ID, 見出し, 出典の一覧)の一覧。出典はURLの文字列か、(source_id, URL)の組。
+    記事の出典ごとに1行を作る。"""
+    work_dir = Path(work_dir)
+    edition_id = edition_id or f"{date_str}-{slot}"
+    sources = []
+    article_objs = []
+    for article_id, headline, refs in articles:
+        lines = []
+        for ref in refs:
+            source_id, url = ref if isinstance(ref, tuple) else (f"U{len(sources) + 1}", ref)
+            sources.append({"source_id": source_id, "url": url})
+            lines.append({"line_id": f"L-{len(sources)}", "source_ref": source_id})
+        article_objs.append({"article_id": article_id, "headline": headline, "lines": lines})
+    edition_rel = f"editions/{date_str}/{slot}.json"
+    edition_file = work_dir / edition_rel
+    edition_file.parent.mkdir(parents=True, exist_ok=True)
+    edition_file.write_text(
+        edition_text if edition_text is not None else json.dumps({
+            "edition_id": edition_id, "date": date_str, "slot": slot, "sources": sources,
+            "sections": [{"section_id": "big", "articles": article_objs}],
+        }, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    return {
+        "date": date_str, "slot": slot, "edition_id": edition_id, "hypotheses_count": 0,
+        "edition_path": edition_rel, "hypotheses_path": f"hypotheses/{date_str}-{slot}.json",
+    }
+
+
+def _call(fn, *args):
+    """例外が出たら、その種類の名前を返す(止まらないことを確かめるため)。"""
+    try:
+        return fn(*args)
+    except Exception as e:  # noqa: BLE001
+        return f"例外: {type(e).__name__}"
+
+
+def test_round9_shape_robustness():
+    """改修27-2第9回の2回目(先に直すこと): 一覧の行・過去の号の紙面・仮説の値の形が想定外でも、
+    照合もrecent_headlines.pyも止まらない。一覧の行が壊れていればその行を飛ばし、過去の号の中身が
+    想定外の形ならrecent_editions_unreadableに入れて比べる対象から外す。"""
+    business_days = ve.load_business_days(CALENDAR_DIR)
+    entries = [
+        {"date": "2026-09-18", "slot": ["evening"], "edition_id": "S"},     # slotがリスト(以前はTypeError)
+        {"date": "2026-09-24", "slot": ["noon"], "edition_id": "S2"},      # 同じ日付でslotがリスト
+        {"date": "2026-09-18", "slot": "noon", "edition_id": ["X"]},       # edition_idがリスト
+        {"date": "2026-09-18", "slot": "evening", "edition_id": "2026-09-18-evening"},
+    ]
+    check(
+        "形の想定外/正例(27-2第9回の2回目): slot・edition_idが文字でない一覧の行は、止まらずに飛ばす",
+        (lambda r: [e["edition_id"] for e in r] if isinstance(r, list) else r)(
+            _call(ve.select_recent_editions, entries, business_days, "2026-09-24", "evening", "2026-09-24-evening")),
+        ["2026-09-18-evening"],
+    )
+    check(
+        "形の想定外/正例(27-2第9回の2回目): is_beforeはslotがリストでも止まらず偽",
+        _call(ve.is_before, "2026-09-24", ["noon"], "2026-09-24", "evening"), False,
+    )
+
+    # 過去の号の出典のsource_idがリスト(以前はapply_cross_edition_duplicatesでTypeError)
+    past_edition = {"sources": [
+        {"source_id": ["P1"], "url": PAST_DOC_URL.format(doc_id="S100AAAA")},
+        {"source_id": "P2", "url": PAST_DOC_URL.format(doc_id="S100BBBB")},
+    ]}
+    past_item = {
+        "entry": {"edition_id": "2026-09-18-evening"}, "edition": past_edition,
+        "hypotheses": [{"hypothesis_id": "P-2", "ticker": "2222", "evidence_source_ref": "P2"}],
+    }
+    hyps = [{"hypothesis_id": "H-1", "ticker": "2222", "evidence_source_ref": "C1", "auto_check_target": True}]
+    current_sources = {"C1": {"source_id": "C1", "url": PAST_DOC_URL.format(doc_id="S100BBBB")}}
+    check(
+        "形の想定外/正例(27-2第9回の2回目): apply_cross_edition_duplicatesは、過去の号にsource_idがリストの"
+        "出典があっても止まらず、文字のsource_idの出典で比べる",
+        _call(lambda: (ve.apply_cross_edition_duplicates(hyps, current_sources, [past_item])["count"], hyps[0]["duplicate_of"])),
+        (1, "2026-09-18-evening:P-2"),
+    )
+
+    with tempfile.TemporaryDirectory() as d:
+        d = Path(d)
+        good_hyp = write(d, "good_hyp.json", json.dumps({"hypotheses": []}))
+
+        def entry_for(name, edition, hyp_path=None, hypotheses_count=1):
+            path = write(d, f"{name}.json", json.dumps(edition, ensure_ascii=False))
+            return {"edition_id": name, "edition_path": str(path), "hypotheses_count": hypotheses_count,
+                    "hypotheses_path": str(hyp_path or good_hyp)}
+
+        ok_edition = {"sources": [{"source_id": "S1", "url": "https://example.test/a"}],
+                      "sections": [{"articles": [{"article_id": "A", "headline": "見出し", "lines": [{"source_ref": "S1"}]}]}]}
+        bad_hyp = write(d, "bad_hyp.json", json.dumps({"hypotheses": [{"hypothesis_id": "X", "ticker": ["1111"]}]}))
+        loaded, unreadable = _call(ve.load_recent_editions, [
+            entry_for("E-source-id", {"sources": [{"source_id": ["S1"], "url": "https://example.test/a"}], "sections": []}),
+            entry_for("E-source-ref", {"sources": [], "sections": [{"articles": [{"lines": [{"source_ref": ["S1"]}]}]}]}),
+            entry_for("E-url", {"sources": [{"source_id": "S1", "url": ["https://example.test/a"]}], "sections": []}),
+            entry_for("E-sections", {"sources": [], "sections": {"articles": []}}),
+            entry_for("E-headline", {"sources": [], "sections": [{"articles": [{"headline": 1, "lines": []}]}]}),
+            entry_for("E-hyp", ok_edition, hyp_path=bad_hyp),
+            entry_for("E-ok", ok_edition),
+        ])
+        check(
+            "形の想定外/正例(27-2第9回の2回目): 過去の号の出典のsource_id・行のsource_ref・出典のurlがリスト、"
+            "sectionsが配列でない、見出しが数値の号は、紙面が読めなかった号として記録し比べない。仮説の値の形が"
+            "違う号は仮説が読めなかった号として記録し、紙面は続報の判定に使う",
+            (unreadable, [(item["entry"]["edition_id"], item["hypotheses"]) for item in loaded]),
+            ([
+                {"edition_id": "E-source-id", "file": "edition"},
+                {"edition_id": "E-source-ref", "file": "edition"},
+                {"edition_id": "E-url", "file": "edition"},
+                {"edition_id": "E-sections", "file": "edition"},
+                {"edition_id": "E-headline", "file": "edition"},
+                {"edition_id": "E-hyp", "file": "hypotheses"},
+            ], [("E-hyp", None), ("E-ok", [])]),
+        )
+
+        # recent_headlines.pyも止まらない(一覧の行の形・号の中身の形が想定外なら、その号だけ飛ばす)
+        index_entries = [
+            {"date": "2026-09-18", "slot": ["noon"], "edition_id": "L", "edition_path": str(d / "none.json")},
+            {"date": "2026-09-18", "slot": "noon", "edition_id": "2026-09-18-noon"},  # edition_pathが無い
+            dict(entry_for("E-url2", {"sources": [{"source_id": "S1", "url": ["x"]}], "sections": [{"articles": [
+                {"article_id": "Z", "headline": "壊れた号", "lines": [{"source_ref": "S1"}]}]}]}),
+                 date="2026-09-17", slot="evening", edition_id="2026-09-17-evening"),
+            dict(entry_for("E-ok2", ok_edition), date="2026-09-18", slot="evening", edition_id="2026-09-18-evening"),
+        ]
+        index_path = write(d, "index.json", json.dumps({"editions": index_entries}, ensure_ascii=False))
+        record = _call(rh.build_result, "2026-09-24", "evening", str(CALENDAR_DIR), str(index_path))
+    check(
+        "形の想定外/正例(27-2第9回の2回目): recent_headlines.pyは、slotがリストの行を飛ばし、edition_pathが無い号・"
+        "urlがリストの号は記事を出さずに続ける(正常な号の記事だけが出る)",
+        (record.get("status"), record.get("editions"), [a["article_id"] for a in record.get("articles", [])])
+        if isinstance(record, dict) else record,
+        ("ok", ["2026-09-17-evening", "2026-09-18-noon", "2026-09-18-evening"], ["A"]),
+    )
+
+
+def test_followup_units():
+    """改修27-2第9回の2回目(要件3.1): 続報の判定の部品(書類管理番号・URLのそろえ方・入口ページ・
+    入口ページの表)。"""
+    check(
+        "続報/書類管理番号(27-2第9回の2回目): WZEK0040.aspx?の直後の英数字の続きだけを取る(=や,は無視。httpも可)",
+        [ve.extract_edinet_view_doc_id(u) for u in (
+            "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100VTPA=",
+            "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100ABCD,,",
+            "http://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100ABCD",
+        )],
+        ["S100VTPA", "S100ABCD", "S100ABCD"],
+    )
+    check(
+        "続報/書類管理番号(27-2第9回の2回目): ?以降が無い・別のホスト・別のページならNone",
+        [ve.extract_edinet_view_doc_id(u) for u in (
+            "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx",
+            "https://example.test/WZEK0040.aspx?S100ABCD",
+            "https://disclosure2.edinet-fsa.go.jp/WZEK0020.aspx?S100ABCD",
+        )],
+        [None, None, None],
+    )
+    check(
+        "続報/書類管理番号(27-2第9回の2回目): api/v2/documents/{番号}の形も今までどおり取れる(extract_edinet_doc_idは変えていない)",
+        (ve.followup_doc_id("https://disclosure2.edinet-fsa.go.jp/api/v2/documents/S100ABCD?type=1"),
+         ve.extract_edinet_doc_id("https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100ABCD")),
+        ("S100ABCD", None),
+    )
+    norm = ve.normalize_followup_url
+    check(
+        "続報/URLのそろえ方(27-2第9回の2回目): http→https・ホスト名を小文字・#以降を外す・末尾の/を外す・"
+        "追跡用(utm_・fbclid・gclid・yclid・n_cid)だけ外し、残りは名前順",
+        norm("http://WWW.Example.test/news/1/?b=2&utm_source=x&a=1&fbclid=f&gclid=g&yclid=y&n_cid=n#top"),
+        "https://www.example.test/news/1?a=1&b=2",
+    )
+    check(
+        "続報/URLのそろえ方(27-2第9回の2回目): パスが/だけのときは/を残す。keep_query=Falseなら?以降をすべて外す",
+        (norm("https://example.test/"), norm("https://example.test/a?x=1", keep_query=False)),
+        ("https://example.test/", "https://example.test/a"),
+    )
+    check(
+        "続報/URLのそろえ方(27-2第9回の2回目): e-Statの?以降が違えば、そろえても別のURL",
+        norm("https://www.e-stat.go.jp/stat-search/files?page=1&layout=datalist&lid=000001473092")
+        == norm("https://www.e-stat.go.jp/stat-search/files?page=1&layout=datalist&lid=000001473093"),
+        False,
+    )
+    hubs = ve.load_hub_urls(REPO_ROOT / "scripts" / "hub_urls.csv")
+    check(
+        "続報/入口ページの表(27-2第9回の2回目): scripts/hub_urls.csvの最初の2つ",
+        sorted(hubs),
+        ["https://api.edinet-fsa.go.jp/api/v2/documents.json", "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx"],
+    )
+    key = ve.followup_source_key
+    check(
+        "続報/入口ページ(27-2第9回の2回目): 書類一覧のsource_id・トップのURL・表に載ったURL(?以降は無視)は比べない。"
+        "書類管理番号が取れるWZEK0040のURLは書類として比べる。URLが空・リストでもNone",
+        [key(src, hubs) for src in (
+            {"source_id": "SRC-EDINET-LIST", "url": "https://disclosure2.edinet-fsa.go.jp/"},
+            {"source_id": "SRC-EDINET-LIST-PREV", "url": "https://example.test/list"},
+            {"source_id": "SRC-004", "url": "https://api.edinet-fsa.go.jp/api/v2/documents.json?date=2026-09-18&type=2"},
+            {"source_id": "S1", "url": "https://www.example.test"},
+            {"source_id": "S2", "url": "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx"},
+            {"source_id": "S3", "url": "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100ABCD"},
+            {"source_id": "S4", "url": "https://www.e-stat.go.jp/stat-search/files?lid=1&page=1"},
+            {"source_id": "S5", "url": ""}, {"source_id": "S6", "url": None},
+        )],
+        [None, None, None, None, None, ("doc", "S100ABCD"),
+         ("url", "https://www.e-stat.go.jp/stat-search/files?lid=1&page=1"), None, None],
+    )
+    with tempfile.TemporaryDirectory() as d:
+        missing = _call(ve.load_hub_urls, Path(d) / "none.csv")
+        bad = write(d, "bad.csv", "url,note\n,空\n")
+        check(
+            "続報/入口ページの表(27-2第9回の2回目): 表が無い・URLとして読めない行があれば、source_policy.csvと同じく号を止める",
+            (missing, _call(ve.load_hub_urls, bad)), ("例外: EditionInvalid", "例外: EditionInvalid"),
+        )
+
+
+def test_apply_followups_units():
+    """改修27-2第9回の2回目(要件3.1): apply_followups()を、紙面と過去の号を直接渡して確かめる。"""
+    hubs = ve.load_hub_urls(REPO_ROOT / "scripts" / "hub_urls.csv")
+    edition = {
+        "sources": [
+            {"source_id": "BOJ", "url": "https://www.boj.or.jp/a.pdf"},
+            {"source_id": "NEW", "url": "https://www.example.test/new"},
+            {"source_id": "DOC", "url": "https://disclosure2.edinet-fsa.go.jp/api/v2/documents/S100ABCD?type=1"},
+            {"source_id": "SRC-EDINET-LIST", "url": "https://api.edinet-fsa.go.jp/api/v2/documents.json?date=2026-09-24&type=2"},
+            {"source_id": "NORM", "url": "https://news.example.test/story/9"},
+            {"source_id": "ESTAT", "url": "https://www.e-stat.go.jp/stat-search/files?lid=000001473093&page=1"},
+        ],
+        "sections": [{"articles": [
+            {"article_id": "X", "headline": "日銀の話", "lines": [{"source_ref": "BOJ"}, {"source_ref": "NEW"}]},
+            {"article_id": "Y", "headline": "書類の続報", "lines": [{"source_ref": "DOC"}]},
+            {"article_id": "Z", "headline": "一覧だけ", "lines": [{"source_ref": "SRC-EDINET-LIST"}]},
+            {"article_id": "W", "headline": "そろえて一致", "lines": [{"source_ref": "NORM"}]},
+            {"article_id": "V", "headline": "統計", "lines": [{"source_ref": "ESTAT"}],
+             "followup": {"is_followup": True, "first_seen": "AI", "first_seen_edition_id": "AI", "has_new_source": True}},
+            {"article_id": "U", "headline": "出典なし", "lines": [{"source_ref": None}]},
+            {"article_id": "T", "headline": "続報: 出典なし", "lines": []},
+        ]}],
+    }
+
+    def past(edition_id, date_str, sources):
+        return {"entry": {"edition_id": edition_id, "date": date_str}, "hypotheses": [], "edition": {
+            "sources": [{"source_id": f"P{i}", "url": u} for i, u in enumerate(sources)],
+            "sections": [{"articles": [{"article_id": "PA", "lines": [{"source_ref": f"P{i}"} for i in range(len(sources))]}]}],
+        }}
+
+    recent_loaded = [
+        past("OLD", "2026-09-17", ["https://www.boj.or.jp/a.pdf"]),
+        past("NEWER", "2026-09-18", [
+            "https://www.boj.or.jp/a.pdf",
+            "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100ABCD=",       # Yと同じ書類(形が違う)
+            "https://api.edinet-fsa.go.jp/api/v2/documents.json?date=2026-09-18&type=2",  # 入口ページ
+            "http://NEWS.example.test/story/9/?utm_source=x#p",                  # Wとはそろえて一致
+            "https://www.e-stat.go.jp/stat-search/files?lid=000001473092&page=1",  # Vとは?以降が違う
+        ]),
+    ]
+    records = ve.apply_followups(edition, recent_loaded, hubs)
+    followups = {a["article_id"]: a["followup"] for a in edition["sections"][0]["articles"]}
+    none4 = {"is_followup": False, "first_seen": None, "first_seen_edition_id": None, "has_new_source": None}
+    check(
+        "続報/正例(27-2第9回の2回目): 同じURLが2つの号にあり、新しい出典もある記事(X)は続報で、最も古い号を指し、新しい出典あり",
+        followups["X"], {"is_followup": True, "first_seen": "2026-09-17", "first_seen_edition_id": "OLD", "has_new_source": True},
+    )
+    check(
+        "続報/正例(27-2第9回の2回目): 同じ書類をapi/v2/documentsの形とWZEK0040の形で書いた記事(Y)は、書類管理番号で"
+        "重なり続報。新しい出典なし",
+        followups["Y"], {"is_followup": True, "first_seen": "2026-09-18", "first_seen_edition_id": "NEWER", "has_new_source": False},
+    )
+    check(
+        "続報/正例(27-2第9回の2回目): http・大文字・末尾の/・utm_・#だけが違う記事(W)は、そろえて初めて重なり続報",
+        followups["W"]["is_followup"], True,
+    )
+    check(
+        "続報/負例(27-2第9回の2回目): 入口ページ(書類一覧)だけが重なる記事(Z)、e-Statの?以降が違う記事(V。AIが書いた"
+        "followupは上書き)、出典の無い記事(U・T)は続報でない",
+        [followups[i] for i in ("Z", "V", "U", "T")], [none4] * 4,
+    )
+    check(
+        "続報/記録(27-2第9回の2回目): followup_counts・followup_without_new_source(比べる鍵がすべて過去の号にあるY・W)",
+        (records["followup_counts"], records["followup_without_new_source"]),
+        ({"followup": 3, "not_followup": 4}, {"count": 2, "article_ids": ["Y", "W"]}),
+    )
+    check(
+        "続報/記録(27-2第9回の2回目): url_normalized_matchesは、生のURLでは一致せずそろえて初めて一致した組(Wだけ。"
+        "Xは生のURLで一致、Yは書類管理番号どうしなので数えない)",
+        records["url_normalized_matches"],
+        {"count": 1, "matches": [{"article_id": "W", "url": "https://news.example.test/story/9",
+                                  "matched_url": "http://NEWS.example.test/story/9/?utm_source=x#p", "edition_id": "NEWER"}]},
+    )
+    check(
+        "続報/記録(27-2第9回の2回目): followup_headline_mismatchは、見出しに「続報」が無いのに続報(X・W)と、"
+        "見出しに「続報」があるのに続報でない(T)。Yは両方一致なので入らない",
+        records["followup_headline_mismatch"],
+        {"count": 3, "articles": [
+            {"article_id": "X", "headline_has_word": False, "is_followup": True},
+            {"article_id": "W", "headline_has_word": False, "is_followup": True},
+            {"article_id": "T", "headline_has_word": True, "is_followup": False},
+        ]},
+    )
+    check(
+        "続報/負例(27-2第9回の2回目): 比べる号が無ければ(一覧が読めない場合を含む)すべて続報でない",
+        [ve.apply_followups({"sources": edition["sources"], "sections": [{"articles": [{"article_id": "X", "lines": [{"source_ref": "BOJ"}]}]}]}, [], hubs)["followup_counts"]],
+        [{"followup": 0, "not_followup": 1}],
+    )
+
+
+def test_followup_saturday_edition_in_range():
+    """改修27-2第9回の2回目: 本物のカレンダーで、2026-09-24のevening号と土曜(9/19)の号の出典が
+    重なれば続報になる(範囲は暦日の9/17〜9/24。範囲の関数・読み込み・続報の判定を通して確かめる)。"""
+    with tempfile.TemporaryDirectory() as d:
+        d = Path(d)
+        sat = write(d, "sat.json", json.dumps({"sources": [{"source_id": "S1", "url": "https://www.boj.or.jp/a.pdf"}],
+                                                "sections": [{"articles": [{"article_id": "P", "lines": [{"source_ref": "S1"}]}]}]}))
+        old = write(d, "old.json", json.dumps({"sources": [{"source_id": "S1", "url": "https://www.boj.or.jp/a.pdf"}],
+                                                "sections": [{"articles": [{"article_id": "P", "lines": [{"source_ref": "S1"}]}]}]}))
+        entries = [
+            {"date": "2026-09-19", "slot": "evening", "edition_id": "2026-09-19-evening", "edition_path": str(sat),
+             "hypotheses_count": 0, "hypotheses_path": str(d / "none.json")},
+            {"date": "2026-09-16", "slot": "evening", "edition_id": "2026-09-16-evening", "edition_path": str(old),
+             "hypotheses_count": 0, "hypotheses_path": str(d / "none.json")},  # 範囲の外
+        ]
+        selected = ve.select_recent_editions(entries, ve.load_business_days(CALENDAR_DIR), "2026-09-24", "evening", "2026-09-24-evening")
+        loaded, unreadable = ve.load_recent_editions(selected)
+    edition = {"sources": [{"source_id": "C1", "url": "https://www.boj.or.jp/a.pdf"}],
+               "sections": [{"articles": [{"article_id": "A", "lines": [{"source_ref": "C1"}]}]}]}
+    ve.apply_followups(edition, loaded, ve.load_hub_urls(REPO_ROOT / "scripts" / "hub_urls.csv"))
+    check(
+        "続報/正例(27-2第9回の2回目): 土曜(9/19)の号と重なれば続報(9/16の号は範囲の外なので最も古い号にならない)",
+        (edition["sections"][0]["articles"][0]["followup"], unreadable),
+        ({"is_followup": True, "first_seen": "2026-09-19", "first_seen_edition_id": "2026-09-19-evening", "has_new_source": False}, []),
+    )
+
+
+def _canary_article(edition_doc, article_id):
+    """見本の号の紙面から、記事IDで記事(dict)を探す。"""
+    return next(a for sec in edition_doc["sections"] for a in sec["articles"] if a["article_id"] == article_id)
+
+
+CANARY_URL = {
+    "C07": "https://www.boj.or.jp/statistics/pi/cgpi_2026_09.htm",
+    "C09": "https://www.example-canary-news.test/article/3",
+    "C10": "https://www.example-canary-news.test/article/4",
+    "C13": "https://www.example-canary-news.test/article/7",
+}
+
+
+def test_followup_end_to_end():
+    """改修27-2第9回の2回目(要件3.1): 続報の判定を、見本の号の照合全体で確かめる。見本の号で残る記事は
+    A-1(C02・C07・C03・C05・C08・C12)・A-2(C06・C01・C04・C08・C09・C11)・A-3(C14・C15)。
+    A-1のL-12(C10)・L-15(C13)は検査36・10で落ちる行。"""
+    def make_entries(work_dir, days_ago):
+        return [
+            # A-1と同じC07が2日前と1日前にある: 2日前を指す。A-1にはほかの出典もあるので新しい出典あり
+            _write_past_edition_with_articles(work_dir, days_ago(2), "evening", [("P-1", "物価", [CANARY_URL["C07"]])]),
+            _write_past_edition_with_articles(work_dir, days_ago(1), "noon", [
+                ("P-2", "物価", [CANARY_URL["C07"]]),
+                # A-3の2つの書類(S-CANARY-05・06)と同じ: A-3は続報で新しい出典なし
+                ("P-3", "開示", [PAST_DOC_URL.format(doc_id="S-CANARY-05"), PAST_DOC_URL.format(doc_id="S-CANARY-06")]),
+            ]),
+            # A-2のC09と、そろえて初めて一致するURL
+            _write_past_edition_with_articles(work_dir, days_ago(1), "morning", [
+                ("P-4", "報道", ["http://WWW.example-canary-news.test/article/3/?utm_source=feed#top"]),
+            ]),
+        ]
+
+    def edition_edit(edition_doc):
+        # AIが自分でfollowupを書いてきても、機械の値で上書きされる
+        _canary_article(edition_doc, "A-3")["followup"] = {"is_followup": False, "first_seen": None,
+                                                                  "first_seen_edition_id": None, "has_new_source": None}
+
+    returncode, v, hyps, days_ago, edition = _run_canary_with_past_editions(make_entries, edition_edit=edition_edit)
+    followups = {a["article_id"]: a.get("followup") for sec in edition["sections"] for a in sec["articles"]}
+    check("続報/正例(27-2第9回の2回目): 続報があっても正常終了する(終了コード0)", returncode, 0)
+    check(
+        "続報/正例(27-2第9回の2回目): A-1は2日前の号を指す続報で新しい出典あり。A-2はそろえて初めて一致した1日前の朝の号を"
+        "指す続報で新しい出典あり。A-3(AIの値は上書き)は1日前の昼の号を指す続報で新しい出典なし",
+        [followups["A-1"], followups["A-2"], followups["A-3"]],
+        [
+            {"is_followup": True, "first_seen": days_ago(2), "first_seen_edition_id": f"{days_ago(2)}-evening", "has_new_source": True},
+            {"is_followup": True, "first_seen": days_ago(1), "first_seen_edition_id": f"{days_ago(1)}-morning", "has_new_source": True},
+            {"is_followup": True, "first_seen": days_ago(1), "first_seen_edition_id": f"{days_ago(1)}-noon", "has_new_source": False},
+        ],
+    )
+    check(
+        "続報/記録(27-2第9回の2回目): followup_counts・followup_without_new_source(A-3。記事は消えない)・url_normalized_matches(A-2)",
+        (v.get("followup_counts"), v.get("followup_without_new_source"), v.get("url_normalized_matches"),
+         len(_canary_article(edition, "A-3")["lines"])),
+        ({"followup": 3, "not_followup": 0}, {"count": 1, "article_ids": ["A-3"]},
+         {"count": 1, "matches": [{"article_id": "A-2", "url": CANARY_URL["C09"],
+                                   "matched_url": "http://WWW.example-canary-news.test/article/3/?utm_source=feed#top",
+                                   "edition_id": f"{days_ago(1)}-morning"}]}, 2),
+    )
+    check(
+        "続報/記録(27-2第9回の2回目): 見本の号の見出しに「続報」は無いので、3記事とも食い違いとして記録だけされる",
+        (v.get("followup_headline_mismatch") or {}).get("count"), 3,
+    )
+
+
+def test_followup_end_to_end_negatives():
+    """改修27-2第9回の2回目(要件3.1): 見本の号の照合全体で、続報にならない場合を確かめる。
+    落とされた行の出典・範囲の外の号・想定外の形の号とは重ならない。見出しに「続報」があるのに
+    続報でない記事は、食い違いとして記録だけされる。"""
+    def make_entries(work_dir, days_ago):
+        return [
+            # 検査36・10で落ちるA-1の行(L-12のC10・L-15のC13)の出典だけが重なる: 続報でない
+            _write_past_edition_with_articles(work_dir, days_ago(1), "evening", [
+                ("P-1", "報道", [CANARY_URL["C10"], CANARY_URL["C13"]]),
+                ("P-2", "一覧", [("SRC-EDINET-LIST", "https://api.edinet-fsa.go.jp/api/v2/documents.json?date=x&type=2")]),
+            ]),
+            # 3日前(範囲の外)の号はA-1のC07と同じでも比べない
+            _write_past_edition_with_articles(work_dir, days_ago(3), "evening", [("P-3", "物価", [CANARY_URL["C07"]])]),
+            # 出典のsource_idがリストの号(想定外の形): 読めなかった号として記録し、比べない
+            _write_past_edition_with_articles(work_dir, days_ago(2), "noon", [], edition_text=json.dumps({
+                "sources": [{"source_id": ["X"], "url": CANARY_URL["C07"]}],
+                "sections": [{"articles": [{"article_id": "P-4", "lines": [{"source_ref": "X"}]}]}],
+            })),
+        ]
+
+    def edition_edit(edition_doc):
+        article = _canary_article(edition_doc, "A-2")
+        article["headline"] = "続報: " + article["headline"]
+        article["followup"] = {"is_followup": True, "first_seen": "AI",
+                                                                  "first_seen_edition_id": "AI", "has_new_source": True}
+
+    returncode, v, hyps, days_ago, edition = _run_canary_with_past_editions(make_entries, edition_edit=edition_edit)
+    none4 = {"is_followup": False, "first_seen": None, "first_seen_edition_id": None, "has_new_source": None}
+    check("続報/負例(27-2第9回の2回目): 正常終了する(終了コード0)", returncode, 0)
+    check(
+        "続報/負例(27-2第9回の2回目): 落とされた行の出典・入口ページ・範囲の外の号・想定外の形の号とは重ならず、"
+        "3記事とも続報でない(A-2にAIが書いたfollowupも上書き)",
+        [a.get("followup") for sec in edition["sections"] for a in sec["articles"]], [none4] * 3,
+    )
+    check(
+        "続報/負例(27-2第9回の2回目): 想定外の形の号はrecent_editions_unreadableに入る。見出しに「続報」があるのに"
+        "続報でないA-2は、食い違いとして記録だけされる(記事は消えない)",
+        (v.get("recent_editions_unreadable"), v.get("followup_headline_mismatch"), v.get("followup_counts")),
+        ([{"edition_id": f"{days_ago(2)}-noon", "file": "edition"}],
+         {"count": 1, "articles": [{"article_id": "A-2", "headline_has_word": True, "is_followup": False}]},
+         {"followup": 0, "not_followup": 3}),
+    )
 
 
 def test_build_index_skips_editions_without_verification():
@@ -5770,6 +6215,11 @@ def test_round1_27_2_end_to_end_default_keys_without_hypotheses():
         "27-2第9回/正例: --hypothesesなしでも、cross_edition_duplicatesは0件・空、一覧の記録キーもそろう",
         (v.get("cross_edition_duplicates"), v.get("recent_editions_index_unavailable"), v.get("recent_editions_unreadable")),
         ({"count": 0, "duplicates": []}, True, []),
+    )
+    check(
+        "27-2第9回の2回目/正例: --hypothesesなしでも、続報の判定は紙面だけで行われ、記録キーがそろう(3記事とも続報でない)",
+        (v.get("followup_counts"), v.get("followup_without_new_source")),
+        ({"followup": 0, "not_followup": 3}, {"count": 0, "article_ids": []}),
     )
 
 
@@ -7840,6 +8290,16 @@ def test_canary_edition():
             [(h["hypothesis_id"], "duplicate_of" in h, h.get("duplicate_of")) for h in after_hyp.get("hypotheses") or []],
             [(i, True, None) for i in ("H-1", "H-2", "H-3", "H-4", "H-5")],
         )
+        check(
+            "見本の号/正例(27-2第9回の2回目): 一覧が無いので比べる号が無く、3記事すべてにfollowup(続報でない)が機械で書かれ、"
+            "続報の記録は0件",
+            ([a.get("followup") for sec in after_edition["sections"] for a in sec["articles"]],
+             v.get("followup_counts"), v.get("followup_without_new_source"), v.get("url_normalized_matches"),
+             v.get("followup_headline_mismatch")),
+            ([{"is_followup": False, "first_seen": None, "first_seen_edition_id": None, "has_new_source": None}] * 3,
+             {"followup": 0, "not_followup": 3}, {"count": 0, "article_ids": []}, {"count": 0, "matches": []},
+             {"count": 0, "articles": []}),
+        )
 
     _assert_testdata_untouched("見本の号(canary)テスト")
 
@@ -8298,6 +8758,14 @@ def main():
     test_recent_headlines_round9_range()
     test_cross_edition_duplicates_end_to_end()
     test_cross_edition_duplicates_unreadable()
+
+    # 改修27-2(第9回の2回目): 形の想定外で止まらないこと・続報の判定のテスト。
+    test_round9_shape_robustness()
+    test_followup_units()
+    test_apply_followups_units()
+    test_followup_saturday_edition_in_range()
+    test_followup_end_to_end()
+    test_followup_end_to_end_negatives()
 
     # 改修27-1(4-15): 見本の号(Canary)。
     test_canary_edition()
