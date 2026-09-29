@@ -881,6 +881,93 @@ def run_check_d_inferences(edition):
     return dropped
 
 
+# 改修27-2第6回(S7): 推論欄の各推論の4項目。空なら削除する(run_check_d_inferences)のと、
+# 上場会社の名前が入っていたら削除する(run_check_inference_company_names)の両方の対象。
+INFERENCE_FIELDS = ("text", "falsifier", "check_metric", "check_by")
+
+
+def build_listed_company_matcher(codelist_rows):
+    """改修27-2第6回(S7): 推論欄の会社名の検査で使う、上場会社の照合の道具を作る。
+    コードリストの「上場かつ証券コードあり」の会社を対象に、下段の選定と同じ規則
+    (pick_industry_companies の照合名・aliases.csv・一般語辞書。探すときは最長一致と直後の文字の
+    確認)で、照合名の一覧を作る。関数は写さずpick_industry_companiesのものを呼ぶ。
+    下段の選定にある「他の会社の名前の一部になっている照合名は使わない」規則(旧規則4、
+    _filter_usable_names)は、ここでは使わない。使うと、兼松のように、グループ会社の
+    名前(兼松エンジニアリング)の一部になっている親会社の名前まで外れ、推論欄に本当に
+    書かれた会社名を見逃すため。長い社名の中の一部に当たってしまうことは、最長一致
+    (長い名前を先に見つけて、その範囲を使う)で防ぐ。
+    コードリストが読めない(None)ならNoneを返す(この検査を行わない)。
+    戻り値: {"entries": 照合名の一覧, "names_by_code": {edinet_code: 提出者名}}。"""
+    if codelist_rows is None:
+        return None
+    candidates = []
+    for row in codelist_rows:
+        if row.get(edinet_codelist.COL_LISTED) != edinet_codelist.LISTED_VALUE:
+            continue
+        if not (row.get(edinet_codelist.COL_TICKER_RAW) or "").strip():
+            continue
+        candidates.append({
+            "company_name": row.get(edinet_codelist.COL_FILER_NAME),
+            "edinet_code": row.get(edinet_codelist.COL_EDINET_CODE),
+        })
+    entries = pick_industry_companies._build_entries(
+        candidates, pick_industry_companies.load_aliases(),
+        generic_words=pick_industry_companies.load_generic_words(),
+    )
+    return {
+        "entries": entries,
+        "names_by_code": {c["edinet_code"]: c["company_name"] for c in candidates},
+    }
+
+
+def find_listed_company_mentions(text, matcher):
+    """textの中に出ている上場会社を、下段の選定と同じ規則(最長一致・直後の文字の確認)で探す。
+    戻り値: [{"company_name": 提出者名, "matched_word": 当たった照合名, "alias": 別名で当たった
+    場合の別名(なければNone)}, ...]。textが文字列でない・空なら空のリスト。"""
+    if matcher is None or not isinstance(text, str) or not text:
+        return []
+    blob = pick_industry_companies._normalize_match_name(text)
+    found = pick_industry_companies._find_mentions(blob, matcher["entries"])
+    return [
+        {"company_name": matcher["names_by_code"].get(key), "matched_word": entry[0], "alias": entry[2]}
+        for key, entry in found.items()
+    ]
+
+
+def run_check_inference_company_names(edition, matcher):
+    """検査18の追加(改修27-2第6回・S7): 推論欄の各推論の4項目(text・falsifier・check_metric・
+    check_by)のどれかに上場会社の名前が含まれていたら、その推論1件を削除する
+    (同じ記事の他の推論は残す)。会社名の探し方はfind_listed_company_mentions()。
+    4項目が空なら削除する今の検査(run_check_d_inferences)とは別で、そちらは残してある
+    (推論欄のfalsifierは必須のまま)。matcherがNone(コードリストが読めない日)なら何もしない。
+
+    戻り値: {"count": 削除した推論の数,
+             "removed": [{"article_id": 記事ID,
+                          "hits": [{"field": 項目名, "company_name": 社名, "matched_word": 当たった照合名,
+                                    "alias": 別名で当たった場合の別名 or None}, ...]}, ...]}。"""
+    removed = []
+    if matcher is None:
+        return {"count": 0, "removed": removed}
+    for section in edition.get("sections", []):
+        for article in section.get("articles", []):
+            inferences = article.get("inferences")
+            if not isinstance(inferences, list):
+                continue
+            kept = []
+            for inf in inferences:
+                hits = []
+                if isinstance(inf, dict):
+                    for field in INFERENCE_FIELDS:
+                        for mention in find_listed_company_mentions(inf.get(field), matcher):
+                            hits.append({"field": field, **mention})
+                if hits:
+                    removed.append({"article_id": article.get("article_id"), "hits": hits})
+                else:
+                    kept.append(inf)
+            article["inferences"] = kept
+    return {"count": len(removed), "removed": removed}
+
+
 JST = dt.timezone(dt.timedelta(hours=9))
 
 
@@ -2780,7 +2867,8 @@ def print_report(edition_path, stats, stop_hits, watch_hits, dropped_inferences,
                   baseline_late=False, ticker_crosscheck="skipped", source_usage_invalid_hits=0,
                   industry_report=None, source_policy_unlisted_domains=None,
                   number_coverage=None, sources_published_at_null=None, rerun_detected=False,
-                  published_date_not_found=None):
+                  published_date_not_found=None, inference_company_names=None,
+                  inference_company_name_check_skipped=False):
     print("=" * 60)
     print(f"照合結果: {edition_path}")
     print("=" * 60)
@@ -2842,6 +2930,15 @@ def print_report(edition_path, stats, stop_hits, watch_hits, dropped_inferences,
     pub_null = sources_published_at_null or {"count": 0, "source_ids": []}
     print(f"公表日時(published_at)が書かれていない出典: {pub_null['count']}件")
     print(f"必須項目が空で削除した推論の件数: {dropped_inferences}")
+    # 改修27-2第6回(S7): 推論欄に上場会社の名前が入っていたため削除した推論。
+    company_removed = inference_company_names or {"count": 0, "removed": []}
+    if inference_company_name_check_skipped:
+        print("推論欄の会社名の検査: コードリストが読めなかったため行いませんでした")
+    else:
+        print(f"上場会社の名前が入っていたため削除した推論の件数: {company_removed['count']}")
+        for item in company_removed["removed"]:
+            for hit in item["hits"]:
+                print(f"    ・{item['article_id']}の推論({hit['field']}): {hit['company_name']}(当たった語: {hit['matched_word']})")
     print(f"号の遅延判定(baseline_late): {baseline_late}")
     # 修正4: 本文の数字の個数とnumbersの件数の差(判定には使わない。記録のみ)。
     if number_coverage:
@@ -3130,6 +3227,12 @@ def run_verification(edition_file, hypotheses_file, cache_dir_arg, calendar_dir_
         }
         source_usage_invalid_hits = count_invalid_source_usages(edition)
         dropped_inferences = run_check_d_inferences(edition)
+        # 改修27-2第6回(S7): コードリストは、--hypothesesの有無にかかわらずここで1回だけ読む
+        # (推論欄の会社名の検査・上段の検査・下段の検査が同じ結果を使う)。
+        codelist_rows, _codelist_date = edinet_codelist.load_codelist()
+        inference_company_names = run_check_inference_company_names(
+            edition, build_listed_company_matcher(codelist_rows)
+        )
         # 改修27-2第4回(S2・S3): 検査36を検査10より先に行う。日付だけの出典は、本文に日付が
         # 見つからなければ日付不明としてchangeの行をここで落とし(検査10に届かないので
         # 二重に数えない)、時刻付きの出典は今までどおり記録だけ(行は落とさない)。
@@ -3196,9 +3299,8 @@ def run_verification(edition_file, hypotheses_file, cache_dir_arg, calendar_dir_
             hypotheses_doc["baseline_late"] = baseline_late
             hypotheses_doc["market_open"] = edition["market_open"]
             # 修正12(a): コードリストは上段(hypotheses)・下段(industry_examples)の両方の
-            # 検査(21・31)で使うため、ここで1回だけ読み込み、両方に同じ結果を渡す
-            # (同じファイルを2回読む作りにしない)。
-            codelist_rows, _codelist_date = edinet_codelist.load_codelist()
+            # 検査(21・31)で使う。改修27-2第6回から、読み込みは推論欄の検査の前に1回だけ
+            # 行っている(上のcodelist_rows。同じファイルを2回読む作りにしない)。
 
             # 改修27-1(4-12): 仮説(hypotheses)側の記録専用キーは、検査で仮説が
             # 消される前の全件を対象に数える(run_hypothesis_checks()がhypotheses配列を
@@ -3325,6 +3427,11 @@ def run_verification(edition_file, hypotheses_file, cache_dir_arg, calendar_dir_
             "unknown_published_at_hits": unknown_published_at_hits,
             "stale_check_skipped": stale_check_skipped,
             "inference_dropped": dropped_inferences,
+            # 改修27-2第6回(S7): 推論欄の4項目に上場会社の名前が入っていたため削除した推論
+            # (件数と、記事ID・項目・社名・当たった語)。コードリストが読めない日は検査を行わず、
+            # inference_company_name_check_skippedを真にする。
+            "inference_company_name_removed": inference_company_names,
+            "inference_company_name_check_skipped": codelist_rows is None,
             "hypothesis_violations": hypothesis_violations,
             "unverified_reasons": stats["unverified_reasons"],
             "ticker_crosscheck": ticker_crosscheck,
@@ -3361,7 +3468,7 @@ def run_verification(edition_file, hypotheses_file, cache_dir_arg, calendar_dir_
             "market_open_source": "calendar",
             "market_open_overwritten": market_open_result["overwritten"],
             "market_open_reported": market_open_result["reported"],
-            "codelist_unavailable": hypothesis_extra["codelist_unavailable"],
+            "codelist_unavailable": codelist_rows is None,
             "baseline_date_check_skipped": hypothesis_extra["baseline_date_check_skipped"],
             # 2026年9月21日の追加指示: evidence_filer_name/evidence_doc_type/impact_kindを
             # AIの値からEDINET書類一覧で機械判定した値へ上書きした件数・内訳(記録専用)。
@@ -3441,6 +3548,8 @@ def run_verification(edition_file, hypotheses_file, cache_dir_arg, calendar_dir_
             sources_published_at_null=sources_published_at_null,
             rerun_detected=rerun_detected,
             published_date_not_found=published_date_not_found,
+            inference_company_names=inference_company_names,
+            inference_company_name_check_skipped=codelist_rows is None,
         )
         return 0
 

@@ -2777,9 +2777,11 @@ def _fake_codelist_rows(entries):
     ファイルには書かず、_patched_codelist()でedinet_codelist.load_codelistを置き換えて渡す
     (本番の読み込みの経路には何も置かない)。"""
     rows = []
-    for number, (name, sec_code, listed) in enumerate(entries, start=1):
+    for number, entry in enumerate(entries, start=1):
+        name, sec_code, listed = entry[:3]
+        edinet_code = entry[3] if len(entry) > 3 else f"E9{number:04d}"  # 4つ目があれば、その提出者コードを使う(aliases.csvと合わせるため)
         rows.append({
-            ec.COL_EDINET_CODE: f"E9{number:04d}", ec.COL_FILER_NAME: name, ec.COL_INDUSTRY: "電気機器",
+            ec.COL_EDINET_CODE: edinet_code, ec.COL_FILER_NAME: name, ec.COL_INDUSTRY: "電気機器",
             ec.COL_LISTED: listed, ec.COL_CAPITAL: "1000", ec.COL_TICKER_RAW: sec_code,
         })
     return rows
@@ -2788,13 +2790,20 @@ def _fake_codelist_rows(entries):
 class _patched_codelist:
     """with文の間だけ、edinet_codelist.load_codelistが(rows, 取得日)を返すように置き換える。
     rowsがNoneなら「コードリストが読めない日」(本番の(None, None)と同じ)になる。"""
-    def __init__(self, rows):
+    def __init__(self, rows, call_log=None):
         self.rows = rows
+        self.call_log = call_log  # リストを渡すと、読み込みが呼ばれるたびに1つ追記する(読み込みの回数を数えるため)
 
     def __enter__(self):
         self.original = ec.load_codelist
-        rows = self.rows
-        ec.load_codelist = lambda: (rows, None if rows is None else "2026-09-24")
+        rows, call_log = self.rows, self.call_log
+
+        def fake_load_codelist():
+            if call_log is not None:
+                call_log.append(1)
+            return rows, None if rows is None else "2026-09-24"
+
+        ec.load_codelist = fake_load_codelist
         return self
 
     def __exit__(self, *exc):
@@ -6151,6 +6160,143 @@ def test_dictionaries_load_regardless_of_cwd():
           ("見つかりません" in result.stderr, result.returncode), (False, 0))
 
 
+def test_run_check_inference_company_names():
+    """改修27-2第6回(S7): 推論欄の4項目のどれかに上場会社の名前が入っていたら、その推論1件を削除する。
+    会社名の探し方は下段の選定と同じ(照合名・aliases.csv・一般語辞書・最長一致・直後の文字の確認)。"""
+    rows = _fake_codelist_rows([
+        ("株式会社サンプル", "11110", "上場"),
+        ("清水建設株式会社", "22220", "上場"),
+        ("コア株式会社", "33330", "上場"),                 # 照合名「コア」は一般語辞書に載っている
+        ("株式会社テスト非上場", "", "非上場"),             # 上場ではない
+        ("株式会社みずほフィナンシャルグループ", "88880", "上場", "E03615"),  # aliases.csvに「みずほ銀行」(parent)がある
+        ("株式会社ニックス", "44440", "上場"), ("株式会社サンジェニックス", "55550", "上場"),
+        ("兼松株式会社", "66660", "上場"), ("兼松エンジニアリング株式会社", "77770", "上場"),
+    ])
+    matcher = ve.build_listed_company_matcher(rows)
+
+    def inf(text="説明文", falsifier="反証条件", metric="指標", by="2026-12-31"):
+        return {"text": text, "falsifier": falsifier, "check_metric": metric, "check_by": by}
+
+    def run(inferences, matcher=matcher):
+        edition = {"sections": [{"section_id": "big", "articles": [{"article_id": "A-1", "lines": [], "inferences": inferences}]}]}
+        result = ve.run_check_inference_company_names(edition, matcher)
+        return result, edition["sections"][0]["articles"][0]["inferences"]
+
+    # --- 同じ記事の中で、会社名を含む推論だけが消える ---
+    keep, drop = inf("原材料価格の動きが業績に波及しうる"), inf("清水建設の設備投資が波及しうる")
+    result, remaining = run([keep, drop, inf("為替の動きが業績に波及しうる")])
+    check("推論欄の会社名/正例: 同じ記事の中で、会社名を含む推論(2件目)だけが消え、他の2件は残る",
+          ([i["text"] for i in remaining], result["count"]), (["原材料価格の動きが業績に波及しうる", "為替の動きが業績に波及しうる"], 1))
+    check("推論欄の会社名/記録: 記事ID・項目・社名・当たった語(照合名)が記録される",
+          result["removed"],
+          [{"article_id": "A-1", "hits": [{"field": "text", "company_name": "清水建設株式会社", "matched_word": "清水建設", "alias": None}]}])
+
+    # --- 4項目のどれか1つに社名があれば消える ---
+    for field in ("text", "falsifier", "check_metric", "check_by"):
+        kwargs = {"text": "説明文", "falsifier": "反証条件", "metric": "指標", "by": "2026-12-31"}
+        kwargs[{"check_metric": "metric", "check_by": "by"}.get(field, field)] = "株式会社サンプルの開示"
+        result, remaining = run([inf(**kwargs)])
+        check(f"推論欄の会社名/正例: {field}だけに社名(サンプル)があっても、その推論は消え、当たった項目として{field}が記録される",
+              (remaining, [h["field"] for r in result["removed"] for h in r["hits"]]), ([], [field]))
+    result, remaining = run([inf("サンプルが発表", "清水建設の開示が無い場合", "指標", "2026-12-31")])
+    check("推論欄の会社名/記録: 複数の項目・複数の会社に当たれば、当たりを全部記録し、推論は1件として数える",
+          (result["count"], sorted((h["field"], h["company_name"]) for h in result["removed"][0]["hits"])),
+          (1, [("falsifier", "清水建設株式会社"), ("text", "株式会社サンプル")]))
+
+    # --- 別名(aliases.csv) ---
+    result, remaining = run([inf("みずほ銀行の貸出残高が動く")])
+    check("推論欄の会社名/別名: aliases.csvの別名(みずほ銀行)でも当たり、別名が記録される",
+          (remaining, [(h["company_name"], h["alias"]) for r in result["removed"] for h in r["hits"]]),
+          ([], [("株式会社みずほフィナンシャルグループ", "みずほ銀行")]))
+
+    # --- 消えない例 ---
+    result, remaining = run([inf("物価のコアの上昇率が高まる")])
+    check("推論欄の会社名/負例: 一般語辞書に載る照合名(コア)では消えない", (len(remaining), result["count"]), (1, 0))
+    result, remaining = run([inf("サンプルコンピュータの開発が進む")])
+    check("推論欄の会社名/負例: 照合名の直後がカタカナ(サンプルコンピュータ)なら、語の続きなので消えない", (len(remaining), result["count"]), (1, 0))
+    result, remaining = run([inf("サンプル製作所の開発が進む")])
+    check("推論欄の会社名/負例: 照合名の直後が漢字(サンプル製作所)でも、語の続きなので消えない", (len(remaining), result["count"]), (1, 0))
+    result, remaining = run([inf("サンプルは開発を進める"), inf("サンプル、清水建設が開発を進める")])
+    check("推論欄の会社名/正例: 直後がひらがな(は)・読点(、)なら会社名として当たる(2件とも消える)", (len(remaining), result["count"]), (0, 2))
+    result, remaining = run([inf("株式会社テスト非上場の開示が出る")])
+    check("推論欄の会社名/負例: 上場ではない会社(コードリストで非上場)の名前では消えない", (len(remaining), result["count"]), (1, 0))
+    result, remaining = run([inf("ニックスの動向が波及する")])
+    check("推論欄の会社名/最長一致: 他の上場会社の名前(サンジェニックス)の一部でもある照合名(ニックス)も、単独で出ていれば当たる",
+          ([h["company_name"] for r in result["removed"] for h in r["hits"]], len(remaining)), (["株式会社ニックス"], 0))
+    result, remaining = run([inf("サンジェニックスの動向が波及する")])
+    check("推論欄の会社名/最長一致: 長い方の社名(サンジェニックス)の中では、長い方だけが当たり、短い方(ニックス)は重ねて当たらない",
+          ([(h["company_name"], h["matched_word"]) for r in result["removed"] for h in r["hits"]], len(remaining)),
+          ([("株式会社サンジェニックス", "サンジェニックス")], 0))
+    result, remaining = run([inf("兼松が今後提出する開示の有無")])
+    check("推論欄の会社名/親会社: グループ会社(兼松エンジニアリング)の名前の一部になっている親会社の名前(兼松)も、単独で書かれていれば当たる",
+          ([h["company_name"] for r in result["removed"] for h in r["hits"]], len(remaining)), (["兼松株式会社"], 0))
+    result, remaining = run([inf("兼松エンジニアリングの動向が波及する")])
+    check("推論欄の会社名/親会社: 兼松エンジニアリングと書かれていれば、長い方だけが当たり、兼松(親会社)には重ねて当たらない",
+          [h["company_name"] for r in result["removed"] for h in r["hits"]], ["兼松エンジニアリング株式会社"])
+    result, remaining = run([inf("兼松グループの動向が波及する")])
+    check("推論欄の会社名/親会社: 兼松グループ(直後がカタカナ)は語の続きなので当たらない", (len(remaining), result["count"]), (1, 0))
+    result, remaining = run([inf("")])
+    check("推論欄の会社名/負例: 空の項目は会社名なしとして扱う(空の検査は別の検査が行う)", (len(remaining), result["count"]), (1, 0))
+    result, remaining = run([{"text": None, "falsifier": 123, "check_metric": ["清水建設"], "check_by": None}])
+    check("推論欄の会社名/負例: 文字列でない項目(None・数値・リスト)は無視し、落ちない", (len(remaining), result["count"]), (1, 0))
+
+    # --- コードリストが読めない日は検査を行わない ---
+    result, remaining = run([inf("清水建設の設備投資が波及しうる")], matcher=ve.build_listed_company_matcher(None))
+    check("推論欄の会社名/コードリスト無し: 検査を行わないので、会社名を含む推論も消えない(件数0)",
+          (len(remaining), result), (1, {"count": 0, "removed": []}))
+    check("推論欄の会社名/コードリスト無し: 照合の道具はNoneになる", ve.build_listed_company_matcher(None), None)
+
+    # --- 記事の側の条件 ---
+    edition = {"sections": [{"section_id": "big", "articles": [
+        {"article_id": "A-1", "lines": []}, {"article_id": "A-2", "lines": [], "inferences": None},
+        {"article_id": "A-3", "lines": [], "inferences": [inf("清水建設の設備投資が波及しうる")]},
+        {"article_id": "A-4", "lines": [], "inferences": [inf("清水建設の設備投資が波及しうる")]},
+    ]}]}
+    result = ve.run_check_inference_company_names(edition, matcher)
+    check("推論欄の会社名/記事: 推論欄が無い・nullの記事があっても落ちず、複数の記事の分をまとめて数える",
+          (result["count"], [r["article_id"] for r in result["removed"]]), (2, ["A-3", "A-4"]))
+
+    # --- 空の項目を消す今の検査は残っている(falsifierは必須のまま) ---
+    edition = {"sections": [{"section_id": "big", "articles": [{"article_id": "A-1", "lines": [], "inferences": [
+        inf(falsifier=None), inf("会社名の無い推論")]}]}]}
+    dropped = ve.run_check_d_inferences(edition)
+    check("推論欄の会社名/既存の検査: 4項目のどれかが空(falsifierがnull)の推論を消す検査は今までどおり残っている",
+          (dropped, [i["text"] for i in edition["sections"][0]["articles"][0]["inferences"]]), (1, ["会社名の無い推論"]))
+
+
+def test_inference_company_names_without_hypotheses():
+    """改修27-2第6回(S7・S15): 推論欄は紙面の側にあるので、--hypothesesを渡さない実行でも
+    推論欄の会社名の検査が行われ、キーがそろう。コードリストは1回だけ読む。"""
+    def run(codelist_rows, count_loads=None):
+        with tempfile.TemporaryDirectory() as d:
+            work_dir = Path(d)
+            edition_path, _hyp_path, cache_dir, today_str, prev_str = _rebuild_canary_as_today(work_dir)
+            calendar_dir = _write_temp_calendar(
+                work_dir, dt.datetime.strptime(prev_str, "%Y-%m-%d").date() - dt.timedelta(days=3), 60,
+            )
+            with _patched_codelist(codelist_rows, count_loads):
+                result = _run_verify(work_dir, edition_path, None, cache_dir, calendar_dir)
+            edition = json.loads(edition_path.read_text(encoding="utf-8"))
+            return result, edition
+
+    loads = []
+    result, edition = run(_fake_codelist_rows(CANARY_CODELIST_ENTRIES), loads)
+    v = edition["verification"]
+    check("推論欄の会社名/--hypothesesなし: 正常終了する", result.returncode, 0)
+    check("推論欄の会社名/--hypothesesなし: 検査が行われ、会社名を含む2件が消える(記録が出る)",
+          (v["inference_company_name_removed"]["count"], v["inference_company_name_check_skipped"], v["codelist_unavailable"]), (2, False, False))
+    check("推論欄の会社名/--hypothesesなし: コードリストの読み込みは1回だけ", len(loads), 1)
+    check("推論欄の会社名/--hypothesesなし: 残る推論は3件(会社名なし・カナリア電機グループ・非上場の会社)",
+          len(edition["sections"][1]["articles"][0]["inferences"]), 3)
+
+    result, edition = run(None)
+    v = edition["verification"]
+    check("推論欄の会社名/--hypothesesなし・コードリスト無し: 検査を行わず、skippedが真・記録は0件でキーはそろう",
+          (v["inference_company_name_check_skipped"], v["inference_company_name_removed"], v["codelist_unavailable"],
+           len(edition["sections"][1]["articles"][0]["inferences"])),
+          (True, {"count": 0, "removed": []}, True, 5))
+
+
 def test_canary_edition_codelist_unavailable():
     """改修27-2第5回(Q6): 見本の号を、コードリストが読めない日(load_codelistがNoneを返す)として
     通す。検査11の「より長い別の社名の一部」の判定だけを飛ばし、そのことを記録する
@@ -6164,7 +6310,9 @@ def test_canary_edition_codelist_unavailable():
         with _patched_codelist(None):
             result = _run_verify(work_dir, edition_path, hyp_path, cache_dir, calendar_dir)
         check("見本の号(コードリスト無し)/正例: 正常終了する(終了コード0)", result.returncode, 0)
-        v = json.loads(edition_path.read_text(encoding="utf-8")).get("verification") or {}
+        after_edition_saved = json.loads(edition_path.read_text(encoding="utf-8"))
+        v = after_edition_saved.get("verification") or {}
+        after_edition_inferences = after_edition_saved["sections"][1]["articles"][0]["inferences"]
     check(
         "見本の号(コードリスト無し)/正例(Q6): 長い社名の判定を飛ばした件数は、検査したprimary(H-5・H-6・H-7)の3件で、"
         "codelist_unavailableが真",
@@ -6177,6 +6325,11 @@ def test_canary_edition_codelist_unavailable():
         [("H-7", "evidence_company_name_not_found")],
     )
     check("見本の号(コードリスト無し)/正例: 段階の件数はraw 2(H-5・H-6)", v.get("name_match_stage"), {"raw": 2, "nfkc": 0, "match_name": 0})
+    check(
+        "見本の号(コードリスト無し)/正例(27-2 S7): 推論欄の会社名の検査は行われず(skippedが真)、会社名を含む推論も消えない(A-2の5件が残る)",
+        (v.get("inference_company_name_check_skipped"), v.get("inference_company_name_removed"), len(after_edition_inferences)),
+        (True, {"count": 0, "removed": []}, 5),
+    )
 
 
 def test_canary_edition():
@@ -6440,6 +6593,27 @@ def test_canary_edition():
             "見本の号/負例(27-2 S5): reportedの4社(H-1〜H-4)は検査11で格下げも削除もされず、reportedのまま残る",
             [(h["hypothesis_id"], h["evidence_grade"]) for h in after_hyp["hypotheses"][:4]],
             [("H-1", "reported"), ("H-2", "reported"), ("H-3", "reported"), ("H-4", "reported")],
+        )
+
+        # --- 改修27-2第6回: S7(推論欄の会社名の検査) ---
+        a2_inferences = after_edition["sections"][1]["articles"][0]["inferences"]
+        check(
+            "見本の号/正例(27-2 S7): 推論欄(A-2)の、上場会社の名前を含む2件(textに「カナリア電機」・check_metricに「カナリア物流株式会社」)が消え、"
+            "会社名を含まない推論・照合名の直後がカタカナ(カナリア電機グループ)・非上場の会社(カナリア食品開発)の3件が残る",
+            [i["text"][:12] for i in a2_inferences],
+            ["原材料価格の動向が今後の", "カナリア電機グループの動", "カナリア食品開発の提出書"],
+        )
+        check(
+            "見本の号/正例(27-2 S7): inference_company_name_removedに、記事ID・項目・社名・当たった語が記録される",
+            v.get("inference_company_name_removed"),
+            {"count": 2, "removed": [
+                {"article_id": "A-2", "hits": [{"field": "text", "company_name": "カナリア電機株式会社", "matched_word": "カナリア電機", "alias": None}]},
+                {"article_id": "A-2", "hits": [{"field": "check_metric", "company_name": "カナリア物流株式会社", "matched_word": "カナリア物流", "alias": None}]},
+            ]},
+        )
+        check(
+            "見本の号/正例(27-2 S7): コードリストがあるので検査は行われる(skippedは偽)。空の項目で消えた推論(A-1の1件)は今までどおり別に数える",
+            (v.get("inference_company_name_check_skipped"), v.get("inference_dropped")), (False, 1),
         )
 
         # --- 4-11: RECENT-HEADLINES.jsonを置いていないので失敗として記録される(号は止まらない) ---
@@ -6866,6 +7040,10 @@ def main():
     test_check11_codelist_unavailable_skips_longer_name_check()
     test_run_hypothesis_checks_records_check11_keys()
     test_dictionaries_load_regardless_of_cwd()
+
+    # 改修27-2(第6回): 推論欄の会社名の検査(S7)のテスト。
+    test_run_check_inference_company_names()
+    test_inference_company_names_without_hypotheses()
 
     # 改修27-1(4-15): 見本の号(Canary)。
     test_canary_edition()
