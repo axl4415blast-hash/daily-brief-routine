@@ -623,8 +623,12 @@ def test_check_numbers_empty():
     mark, reason, _ = ve.verify_line(line_explainer, sources, "/nonexistent")
     check("検査15/負例: explainerでnumbersが空でもnumbers_emptyにならない(explainerのまま合格)", mark, "explainer")
 
-    line_reported = {"claimed_mark": "reported_unverified", "numbers": []}
-    mark, reason, _ = ve.verify_line(line_reported, sources, "/nonexistent")
+    # 改修28第1回: 出典の無い報道行はreported_without_sourceでunverifiedになるため、出典を付けて確かめる
+    # (この負例の目的は「numbersが空でもnumbers_emptyにならない」ことで、出典の有無は関係しない)。
+    line_reported = {"claimed_mark": "reported_unverified", "numbers": [], "source_ref": "SRC-R"}
+    mark, reason, _ = ve.verify_line(
+        line_reported, {"SRC-R": {"source_id": "SRC-R", "usage": "link_only"}}, "/nonexistent",
+    )
     check(
         "検査15/負例: reported_unverifiedでnumbersが空でもnumbers_emptyにならない",
         mark, "reported_unverified",
@@ -3180,6 +3184,9 @@ def test_industry_examples_not_skipped_when_market_open_and_not_late():
                 "lines": [{
                     "line_id": "L-EXTRA-1", "claimed_mark": "reported_unverified", "numbers": [],
                     "text": "テスト非休場四号株式会社の業績に関する記述。",
+                    # 改修28第1回: 出典の無い報道行はunverifiedになり、下段の根拠にならないため出典を付ける
+                    # (SRC-007はtestdataのmorning.jsonにある報道の出典)。
+                    "source_ref": "SRC-007",
                 }],
             },
         ),
@@ -3726,7 +3733,13 @@ def test_round1_end_to_end_missing_ai_fields():
             "slot": "evening",
             "generated_at": None,
             "market_open": None,
-            "sources": [],
+            # 改修28第1回: L-1(報道で見た・未確認)の出典。change欄の鮮度の検査(36時間以内)を通るよう、
+            # 発表時刻は実行時刻にする(本文は保存しないので、発表日の検査36の対象外)。
+            "sources": [{
+                "source_id": "S-1", "url": "https://example.test/news-kaku", "publisher": "テスト通信",
+                "title": "架空の会社の発表に関する報道", "publisher_type": "news", "usage": "link_only",
+                "published_at": now.replace(microsecond=0).isoformat(),
+            }],
             "sections": [{
                 "section_id": "change",
                 "articles": [{
@@ -3734,6 +3747,8 @@ def test_round1_end_to_end_missing_ai_fields():
                     "lines": [{
                         "line_id": "L-1", "text": "架空の会社の発表内容です",
                         "claimed_mark": "reported_unverified", "numbers": [],
+                        # 改修28第1回: 出典の無い報道行はunverifiedになり、上段の根拠にならないため出典を付ける。
+                        "source_ref": "S-1",
                     }],
                 }],
             }],
@@ -7073,7 +7088,7 @@ def test_inference_widened_rule():
         ("トヨタ自動車東日本の工場", ["トヨタ自動車株式会社"]),   # 規則2(子会社名だが、グループを指すので消えてよい)
         ("NTT東日本の回線", ["ＮＴＴ株式会社"]),                  # 別名
         ("近鉄百貨店の売上", ["株式会社近鉄百貨店"]),
-        ("サンジェニックスなどの生産体制", ["株式会社ニックス"]),  # 既知の誤反応(直後がひらがな。今の規則と同じ)
+        ("サンジェニックスなどの生産体制", []),  # 改修28第1回: 直前がカタカナ(ェ)なので当てない(以前は誤反応で当たっていた)
         ("日本の輸出", []),                                       # 一般語辞書
         ("大手銀行の利ざや", []),
     ]
@@ -8585,6 +8600,294 @@ def test_check_hypothesis_evidence_source_ref():
     )
 
 
+# ---------------------------------------------------------------------------
+# 改修28第1回: 照合の小さな変更4つ(マイナス記号・カタカナ直前の規則・出典の無い報道行・FRBの日付)
+# ---------------------------------------------------------------------------
+
+def _kaishu28_verify_quotable_line(body_text, excerpt, value):
+    """出典本文(body_text)を一時フォルダに保存し、source_number_matchの行を1行照合した結果(印, 理由)を返す。"""
+    with tempfile.TemporaryDirectory() as d:
+        cache_path = Path(d) / "SRC-M.txt"
+        cache_path.write_text(body_text, encoding="utf-8")
+        source = {
+            "source_id": "SRC-M", "url": "https://example.test/minus", "usage": "quotable",
+            "content_sha256": hashlib.sha256(cache_path.read_bytes()).hexdigest(),
+        }
+        line = {
+            "claimed_mark": "source_number_match", "numbers": [{"value": value}], "source_ref": "SRC-M",
+            "excerpt": excerpt, "attribution": "出典：テスト", "processing_note": "テストをもとに作成",
+        }
+        mark, reason, _ = ve.verify_line(line, {"SRC-M": source}, d)
+        return mark, reason
+
+
+def test_kaishu28_dash_chars():
+    """改修28第1回(4-1): pdftotextがマイナスを「‐」(U+2010)・「‑」(U+2011)で出しても、抜き出しと数字が一致する。"""
+    for ch, name in (("‐", "U+2010"), ("‑", "U+2011"), ("‒", "U+2012")):
+        check(f"マイナス記号/{name}: 「前年比{ch}5.2%」の中に-5.2が見つかる",
+              ve.find_number(ve.normalize_text(f"前年比{ch}5.2%"), -5.2), True)
+    check("マイナス記号/今までどおり: 「前年比-5.2%」の中に-5.2が見つかる",
+          ve.find_number(ve.normalize_text("前年比-5.2%"), -5.2), True)
+    check("マイナス記号/本文が‐5.2・抜き出しが-5.2でも、抜き出しが本文に見つかり、数字も一致する",
+          _kaishu28_verify_quotable_line("輸出額は前年比‐5.2%となった。", "輸出額は前年比-5.2%となった。", -5.2),
+          ("source_number_match", None))
+    check("マイナス記号/反対向き(本文が-5.2・抜き出しが‐5.2)でも一致する",
+          _kaishu28_verify_quotable_line("輸出額は前年比-5.2%となった。", "輸出額は前年比‐5.2%となった。", -5.2),
+          ("source_number_match", None))
+    check("マイナス記号/本文が‑5.2(U+2011)・抜き出しが−5.2(U+2212)でも一致する",
+          _kaishu28_verify_quotable_line("輸出額は前年比‑5.2%となった。", "輸出額は前年比−5.2%となった。", -5.2),
+          ("source_number_match", None))
+    check("マイナス記号/数字が違えば今までどおり不一致(-5.3は-5.2の本文に無い)",
+          _kaishu28_verify_quotable_line("輸出額は前年比‐5.2%となった。", "輸出額は前年比-5.2%となった。", -5.3),
+          ("unverified", "number_not_in_excerpt"))
+    range_norm = ve.normalize_text("政策金利を3.75‐4%に据え置いた")
+    check("マイナス記号/範囲の書き方: 「3.75‐4%」の中に-4(負の数)は見つからない", ve.find_number(range_norm, -4), False)
+    check("マイナス記号/範囲の書き方: 「3.75‐4%」の中に3.75と4は見つかる",
+          (ve.find_number(range_norm, 3.75), ve.find_number(range_norm, 4)), (True, True))
+
+
+def _kaishu28_katakana_matcher(extra=()):
+    rows = _fake_codelist_rows([
+        ("イオン株式会社", "82670", "上場"), ("株式会社ニックス", "42430", "上場"),
+        ("ソニーグループ株式会社", "67580", "上場"), ("ソフトバンクグループ株式会社", "99840", "上場"),
+        ("トヨタ自動車株式会社", "72030", "上場"), ("本田技研工業株式会社", "72670", "上場"),
+        ("株式会社アップル", "10010", "上場"), ("株式会社エニックス", "10020", "上場"),
+    ] + list(extra))
+    return ve.build_listed_company_matcher(rows)
+
+
+def test_kaishu28_katakana_start_inference():
+    """改修28第1回(4-2): 推論欄の会社名の検査。照合名の出現箇所の元の文での最初の文字がカタカナで、
+    直前の1文字がカタカナ(半角・長音を含む)なら当てない。空白・「・」・それ以外の文字・文の先頭なら当てる。"""
+    matcher = _kaishu28_katakana_matcher()
+    matcher_lion = _kaishu28_katakana_matcher([("ライオン株式会社", "49120", "上場")])
+
+    def hits(text, m=matcher):
+        return sorted({x["company_name"] for x in ve.find_listed_company_mentions(text, m)})
+
+    table = [
+        ("米アップルとソニーグループが提携", ["ソニーグループ株式会社", "株式会社アップル"]),  # 直前が漢字・ひらがな
+        ("ネットスーパーのイオンが", ["イオン株式会社"]),                     # 直前がひらがな
+        ("ソフトバンクグループが出資", ["ソフトバンクグループ株式会社"]),     # 文の先頭
+        ("トヨタ自動車・本田技研工業", ["トヨタ自動車株式会社", "本田技研工業株式会社"]),
+        ("リチウムイオン電池", []),                                           # 直前がカタカナ(ム)
+        ("フェニックス", []),                                                 # 直前がカタカナ(小さいェ)
+        ("サンジェニックスの生産", []),                                       # 過去の号の誤反応
+        ("スクウェア・エニックスの新作", ["株式会社エニックス"]),             # 直前が「・」
+        ("ネットスーパーイオンの", []),                                       # 直前が長音(ー)
+        ("ネットスーパー　イオン", ["イオン株式会社"]),                       # 直前が全角の空白
+        ("ネットスーパー イオン", ["イオン株式会社"]),                        # 直前が半角の空白
+        ("ライオンの歯磨き粉", []),                                           # ライオンが一覧に無ければ、中のイオンは当てない
+        ("ｲｵﾝが発表", ["イオン株式会社"]),                                   # 半角カタカナ・文の先頭
+        ("ﾘﾁｳﾑｲｵﾝ電池", []),                                                 # 直前が半角カタカナ
+        ("ﾈｯﾄｽｰﾊﾟｰｲｵﾝの", []),                                               # 直前が半角の長音(ｰ)
+        ("ｽｸｳｪｱ･ｴﾆｯｸｽの新作", ["株式会社エニックス"]),                       # 直前が半角の「･」
+        ("「イオン」の発表", ["イオン株式会社"]),                             # 直前が記号
+        ("大手イオンの発表", ["イオン株式会社"]),                             # 直前が漢字
+        ("AEONとイオンの発表", ["イオン株式会社"]),
+    ]
+    for text, expected in table:
+        check(f"カタカナ直前の規則/推論欄: 「{text}」→ {expected or '当たらない'}", hits(text), sorted(expected))
+    check("カタカナ直前の規則/推論欄: ライオンが一覧にあれば「ライオンの歯磨き粉」はライオンに当たる(イオンは重ねて当たらない)",
+          hits("ライオンの歯磨き粉", matcher_lion), ["ライオン株式会社"])
+    check("カタカナ直前の規則/推論欄: 照合名の最初の文字がカタカナでなければ、直前がカタカナでも当てる(今までどおり)",
+          hits("オートバックス本田技研工業の発表"), ["本田技研工業株式会社"])
+    check("カタカナ直前の規則/推論欄: 直前が結合文字の濁点(カ+゛)なら、付いている文字(カ)で判定して当てない",
+          hits("ガイオンの発表"), [])
+    check("カタカナ直前の規則/推論欄: 直前がひらがな+結合文字の濁点(か+゛)なら当てる",
+          hits("がイオンの発表"), ["イオン株式会社"])
+    accept = pic.make_accept_start("リチウムイオン", None)
+    check("カタカナ直前の規則/位置の対応が無い(None)ときは判定しない(常に当てる)", accept(4, 7, ("イオン",)), True)
+
+    # 推論1件の削除も、同じ規則に従う
+    def inf(text):
+        return {"text": text, "falsifier": "反証条件", "check_metric": "確認指標", "check_by": "2026-10-30"}
+    edition = {"sections": [{"section_id": "big", "articles": [{"article_id": "A-1", "lines": [], "inferences": [
+        inf("リチウムイオン電池の需要が伸びうる"), inf("ネットスーパーのイオンが伸びうる")]}]}]}
+    result = ve.run_check_inference_company_names(edition, matcher)
+    check("カタカナ直前の規則/推論欄: 「リチウムイオン」の推論は残り、「のイオンが」の推論は消える",
+          (result["count"], [i["text"] for i in edition["sections"][0]["articles"][0]["inferences"]]),
+          (1, ["リチウムイオン電池の需要が伸びうる"]))
+
+
+def test_kaishu28_katakana_start_lower():
+    """改修28第1回(4-2): 下段の選定も同じ規則。見出しと本文のつなぎ目には、元の文で空白が入っている。"""
+    candidates = [
+        {"edinet_code": "E-AEON", "company_name": "イオン株式会社", "capital_million": 5000, "ticker": "8267", "retrieved_date": "2026-09-24"},
+        {"edinet_code": "E-SEVEN", "company_name": "テスト小売株式会社", "capital_million": 9000, "ticker": "9999", "retrieved_date": "2026-09-24"},
+    ]
+
+    def rules(headline, texts):
+        edition = {"sections": [{"articles": [{"article_id": "A", "headline": headline,
+                                               "lines": [{"line_id": f"L{i}", "text": t} for i, t in enumerate(texts)]}]}]}
+        article = pic.index_articles(edition)["A"]
+        chosen = pic.select_companies_for_pick(candidates, article, {}, set(), 2, generic_words=set())
+        has = pic._has_any_mention(candidates, article, {}, generic_words=set())
+        return [(x["candidate"]["company_name"], x["selection_rule"]) for x in chosen], has
+
+    check("カタカナ直前の規則/下段: 「リチウムイオン電池」ではイオンは本文に出ていない扱い(資本金順)",
+          rules("電池の話題", ["リチウムイオン電池の需要"]),
+          ([("テスト小売株式会社", "capital_rank"), ("イオン株式会社", "capital_rank")], False))
+    check("カタカナ直前の規則/下段: 「ネットスーパーのイオンが」ではイオンが本文に出ている扱い",
+          rules("小売の話題", ["ネットスーパーのイオンが伸びた"]),
+          ([("イオン株式会社", "mentioned_in_text"), ("テスト小売株式会社", "capital_rank")], True))
+    check("カタカナ直前の規則/下段: 見出しの最後がカタカナ(スーパー)、本文の最初がイオンでも、つなぎ目の空白で当たる",
+          rules("ネットスーパー", ["イオンが出店"]),
+          ([("イオン株式会社", "mentioned_in_text"), ("テスト小売株式会社", "capital_rank")], True))
+    check("カタカナ直前の規則/下段: 本文の行と行のつなぎ目(前の行の最後がカタカナ)でも当たる",
+          rules("小売の話題", ["大型のスーパー", "イオンが出店"]),
+          ([("イオン株式会社", "mentioned_in_text"), ("テスト小売株式会社", "capital_rank")], True))
+    check("カタカナ直前の規則/下段: 「ライオンの歯磨き粉」ではイオンは本文に出ていない扱い",
+          rules("日用品の話題", ["ライオンの歯磨き粉"])[1], False)
+
+
+def _kaishu28_past_texts():
+    texts = []
+    for path in sorted((REPO_ROOT / "editions").glob("*/*.json")):
+        edition = json.loads(path.read_text(encoding="utf-8"))
+        for section in edition.get("sections", []):
+            for article in section.get("articles", []):
+                texts.append(article.get("headline") or "")
+                texts += [line.get("text") or "" for line in article.get("lines", [])]
+                for inf in article.get("inferences") or []:
+                    texts += [inf.get(k) or "" for k in ("text", "falsifier", "check_metric", "check_by")]
+    return texts
+
+
+def test_kaishu28_find_mentions_accept_start_default():
+    """改修28第1回(4-2): _find_mentionsに省略できる引数accept_startを足しても、省略したときと、今までの判定
+    (直前を見ない=常に真)を明示して渡したときの結果は同じ。新しい規則で過去の号の当たりが変わるのは
+    「サンジェニックス」の中の「ニックス」だけ。"""
+    rows = _fake_codelist_rows([
+        ("兼松株式会社", "11110", "上場"), ("清水建設株式会社", "22220", "上場"), ("株式会社フェローテック", "33330", "上場"),
+        ("株式会社日本抵抗器製作所", "44440", "上場"), ("株式会社ニックス", "77770", "上場"),
+        ("イオン株式会社", "82670", "上場"), ("株式会社ＩＣ", "99990", "上場"), ("株式会社電算", "10100", "上場"),
+    ])
+    matcher = ve.build_listed_company_matcher(rows)
+    texts = _kaishu28_past_texts()
+    different_default = []
+    changed = []
+    total = 0
+    for text in texts:
+        blob, positions = pic._normalize_match_name_with_positions(text)
+        omitted = pic._find_mentions(blob, matcher["entries"])
+        explicit = pic._find_mentions(blob, matcher["entries"], accept_start=lambda s, e, entry: True)
+        explicit_old = pic._find_mentions(
+            blob, matcher["entries"],
+            accept_end=lambda start, end, entry, blob=blob: not pic._is_word_forming(blob[end] if end < len(blob) else None),
+            accept_start=lambda s, e, entry: True,
+        )
+        new = pic._find_mentions(blob, matcher["entries"], accept_start=pic.make_accept_start(text, positions))
+        total += len(omitted)
+        simple = lambda found: {k: v[0] for k, v in found.items()}
+        if not (simple(omitted) == simple(explicit) == simple(explicit_old)):
+            different_default.append(text)
+        for key in set(simple(omitted)) - set(simple(new)):
+            changed.append((simple(omitted)[key], "サンジェニックス" in text))
+        if set(simple(new)) - set(simple(omitted)):
+            changed.append(("増えた", text))
+    check(f"カタカナ直前の規則/引数を省略: 過去の号の全文({len(texts)}文)で、省略・常に真を明示・今までの判定を明示の結果が同じ",
+          different_default, [])
+    check("カタカナ直前の規則/引数を省略: 試した文には実際に当たりがある(空振りの比較ではない)", total > 0, True)
+    check("カタカナ直前の規則/過去の号: 新しい規則で消える当たりは「サンジェニックス」の中の「ニックス」だけ(増える当たりは無い)",
+          sorted(set(changed)), [("ニックス", True)])
+
+
+def test_kaishu28_reported_without_source():
+    """改修28第1回(4-3): 「報道で見た・未確認」と申告した行で出典が空なら、印をunverifiedにする(理由reported_without_source)。"""
+    sources = {"SRC-R": {"source_id": "SRC-R", "usage": "link_only"}}
+    for label, value in (("null", None), ("空文字", ""), ("空白のみ", "  "), ("全角空白のみ", "　"), ("数字", 5), ("リスト", ["SRC-R"])):
+        line = {"claimed_mark": "reported_unverified", "numbers": [], "source_ref": value}
+        check(f"出典の無い報道行/出典が{label}ならunverified(reported_without_source)",
+              ve.verify_line(line, sources, "/nonexistent")[:2], ("unverified", "reported_without_source"))
+    check("出典の無い報道行/source_refのキー自体が無くてもunverified(reported_without_source)",
+          ve.verify_line({"claimed_mark": "reported_unverified", "numbers": []}, sources, "/nonexistent")[:2],
+          ("unverified", "reported_without_source"))
+    check("出典の無い報道行/出典があれば今までどおりreported_unverifiedのまま",
+          ve.verify_line({"claimed_mark": "reported_unverified", "numbers": [], "source_ref": "SRC-R"}, sources, "/nonexistent")[:2],
+          ("reported_unverified", None))
+    check("出典の無い報道行/存在しない出典IDは今までどおりsource_ref_not_found(検査33)",
+          ve.verify_line({"claimed_mark": "reported_unverified", "numbers": [], "source_ref": "SRC-X"}, sources, "/nonexistent")[:2],
+          ("unverified", "source_ref_not_found"))
+    check("出典の無い報道行/解説(explainer)は出典が無くても今までどおりexplainer",
+          ve.verify_line({"claimed_mark": "explainer", "numbers": []}, sources, "/nonexistent")[:2], ("explainer", None))
+
+    edition = {"sources": [{"source_id": "SRC-R", "title": "報道", "url": "https://example.test/r", "usage": "link_only"}],
+               "sections": [{"section_id": "big", "articles": [{"article_id": "A", "lines": [
+                   {"line_id": "L-1", "claimed_mark": "reported_unverified", "numbers": [], "source_ref": None},
+                   {"line_id": "L-2", "claimed_mark": "reported_unverified", "numbers": [], "source_ref": "SRC-R"},
+                   {"line_id": "L-3", "claimed_mark": "reported_unverified", "numbers": [], "source_ref": ""},
+               ]}]}]}
+    stats, _ = ve.run_line_verification(edition, "/nonexistent")
+    marks = [(l["line_id"], l["mark"], l["mark_reason"]) for l in edition["sections"][0]["articles"][0]["lines"]]
+    check("出典の無い報道行/行ごとの印と理由", marks,
+          [("L-1", "unverified", "reported_without_source"), ("L-2", "reported_unverified", None),
+           ("L-3", "unverified", "reported_without_source")])
+    check("出典の無い報道行/件数: 行IDの記録と、unverified・reported_unverifiedの数",
+          (stats["reported_without_source_line_ids"], stats["unverified"], stats["reported_unverified"],
+           stats["unverified_reasons"].get("reported_without_source")),
+          (["L-1", "L-3"], 2, 1, 2))
+    check("出典の無い報道行/検査37: 出典の無い報道行は、上段の根拠になる事実の行(LINE_FACT_MARKS)に数えない",
+          "unverified" in ve.LINE_FACT_MARKS, False)
+
+    # CLI全体: verificationに件数と行IDが記録される
+    with tempfile.TemporaryDirectory() as d:
+        dst = Path(d) / "testdata"
+        shutil.copytree(REPO_ROOT / "scripts" / "testdata", dst)
+        edition_path, hyp_path, today_str = _rebuild_testdata_as_today_evening(REPO_ROOT / "scripts" / "testdata", dst)
+        calendar_dir = _write_temp_calendar(d, dt.datetime.strptime(today_str, "%Y-%m-%d").date(), 40)
+        result = _run_verify(d, edition_path, hyp_path, dst / "cache", calendar_dir)
+        v = json.loads(edition_path.read_text(encoding="utf-8")).get("verification") or {}
+        check("出典の無い報道行/統合: 出典のあるtestdataでは、reported_without_sourceは0件",
+              (result.returncode, v.get("reported_without_source")), (0, {"count": 0, "line_ids": []}))
+
+        edition = json.loads(edition_path.read_text(encoding="utf-8"))
+        edition.pop("verification", None)
+        for section in edition["sections"]:
+            for article in section["articles"]:
+                for line in article["lines"]:
+                    if line["line_id"] == "L-12":
+                        line["source_ref"] = None
+        edition_path.write_text(json.dumps(edition, ensure_ascii=False, indent=1), encoding="utf-8")
+        result = _run_verify(d, edition_path, None, dst / "cache", calendar_dir)
+        after = json.loads(edition_path.read_text(encoding="utf-8"))
+        v = after.get("verification") or {}
+        l12 = [l for s in after["sections"] for a in s["articles"] for l in a["lines"] if l["line_id"] == "L-12"][0]
+        check("出典の無い報道行/統合: L-12の出典を外すと、verificationに件数と行IDが記録され、印はunverified",
+              (result.returncode, v.get("reported_without_source"), l12["mark"], l12["mark_reason"]),
+              (0, {"count": 1, "line_ids": ["L-12"]}, "unverified", "reported_without_source"))
+    _assert_testdata_untouched("出典の無い報道行/統合テスト")
+
+
+def test_kaishu28_published_at_source_timezone():
+    """改修28第1回(4-4): 検査36の時刻付き出典は、日本時間の日付と、published_atに書かれた時差のままの日付の
+    どちらかが本文にあれば「確認できた」とする。時差の無い値は日本時間とみなす(候補は1つ)。"""
+    def run(published_at, body):
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "S-1.txt").write_text(body, encoding="utf-8")
+            edition = {
+                "sources": [{"source_id": "S-1", "url": "https://www.federalreserve.gov/test", "published_at": published_at}],
+                "sections": [{"section_id": "big", "articles": [{"article_id": "A", "lines": [{"line_id": "L-1", "source_ref": "S-1"}]}]}],
+            }
+            return ve.run_check_published_at(edition, d)
+
+    frb = "2026-09-16T14:00:00-04:00"
+    check("FRBの日付/現地の日付(September 16, 2026)が本文にあれば確認できた",
+          run(frb, "Federal Reserve issues FOMC statement\nSeptember 16, 2026"), (0, []))
+    check("FRBの日付/日本時間の日付(September 17, 2026)だけが本文にあっても確認できた",
+          run(frb, "Release Date: September 17, 2026"), (0, []))
+    check("FRBの日付/どちらの日付も本文に無ければ確認できない(行の数1・出典ID)",
+          run(frb, "Release Date: September 15, 2026"), (1, ["S-1"]))
+    check("FRBの日付/UTC(+00:00)の値でも、現地の日付(2026-09-16)で確認できる",
+          run("2026-09-16T20:00:00+00:00", "2026年9月16日"), (0, []))
+    check("FRBの日付/時差が日本時間(+09:00)の値は候補が1つ(前日の日付では確認できない)",
+          run("2026-09-17T01:00:00+09:00", "September 16, 2026"), (1, ["S-1"]))
+    check("FRBの日付/時差が書かれていない値は日本時間とみなす(候補は1つ。前日の日付では確認できない)",
+          run("2026-09-17T01:00:00", "September 16, 2026"), (1, ["S-1"]))
+    check("FRBの日付/時差が書かれていない値でも、その日付が本文にあれば確認できた",
+          run("2026-09-17T01:00:00", "2026年9月17日"), (0, []))
+
+
 def main():
     test_read_source_text()
     test_check_evidence_source_ref()
@@ -8770,6 +9073,14 @@ def main():
     # 改修27-1(4-15): 見本の号(Canary)。
     test_canary_edition()
     test_canary_edition_codelist_unavailable()
+
+    # 改修28(第1回): マイナス記号・カタカナ直前の規則・出典の無い報道行・FRBの日付のテスト。
+    test_kaishu28_dash_chars()
+    test_kaishu28_katakana_start_inference()
+    test_kaishu28_katakana_start_lower()
+    test_kaishu28_find_mentions_accept_start_default()
+    test_kaishu28_reported_without_source()
+    test_kaishu28_published_at_source_timezone()
 
     total = len(results)
     passed = sum(1 for _, ok, _, _ in results if ok)

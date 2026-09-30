@@ -122,7 +122,9 @@ MORNING_DEADLINE = dt.time(8, 50)
 
 _WS_RE = re.compile(r"[ \t\r\n　]")
 _COMMA_RE = re.compile(r"(?<=[0-9]),(?=[0-9])")
-_DASH_CHARS = ["〜", "～", "－", "—", "−", "~"]
+# 改修28第1回: pdftotextはPDFのマイナスを「‐」(U+2010)・「‑」(U+2011)で出すことがあるため、
+# ハイフンの仲間の「‐」「‑」「‒」(U+2012)も「-」に揃える(揃えないと、抜き出しも数字も一致しない)。
+_DASH_CHARS = ["〜", "～", "－", "—", "−", "~", "\u2010", "\u2011", "\u2012"]
 _QUOTE_MAP = {"“": '"', "”": '"', "‘": "'", "’": "'"}
 
 
@@ -900,6 +902,12 @@ def verify_line(line, sources_by_id, cache_dir):
     source_ref = line.get("source_ref")
     excerpt = line.get("excerpt")
 
+    # 改修28第1回: 「報道で見た・未確認」と申告した行でも、出典(source_ref)が空(null・空文字・
+    # 空白のみ・文字でない値)なら、読者はどの報道かを確かめられないため印をunverifiedにする。
+    # 検査33(存在しないIDの出典)より先に見る(文字でない値を「存在しないID」と区別するため)。
+    if claimed == "reported_unverified" and _is_blank(source_ref):
+        return "unverified", "reported_without_source", None
+
     # 検査33: source_refが空でないのに、sources一覧にそのIDが見つからない場合は
     # 不合格にする。claimed_markの種類を問わず、本文の行すべてが対象(source_number_match
     # に限らない)。source_refがnull・空の行は対象外(存在しないIDを指しているわけ
@@ -1001,6 +1009,9 @@ def run_line_verification(edition, cache_dir):
         # 改修27-2(S12): titleかurlが空の出典を参照していた行のline_id(記録専用のキー
         # empty_title_or_url_refsの元)。
         "empty_title_or_url_line_ids": [],
+        # 改修28第1回: 出典の無い「報道で見た・未確認」の行のline_id(記録専用のキー
+        # reported_without_sourceの元)。
+        "reported_without_source_line_ids": [],
     }
     number_failure_details = []
 
@@ -1014,6 +1025,8 @@ def run_line_verification(edition, cache_dir):
         if ref and ref in empty_sources:
             mark, reason, missing_numbers = "unverified", "empty_title_or_url", None
             stats["empty_title_or_url_line_ids"].append(line.get("line_id"))
+        if reason == "reported_without_source":
+            stats["reported_without_source_line_ids"].append(line.get("line_id"))
         line["mark"] = mark
         line["mark_reason"] = reason
 
@@ -1179,6 +1192,8 @@ def make_inference_accept_end(text, norm, positions):
 def find_listed_company_mentions(text, matcher):
     """textの中に出ている上場会社を、下段の選定と同じ規則(照合名・別名・一般語辞書・最長一致)で
     探す。照合名の直後の判定だけは、下段より広い(make_inference_accept_end())。
+    照合名の直前の判定(改修28第1回。カタカナ語の途中の照合名を当てない)は下段と同じ
+    (pick_industry_companies.make_accept_start())。
     戻り値: [{"company_name": 提出者名, "matched_word": 当たった照合名, "alias": 別名で当たった
     場合の別名(なければNone)}, ...]。textが文字列でない・空なら空のリスト。"""
     if matcher is None or not isinstance(text, str) or not text:
@@ -1186,6 +1201,7 @@ def find_listed_company_mentions(text, matcher):
     blob, positions = pick_industry_companies._normalize_match_name_with_positions(text)
     found = pick_industry_companies._find_mentions(
         blob, matcher["entries"], accept_end=make_inference_accept_end(text, blob, positions),
+        accept_start=pick_industry_companies.make_accept_start(text, positions),
     )
     return [
         {"company_name": matcher["names_by_code"].get(key), "matched_word": entry[0], "alias": entry[2]}
@@ -1456,8 +1472,16 @@ def run_check_published_at(edition, cache_dir):
         if body_text is None:
             continue
 
-        local_dt = published_dt.astimezone(JST)
-        candidates = published_at_candidates(local_dt.year, local_dt.month, local_dt.day)
+        # 改修28第1回: 探す日付は、①日本時間に直した日付と、②published_atに書かれた時差の
+        # ままの日付(海外の発表元は本文に現地の日付を書くため。FRBの2026-09-16T14:00:00-04:00は、
+        # 日本時間では9月17日だが本文には September 16, 2026 と書かれる)の2つ。どちらかが
+        # 見つかれば確認できたとする。時差が書かれていない値は日本時間とみなす(①と②が同じ日付に
+        # なるので、候補は1つ)。
+        local_date = published_dt.astimezone(JST).date()
+        own_date = published_dt.date()
+        candidates = published_at_candidates(local_date.year, local_date.month, local_date.day)
+        if own_date != local_date:
+            candidates += published_at_candidates(own_date.year, own_date.month, own_date.day)
         if not date_found_in_text(body_text, candidates):
             unverified_hits += line_counts_by_source.get(source_id, 0)
             unverified_sources.append(source_id)
@@ -3719,6 +3743,7 @@ def print_report(edition_path, stats, stop_hits, watch_hits, dropped_inferences,
             "numbers_empty": "数字を1つも書かずに「出典と数字が一致」と申告していた",
             "excerpt_not_allowed": "本文を取得していない出典(quotable以外)からの抜き出しだった(excerptは削除した)",
             "empty_title_or_url": "参照している出典の題名かURLが空だった",
+            "reported_without_source": "「報道で見た・未確認」と申告したが、出典の番号が空だった",
         }
         for reason, count in stats["unverified_reasons"].items():
             print(f"  ・{reason_text.get(reason, reason)}: {count}件")
@@ -4076,6 +4101,11 @@ def run_verification(edition_file, hypotheses_file, cache_dir_arg, calendar_dir_
             "count": len(stats["empty_title_or_url_line_ids"]),
             "line_ids": stats["empty_title_or_url_line_ids"],
         }
+        # 改修28第1回: 出典の無い「報道で見た・未確認」の行(印はunverifiedにした)。
+        reported_without_source = {
+            "count": len(stats["reported_without_source_line_ids"]),
+            "line_ids": stats["reported_without_source_line_ids"],
+        }
         source_usage_invalid_hits = count_invalid_source_usages(edition)
         dropped_inferences = run_check_d_inferences(edition)
         # 改修27-2第6回(S7): コードリストは、--hypothesesの有無にかかわらずここで1回だけ読む
@@ -4414,6 +4444,8 @@ def run_verification(edition_file, hypotheses_file, cache_dir_arg, calendar_dir_
             "published_date_only_sources": published_date_only_sources,
             # 改修27-2(S12): titleかurlが空の出典を参照していたため印をunverifiedにした行。
             "empty_title_or_url_refs": empty_title_or_url_refs,
+            # 改修28第1回: 出典の無い「報道で見た・未確認」の行(印をunverifiedにした)。
+            "reported_without_source": reported_without_source,
             # 改修27-2(S13): reportedの上段の会社のうち、relation_textが定型文と違うもの
             # (記録専用。会社は消さない)。
             "reported_relation_text_mismatch": reported_relation_text_mismatch,

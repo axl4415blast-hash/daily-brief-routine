@@ -88,6 +88,15 @@
    "content_sha256": "4ba67aed994f9b3d7c11edef7ac7b1009960f7a0196d4189b0107ef8a10f1e8b",
    "usage": "quotable",
    "attribution": "出典：金融庁 EDINET"
+  },
+  {
+   "source_id": "SRC-007",
+   "url": "https://example.test/news-boj-rate",
+   "publisher": "テスト通信",
+   "title": "日銀の利上げに関する報道（テスト用）",
+   "publisher_type": "news",
+   "published_at": null,
+   "usage": "link_only"
   }
  ],
  "sections": [
@@ -277,6 +286,7 @@
        "text": "日銀が金利を上げる可能性がある。",
        "claimed_mark": "reported_unverified",
        "numbers": [],
+       "source_ref": "SRC-007",
        "mark": "reported_unverified",
        "mark_reason": null
       },

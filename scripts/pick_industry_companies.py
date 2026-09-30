@@ -154,7 +154,8 @@ def _normalize_match_name_with_positions(text):
     NFKCは「基底の文字と、それにつく結合文字(濁点など)」のまとまりごとに行う。
     対応が作れなかった場合(照合用の文字列が_normalize_match_name()と食い違う、通常は起きない)は、
     位置のリストをNoneにして返す(呼び出し側は位置を使う判定をしない)。
-    _normalize_match_name()自体は変えていない(下段の選定はこちらを使わない)。"""
+    _normalize_match_name()自体は変えていない。改修28第1回から、下段の選定もこちらを使う
+    (照合名の直前の元の文字を見るため。返す照合用の文字列は_normalize_match_name()と同じ)。"""
     text = text or ""
     groups = []
     for i, ch in enumerate(text):
@@ -193,9 +194,10 @@ def _is_word_forming(ch):
     誤認しない(例: 'NTTデータ'の'NTT'、'近鉄百貨店'の'近鉄')。一方で
     '兼松は18日'のように、直後がひらがな(助詞)なら一致を認める。
 
-    直前の文字は確認しない。見出しと複数行のtextを1つに連結する際、区切りが
-    失われる(空白は正規化で消える)ため、直前側で判定すると本来認めるべき
-    一致まで誤って弾いてしまうおそれがあるため。"""
+    直前の文字はこの関数では確認しない。見出しと複数行のtextを1つに連結する際、区切りが
+    失われる(空白は正規化で消える)ため、正規化した文の直前側で判定すると本来認めるべき
+    一致まで誤って弾いてしまうおそれがあるため。直前の判定は、改修28第1回から
+    make_accept_start()が元の文(区切りの空白が残っている)で行う。"""
     if ch is None:
         return False
     if ch.isascii() and ch.isalnum():
@@ -206,6 +208,40 @@ def _is_word_forming(ch):
     if 0x4E00 <= code <= 0x9FFF or 0x3400 <= code <= 0x4DBF:
         return True
     return False
+
+
+def _is_katakana(ch):
+    """カタカナ(全角・半角。長音「ー」「ｰ」と半角の濁点・半濁点を含む)かどうか。
+    中黒(「・」U+30FB・「･」U+FF65)はカタカナの範囲にあるが、区切りの文字なので含めない。"""
+    code = ord(ch)
+    return (
+        0x30A1 <= code <= 0x30FA or 0x30FC <= code <= 0x30FF
+        or 0x31F0 <= code <= 0x31FF or 0xFF66 <= code <= 0xFF9F
+    )
+
+
+def make_accept_start(text, positions):
+    """改修28第1回: 照合名の直前の判定を作る(_find_mentions()のaccept_startに渡す)。
+    text=元の文、positions=_normalize_match_name_with_positions()が返した位置の対応。
+    照合名の出現箇所の、元の文での最初の文字がカタカナで、その直前の1文字がカタカナ
+    (半角・長音を含む)なら、長いカタカナ語の途中とみなして当てない
+    (「リチウムイオン」の中の「イオン」、「サンジェニックス」の中の「ニックス」)。
+    直前が空白(全角を含む)・「・」・それ以外の文字、または文の先頭なら、今までどおり当てる。
+    直前が結合文字(濁点など)なら、それが付いている元の文字で判定する。
+    positionsがNone(位置の対応が作れなかった)なら、この判定はしない(常に当てる)。"""
+    def accept(start, end, entry):
+        if positions is None:
+            return True
+        first_pos = positions[start]
+        if not _is_katakana(text[first_pos]):
+            return True
+        i = first_pos - 1
+        while i >= 0 and unicodedata.combining(text[i]):
+            i -= 1
+        if i < 0:
+            return True
+        return not _is_katakana(text[i])
+    return accept
 
 
 def _filter_usable_names(entries, dropped=None, company_names=None):
@@ -247,7 +283,7 @@ def _filter_usable_names(entries, dropped=None, company_names=None):
     return kept
 
 
-def _find_mentions(blob, entries, accept_end=None):
+def _find_mentions(blob, entries, accept_end=None, accept_start=None):
     """本文(blob、正規化済み)の中で、照合名の長い順に非重複で探す。見つけた
     時点でその文字範囲を消費し、短い名前が同じ範囲に重なるのを防ぐ(最長一致)。
     前後の文字が同じ文字種で続く場合は、登録されていない長い固有名詞の一部と
@@ -258,6 +294,11 @@ def _find_mentions(blob, entries, accept_end=None):
     返した出現だけを採用する。省略したときは、今までどおり_is_word_forming()による判定で、
     下段の選定はこの引数を使わない(動きは変わらない)。推論欄の会社名の検査
     (verify_edition.py)が、元の文の直後(法人格・「・」・グループ・漢字)を見る判定を渡す。
+
+    accept_start: 省略できる(改修28第1回)。渡すと、上の判定で採用される出現のうち、
+    accept_start(照合名の開始位置, 終了位置, entry)も真を返したものだけを採用する。省略したときは
+    今までどおり(直前の文字は見ない)。下段の選定と推論欄の会社名の検査が、make_accept_start()
+    (カタカナ語の途中の照合名を当てない判定)を渡す。
 
     戻り値: {company_key: 勝った entry} (1社につき最初に当たったentryだけ)。"""
     consumed = [False] * len(blob)
@@ -281,6 +322,8 @@ def _find_mentions(blob, entries, accept_end=None):
                 if _is_word_forming(next_ch):
                     continue
             elif not accept_end(idx, end, entry):
+                continue
+            if accept_start is not None and not accept_start(idx, end, entry):
                 continue
             for i in range(idx, end):
                 consumed[i] = True
@@ -373,8 +416,8 @@ def select_companies_for_pick(candidates, article, aliases_by_edinet_code, selec
         entries, dropped=legacy_dropped,
         company_names={c["edinet_code"]: c["company_name"] for c in usable_candidates},
     )
-    blob = _normalize_match_name(article["text_blob"])
-    matched = _find_mentions(blob, usable_entries)
+    blob, positions = _normalize_match_name_with_positions(article["text_blob"])
+    matched = _find_mentions(blob, usable_entries, accept_start=make_accept_start(article["text_blob"], positions))
 
     mentioned = [c for c in usable_candidates if c["edinet_code"] in matched]
     remaining = [c for c in usable_candidates if c["edinet_code"] not in matched]
@@ -482,8 +525,8 @@ def _has_any_mention(candidates, article, aliases_by_edinet_code, generic_words=
         return False
     entries = _build_entries(candidates, aliases_by_edinet_code, generic_words=generic_words)
     usable_entries = _filter_usable_names(entries)
-    blob = _normalize_match_name(article["text_blob"])
-    return bool(_find_mentions(blob, usable_entries))
+    blob, positions = _normalize_match_name_with_positions(article["text_blob"])
+    return bool(_find_mentions(blob, usable_entries, accept_start=make_accept_start(article["text_blob"], positions)))
 
 
 def run(hypotheses_doc, articles_by_id, aliases_by_edinet_code, excluded_tickers=None):
