@@ -1489,6 +1489,89 @@ def run_check_published_at(edition, cache_dir):
     return unverified_hits, unverified_sources
 
 
+SOURCE_BODY_CHECK_KINDS = ("machine_saved", "not_machine_saved", "reconvert_mismatch", "reconvert_skipped")
+
+
+def _check_one_source_body(source, cache_dir):
+    """run_check_source_body()の1出典ぶん。戻り値: (分類, 食い違いの詳細 or None)。"""
+    # 改修28第2回: save_source.pyはこのファイルを読み込むため、ここで(呼ばれたときに)読み込む
+    # (ファイルの先頭で読み込むと、読み込みが循環する)。
+    import save_source
+
+    source_id = source.get("source_id")
+    cache_dir = Path(cache_dir)
+    meta_path = cache_dir / f"{source_id}.meta.json"
+    if not meta_path.is_file():
+        return "not_machine_saved", None
+    try:
+        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        meta = None
+    if not isinstance(meta, dict) or meta.get("kind") not in ("pdf", "html"):
+        return "reconvert_mismatch", {"source_id": source_id, "mismatched": ["meta_unreadable"]}
+
+    mismatched = []
+    if meta.get("url") != source.get("url"):
+        mismatched.append("url")
+    text_sha256 = hashlib.sha256((cache_dir / f"{source_id}.txt").read_bytes()).hexdigest()
+    if meta.get("content_sha256") != text_sha256:
+        mismatched.append("content_sha256")
+    # 元のファイルの場所は、記録ファイルに書かれた値ではなく、IDと種類から決める。
+    raw_path = cache_dir / "raw" / f"{source_id}.{meta['kind']}"
+    raw = raw_path.read_bytes() if raw_path.is_file() else None
+    if raw is None:
+        mismatched.append("raw_missing")
+    elif hashlib.sha256(raw).hexdigest() != meta.get("raw_sha256"):
+        mismatched.append("raw_sha256")
+    detail = {"source_id": source_id, "mismatched": mismatched}
+    if mismatched:
+        return "reconvert_mismatch", detail
+
+    if meta["kind"] == "pdf" and not save_source.find_tool(save_source.PDFTOTEXT):
+        return "reconvert_skipped", None
+    try:
+        converted = save_source.convert(meta["kind"], raw, meta.get("content_type"))
+    except save_source.SaveSourceError:
+        mismatched.append("reconvert_failed")
+        return "reconvert_mismatch", detail
+    if hashlib.sha256(converted["text"].encode("utf-8")).hexdigest() != text_sha256:
+        mismatched.append("reconvert")
+        detail["tool_version_saved"] = meta.get("tool_version")
+        detail["tool_version_now"] = converted["tool_version"]
+        return "reconvert_mismatch", detail
+    return "machine_saved", None
+
+
+def run_check_source_body(edition, cache_dir):
+    """改修28第2回: 出典の本文ファイルが、機械(save_source.py)で保存されたものかを確かめて記録する
+    (記録だけ。行の印は変えない)。対象は、EDINET以外でusageがquotableの出典のうち、本文ファイル
+    ({source_id}.txt)があるもの。usageはapply_source_policy()が表の値で上書きした後の値を見る。
+    次の4つに分ける。
+      ・machine_saved: 記録ファイル({id}.meta.json)があり、URL・本文のハッシュ・元のファイルのハッシュが
+        一致し、元のファイルをもう一度同じ道具で文字にした結果のハッシュも本文と一致した
+      ・not_machine_saved: 記録ファイルが無い(AIが本文ファイルを書いたなど)
+      ・reconvert_mismatch: 記録ファイルが読めない(meta_unreadable)、URL(url)・本文のハッシュ
+        (content_sha256)が食い違う、元のファイルが無い(raw_missing)・ハッシュが食い違う(raw_sha256)、
+        もう一度文字にできない(reconvert_failed)・文字にした結果が食い違う(reconvert)。どれが
+        食い違ったかをdetailsに書く
+      ・reconvert_skipped: 道具(pdftotext)が無くて、もう一度文字にできなかった(ほかは一致)
+    戻り値: {分類: {"count": 件数, "source_ids": [...]}, ...}。reconvert_mismatchには"details"も付く。"""
+    result = {kind: {"count": 0, "source_ids": []} for kind in SOURCE_BODY_CHECK_KINDS}
+    result["reconvert_mismatch"]["details"] = []
+    for source in edition.get("sources", []):
+        if not isinstance(source, dict) or source.get("usage") != "quotable" or is_edinet_domain(source.get("url")):
+            continue
+        source_id = source.get("source_id")
+        if not isinstance(source_id, str) or not (Path(cache_dir) / f"{source_id}.txt").is_file():
+            continue
+        kind, detail = _check_one_source_body(source, cache_dir)
+        result[kind]["count"] += 1
+        result[kind]["source_ids"].append(source_id)
+        if detail is not None:
+            result["reconvert_mismatch"]["details"].append(detail)
+    return result
+
+
 def run_check_published_date_only_required(edition, cache_dir):
     """検査36(改修27-2第4回・S2): 日付だけの出典(published_date_onlyが真。書類一覧の
     2つ SRC-EDINET-LIST・SRC-EDINET-LIST-PREV は除く)は、本文にその日付が書かれて
@@ -3715,7 +3798,7 @@ def print_report(edition_path, stats, stop_hits, watch_hits, dropped_inferences,
                   industry_report=None, source_policy_unlisted_domains=None,
                   number_coverage=None, sources_published_at_null=None, rerun_detected=False,
                   published_date_not_found=None, inference_company_names=None,
-                  inference_company_name_check_skipped=False):
+                  inference_company_name_check_skipped=False, source_body_check=None):
     print("=" * 60)
     print(f"照合結果: {edition_path}")
     print("=" * 60)
@@ -3788,6 +3871,21 @@ def print_report(edition_path, stats, stop_hits, watch_hits, dropped_inferences,
             for hit in item["hits"]:
                 print(f"    ・{item['article_id']}の推論({hit['field']}): {hit['company_name']}(当たった語: {hit['matched_word']})")
     print(f"号の遅延判定(baseline_late): {baseline_late}")
+    # 改修28第2回: 出典の本文ファイルが機械で保存されたものか(記録だけ。行の印は変えない)。
+    if source_body_check is not None:
+        labels = {
+            "machine_saved": "機械(save_source.py)で保存され、もう一度文字にした結果も一致",
+            "not_machine_saved": "記録ファイルが無い(機械で保存されたものではない)",
+            "reconvert_mismatch": "記録ファイル・元のファイル・もう一度文字にした結果のどれかが食い違った",
+            "reconvert_skipped": "道具(pdftotext)が無く、もう一度文字にできなかった",
+        }
+        print("出典の本文ファイルの確認(EDINET以外で本文を引用できる出典):")
+        for kind in SOURCE_BODY_CHECK_KINDS:
+            entry = source_body_check[kind]
+            ids = f"（{'、'.join(entry['source_ids'])}）" if entry["source_ids"] else ""
+            print(f"  ・{labels[kind]}: {entry['count']}件{ids}")
+        for detail in source_body_check["reconvert_mismatch"]["details"]:
+            print(f"    ・{detail['source_id']}: 食い違った項目 {'、'.join(detail['mismatched'])}")
     # 修正4: 本文の数字の個数とnumbersの件数の差(判定には使わない。記録のみ)。
     if number_coverage:
         print(
@@ -4120,6 +4218,8 @@ def run_verification(edition_file, hypotheses_file, cache_dir_arg, calendar_dir_
         published_date_not_found = run_check_published_date_only_required(edition, cache_dir_arg)
         record_dropped_lines(edition, known_line_ids, dropped_by, LINE_DROP_CHECK_NAMES["published_date_not_found"])
         published_at_unverified_hits, published_at_unverified_sources = run_check_published_at(edition, cache_dir_arg)
+        # 改修28第2回: 出典の本文ファイルが機械(save_source.py)で保存されたものか(記録だけ)。
+        source_body_check = run_check_source_body(edition, cache_dir_arg)
         stale_hits, unknown_published_at_hits, stale_source_hits_by_kind = run_check_e_stale_sources(edition, run_at_dt)
         record_dropped_lines(edition, known_line_ids, dropped_by, LINE_DROP_CHECK_NAMES["stale_source"])
         stale_check_skipped = 0  # run_at_dtは常に読み取れるため、判定を飛ばす理由が無い。
@@ -4446,6 +4546,11 @@ def run_verification(edition_file, hypotheses_file, cache_dir_arg, calendar_dir_
             "empty_title_or_url_refs": empty_title_or_url_refs,
             # 改修28第1回: 出典の無い「報道で見た・未確認」の行(印をunverifiedにした)。
             "reported_without_source": reported_without_source,
+            # 改修28第2回: EDINET以外のquotableの出典で本文ファイルがあるものを、機械で保存されたもの
+            # (machine_saved)・記録ファイルが無いもの(not_machine_saved)・食い違ったもの
+            # (reconvert_mismatch、detailsに食い違った項目)・道具が無くて確かめられなかったもの
+            # (reconvert_skipped)に分けた記録(記録専用。行の印は変えない)。
+            "source_body_check": source_body_check,
             # 改修27-2(S13): reportedの上段の会社のうち、relation_textが定型文と違うもの
             # (記録専用。会社は消さない)。
             "reported_relation_text_mismatch": reported_relation_text_mismatch,
@@ -4488,6 +4593,7 @@ def run_verification(edition_file, hypotheses_file, cache_dir_arg, calendar_dir_
             published_date_not_found=published_date_not_found,
             inference_company_names=inference_company_names,
             inference_company_name_check_skipped=codelist_rows is None,
+            source_body_check=source_body_check,
         )
         return 0
 

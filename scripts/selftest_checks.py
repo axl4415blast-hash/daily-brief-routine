@@ -43,6 +43,7 @@ import verify_edition as ve
 import pick_industry_companies as pic
 import build_index
 import recent_headlines as rh
+import save_source as ss
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -8888,6 +8889,457 @@ def test_kaishu28_published_at_source_timezone():
           run("2026-09-17T01:00:00", "2026年9月17日"), (0, []))
 
 
+# ---------------------------------------------------------------------------
+# 改修28第2回: 本文を保存するスクリプト(save_source.py)と、照合での記録(source_body_check)
+# ---------------------------------------------------------------------------
+
+def _kaishu28_make_pdf(lines):
+    """pdftotextで文字にできる、最小限のPDF(1ページ・Helvetica)を作る(テスト用)。"""
+    content = "BT /F1 11 Tf 50 750 Td 14 TL " + " ".join(f"({line}) Tj T*" for line in lines) + " ET"
+    objects = [
+        "<< /Type /Catalog /Pages 2 0 R >>", "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+        f"<< /Length {len(content)} >>\nstream\n{content}\nendstream",
+        "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    ]
+    out = b"%PDF-1.4\n"
+    offsets = []
+    for number, obj in enumerate(objects, start=1):
+        offsets.append(len(out))
+        out += f"{number} 0 obj\n{obj}\nendobj\n".encode("latin-1")
+    xref = len(out)
+    out += f"xref\n0 {len(objects) + 1}\n0000000000 65535 f \n".encode("ascii")
+    for offset in offsets:
+        out += f"{offset:010d} 00000 n \n".encode("ascii")
+    out += f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n".encode("ascii")
+    return out
+
+
+_KAISHU28_PDF = _kaishu28_make_pdf(["Exports rose 3.2 percent from a year earlier to 8.12 trillion yen."] * 4)
+_KAISHU28_HTML_TEXT = "輸出額は前年同月比3.2%増の8兆1,200億円となった。" * 6   # 空白を除いて100文字以上
+_KAISHU28_HTML = f"<html><head><title>t</title><style>p{{color:red}}</style></head><body><p>{_KAISHU28_HTML_TEXT}</p></body></html>"
+
+
+class _Kaishu28Fetcher:
+    """通信しない取得の関数(呼ばれたURLを記録する)。"""
+    def __init__(self, data, content_type="application/pdf", final_url=None):
+        self.data, self.content_type, self.final_url, self.calls = data, content_type, final_url, []
+
+    def __call__(self, url, policy):
+        self.calls.append(url)
+        return self.final_url or url, self.content_type, self.data
+
+
+class _kaishu28_patch:
+    """with文の間だけ、モジュールの属性を差し替える。"""
+    def __init__(self, module, name, value):
+        self.module, self.name, self.value = module, name, value
+
+    def __enter__(self):
+        self.old = getattr(self.module, self.name)
+        setattr(self.module, self.name, self.value)
+        return self
+
+    def __exit__(self, *exc):
+        setattr(self.module, self.name, self.old)
+        return False
+
+
+def _kaishu28_files(root):
+    root = Path(root)
+    return sorted(p.relative_to(root).as_posix() for p in root.rglob("*")) if root.exists() else []
+
+
+def _kaishu28_save(out_dir, url, fetcher, source_id="SRC-T"):
+    """save_sourceを呼び、(成功ならNone・失敗なら失敗の文, 戻り値)を返す。"""
+    try:
+        return None, ss.save_source(source_id, url, out_dir, fetcher=fetcher)
+    except ss.SaveSourceError as e:
+        return str(e), None
+
+
+PDF_URL = "https://www.customs.go.jp/toukei/test.pdf"
+HTML_URL = "https://www.federalreserve.gov/test.htm"
+
+
+def test_save_source_refuses_without_network():
+    """改修28第2回: 受け付けないURLは通信せずに断る。EDINETはedinet_fetch.pyを案内して断る。"""
+    for url, label in (("https://www.nippon.com/ja/news/x/", "snippet_onlyのドメイン"),
+                       ("https://www.jpx.co.jp/x.pdf", "link_onlyのドメイン"),
+                       ("https://www.jetro.go.jp/biznews/x.html", "表に無いドメイン"),
+                       ("ftp://www.customs.go.jp/x.pdf", "http・https以外"),
+                       ("https://www.customs.go.jp.evil.example/x.pdf", "似た名前の別のドメイン")):
+        with tempfile.TemporaryDirectory() as d:
+            fetcher = _Kaishu28Fetcher(_KAISHU28_PDF)
+            error, _ = _kaishu28_save(Path(d) / "out", url, fetcher)
+            check(f"save_source/受け付けない({label}): 断る・通信しない・何も残らない",
+                  (error is not None, fetcher.calls, _kaishu28_files(d)), (True, [], []))
+    for url in ("https://disclosure2.edinet-fsa.go.jp/api/v2/documents/S100XXXX?type=1",
+                "https://disclosure2dl.edinet-fsa.go.jp/searchdocument/x.pdf",
+                "https://api.edinet-fsa.go.jp/api/v2/documents.json?date=2026-09-24&type=2"):
+        with tempfile.TemporaryDirectory() as d:
+            fetcher = _Kaishu28Fetcher(_KAISHU28_PDF)
+            error, _ = _kaishu28_save(Path(d) / "out", url, fetcher)
+            check(f"save_source/EDINET({url.split('/')[2]}): edinet_fetch.pyを案内して断る・通信しない",
+                  ("edinet_fetch.py" in (error or ""), fetcher.calls, _kaishu28_files(d)), (True, [], []))
+    with tempfile.TemporaryDirectory() as d:
+        fetcher = _Kaishu28Fetcher(_KAISHU28_PDF)
+        error, _ = _kaishu28_save(Path(d) / "out", PDF_URL, fetcher, source_id="../SRC-T")
+        check("save_source/IDに「/」や「..」があれば断る・通信しない", (error is not None, fetcher.calls), (True, []))
+    with tempfile.TemporaryDirectory() as d:
+        fetcher = _Kaishu28Fetcher(_KAISHU28_HTML.encode("utf-8"), "text/html", final_url="https://www.nippon.com/redirected")
+        error, _ = _kaishu28_save(Path(d) / "out", HTML_URL, fetcher)
+        check("save_source/転送先が受け付けないドメインなら失敗にし、何も残らない",
+              (error is not None and "nippon" in error, _kaishu28_files(d)), (True, []))
+    handler = ss._make_redirect_handler(ve.load_source_policy(REPO_ROOT / "scripts" / "source_policy.csv"))()
+    try:
+        handler.redirect_request(None, None, 302, "Found", {}, "https://www.oanda.jp/x")
+        refused = False
+    except ss.SaveSourceError:
+        refused = True
+    except Exception:  # 断らずに転送の処理へ進んだ(テスト用の空の要求で止まった)
+        refused = False
+    check("save_source/転送の途中: 受け付けないドメインへの転送は、転送先へ通信する前に失敗にする", refused, True)
+
+
+def test_save_source_success_and_files():
+    """改修28第2回: 成功したら本文・元のファイル・記録ファイルを保存し、表示する値のハッシュが本文ファイルと一致する。"""
+    with tempfile.TemporaryDirectory() as d:
+        out = Path(d) / "sources"
+        now = dt.datetime(2026, 10, 1, 1, 2, 3, tzinfo=dt.timezone.utc)
+        values, meta = ss.save_source("SRC-P", PDF_URL, out, fetcher=_Kaishu28Fetcher(_KAISHU28_PDF), now=now)
+        text_bytes = (out / "SRC-P.txt").read_bytes()
+        check("save_source/PDF: 保存されるファイルは本文・元のファイル・記録ファイルの3つだけ",
+              _kaishu28_files(out), ["SRC-P.meta.json", "SRC-P.txt", "raw", "raw/SRC-P.pdf"])
+        check("save_source/PDF: 表示する値のcontent_sha256が、本文ファイルの実際のハッシュと一致する",
+              values["content_sha256"], hashlib.sha256(text_bytes).hexdigest())
+        check("save_source/PDF: 表示する値は紙面のsourcesに写す5項目(取得日時は日本時間)",
+              values, {"source_id": "SRC-P", "url": PDF_URL, "fetched_at": "2026-10-01T10:02:03+09:00",
+                       "fetch_method": "urllib", "content_sha256": hashlib.sha256(text_bytes).hexdigest()})
+        check("save_source/PDF: 本文はpdftotextで文字にしたもの(UTF-8)",
+              "Exports rose 3.2 percent" in text_bytes.decode("utf-8"), True)
+        saved_meta = json.loads((out / "SRC-P.meta.json").read_text(encoding="utf-8"))
+        check("save_source/PDF: 記録ファイルの元のファイル・本文のハッシュが実際のファイルと一致し、道具と版が書かれる",
+              (saved_meta["raw_sha256"] == hashlib.sha256((out / "raw" / "SRC-P.pdf").read_bytes()).hexdigest(),
+               saved_meta["content_sha256"] == hashlib.sha256(text_bytes).hexdigest(),
+               saved_meta["tool"], bool(saved_meta["tool_version"]), saved_meta["kind"], saved_meta["url"],
+               saved_meta["fetched_at"], saved_meta == meta),
+              (True, True, "pdftotext", True, "pdf", PDF_URL, "2026-10-01T10:02:03+09:00", True))
+        check("save_source/PDF: 記録ファイルの項目がそろう",
+              sorted(saved_meta), sorted(["source_id", "url", "final_url", "fetched_at", "fetch_method", "kind", "content_type",
+                                          "tool", "tool_version", "tool_args", "html_encoding", "raw_file", "raw_sha256",
+                                          "raw_bytes", "content_sha256", "text_chars", "replacement_chars"]))
+
+        html_bytes = _KAISHU28_HTML.encode("utf-8")
+        values, meta = ss.save_source("SRC-H", HTML_URL, out, fetcher=_Kaishu28Fetcher(html_bytes, "text/html; charset=UTF-8"))
+        text = (out / "SRC-H.txt").read_text(encoding="utf-8")
+        check("save_source/HTML: タグと<style>の中身を除いた本文を保存し、元のファイルはraw/SRC-H.html",
+              ("<p>" in text, "color:red" in text, _KAISHU28_HTML_TEXT in text, (out / "raw" / "SRC-H.html").read_bytes() == html_bytes),
+              (False, False, True, True))
+        check("save_source/HTML: 表示する値のcontent_sha256が本文ファイルのハッシュと一致する",
+              values["content_sha256"], hashlib.sha256((out / "SRC-H.txt").read_bytes()).hexdigest())
+
+    # コマンドとして: 表示されたJSONのハッシュが、ファイルの実際のハッシュと一致する
+    with tempfile.TemporaryDirectory() as d:
+        out_buf, err_buf = io.StringIO(), io.StringIO()
+        with _kaishu28_patch(ss, "fetch_url", _Kaishu28Fetcher(_KAISHU28_PDF)):
+            with contextlib.redirect_stdout(out_buf), contextlib.redirect_stderr(err_buf):
+                code = ss.main(["--id", "SRC-C", "--url", PDF_URL, "--out-dir", str(Path(d) / "o")])
+        printed = json.loads(out_buf.getvalue().split("紙面の sources に写す値:\n", 1)[1])
+        check("save_source/コマンド: 終了コード0で、表示したcontent_sha256がファイルのハッシュと一致する",
+              (code, printed["content_sha256"]), (0, hashlib.sha256((Path(d) / "o" / "SRC-C.txt").read_bytes()).hexdigest()))
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err_buf):
+            code = ss.main(["--id", "SRC-C", "--url", "https://www.nippon.com/x", "--out-dir", str(Path(d) / "o")])
+        check("save_source/コマンド: 断ったときは終了コード1", code, 1)
+
+
+def test_save_source_refuses_existing_and_leaves_nothing():
+    """改修28第2回: 同じIDのファイルが1つでもあれば断る(上書きしない)。失敗したら何も残さない。"""
+    for existing in ("SRC-T.txt", "SRC-T.meta.json", "raw/SRC-T.pdf", "raw/SRC-T.html"):
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d) / "sources"
+            (out / "raw").mkdir(parents=True)
+            (out / existing).write_bytes(b"old")
+            fetcher = _Kaishu28Fetcher(_KAISHU28_PDF)
+            error, _ = _kaishu28_save(out, PDF_URL, fetcher)
+            check(f"save_source/同じID({existing}があるとき): 断る・通信しない・元のファイルはそのまま",
+                  (error is not None, fetcher.calls, (out / existing).read_bytes(), _kaishu28_files(out)),
+                  (True, [], b"old", sorted(["raw", existing] if existing.startswith("raw/") else ["raw", existing])))
+
+    cases = [
+        ("PDFでもHTMLでもない", _Kaishu28Fetcher(b"just text, not a document" * 20, "text/plain")),
+        ("取れた文字が少なすぎる(PDF)", _Kaishu28Fetcher(_kaishu28_make_pdf(["short"]))),
+        ("壊れたPDF", _Kaishu28Fetcher(b"%PDF-1.4\nbroken")),
+    ]
+    for label, fetcher in cases:
+        with tempfile.TemporaryDirectory() as d:
+            error, _ = _kaishu28_save(Path(d) / "sources", PDF_URL, fetcher)
+            check(f"save_source/失敗({label}): 失敗になり、保存先のフォルダごと何も残らない",
+                  (error is not None, _kaishu28_files(d)), (True, []))
+
+    # 書き込みの途中(3つ目の名前付け)で失敗しても、それまでに作ったファイル・フォルダを消す
+    real_link = os.link
+    calls = []
+
+    def failing_link(src, dst):
+        calls.append(dst)
+        if len(calls) == 3:
+            raise OSError("テスト用の失敗")
+        return real_link(src, dst)
+    with tempfile.TemporaryDirectory() as d:
+        with _kaishu28_patch(ss.os, "link", failing_link):
+            try:
+                ss.save_source("SRC-T", PDF_URL, Path(d) / "sources", fetcher=_Kaishu28Fetcher(_KAISHU28_PDF))
+                raised = False
+            except OSError:
+                raised = True
+        check("save_source/書き込みの途中で失敗: 例外になり、元のファイル・本文・一時ファイル・作ったフォルダが残らない",
+              (raised, len(calls), _kaishu28_files(d)), (True, 3, []))
+    with tempfile.TemporaryDirectory() as d:
+        (Path(d) / "sources").mkdir()
+        (Path(d) / "sources" / "other.txt").write_text("x", encoding="utf-8")
+        _kaishu28_save(Path(d) / "sources", PDF_URL, _Kaishu28Fetcher(b"plain" * 50, "text/plain"))
+        check("save_source/失敗: 前からあったフォルダとファイルはそのまま残る", _kaishu28_files(d), ["sources", "sources/other.txt"])
+
+
+def test_save_source_conversion_failures():
+    """改修28第2回: pdftotextが無い・文字が少なすぎる・置き換え文字が多すぎる・文字コードが読めないHTMLは失敗。"""
+    with tempfile.TemporaryDirectory() as d:
+        with _kaishu28_patch(ss, "find_tool", lambda name: None):
+            error, _ = _kaishu28_save(Path(d) / "s", PDF_URL, _Kaishu28Fetcher(_KAISHU28_PDF))
+        check("save_source/pdftotextが無ければ失敗し、何も残らない",
+              (error is not None and "pdftotext" in error, _kaishu28_files(d)), (True, []))
+
+    def html_case(body_text, content_type="text/html; charset=utf-8", raw=None):
+        with tempfile.TemporaryDirectory() as d:
+            data = raw if raw is not None else f"<html><body><p>{body_text}</p></body></html>".encode("utf-8")
+            error, result = _kaishu28_save(Path(d) / "s", HTML_URL, _Kaishu28Fetcher(data, content_type))
+            return error, _kaishu28_files(d)
+
+    check("save_source/文字数: 空白を除いて99文字なら失敗し、何も残らない",
+          (html_case("あ" * 99 + " 　\n" * 50)[0] is not None, html_case("あ" * 99)[1]), (True, []))
+    check("save_source/文字数: 空白を除いて100文字ちょうどなら成功する", html_case("あ" * 100)[0], None)
+    check("save_source/置き換え文字: 全体(空白を除く)の1%ちょうど(200文字中2個)なら成功する",
+          html_case("あ" * 198 + "�" * 2)[0], None)
+    check("save_source/置き換え文字: 全体の1%を超える(200文字中3個)と失敗する",
+          html_case("あ" * 197 + "�" * 3)[0] is not None, True)
+    error, files = html_case(None, raw="<html><body>".encode() + ("輸出" * 80).encode("cp932") + b"</body></html>")
+    check("save_source/文字コード: 応答ヘッダーがUTF-8なのにUTF-8として読めないHTMLは失敗し(推測で読まない)、何も残らない",
+          (error is not None and "文字コード" in error, files), (True, []))
+    error, files = html_case(None, raw=("<html><body>" + "あ" * 300).encode("utf-8") + b"\xff" + b"</body></html>")
+    check("save_source/文字コード: 読めない所が1バイトだけでも(置き換え文字で読み進めず)失敗し、何も残らない",
+          (error is not None and "文字コード" in error, files), (True, []))
+    check("save_source/文字コード: 知らない文字コード名なら失敗",
+          html_case("あ" * 120, content_type="text/html; charset=x-unknown-9")[0] is not None, True)
+
+    sjis = "<html><head><meta charset=\"Shift_JIS\"></head><body>" + "輸出額は前年同月比3.2%増" * 10 + "</body></html>"
+    check("save_source/文字コード: 応答ヘッダーに無ければmetaタグ(Shift_JIS)で読む",
+          html_case(None, content_type="text/html", raw=sjis.encode("cp932"))[0], None)
+    check("save_source/文字コード: 応答ヘッダーとmetaタグが食い違えば、応答ヘッダーを使う",
+          ss.decide_html_encoding(b'<meta charset="euc-jp">', "text/html; charset=UTF-8"), ("utf-8", "header"))
+    check("save_source/文字コード: どちらにも無ければUTF-8",
+          ss.decide_html_encoding(b"<html></html>", "text/html"), ("utf-8", "default"))
+    check("save_source/文字コード: http-equivのmetaタグも読む",
+          ss.decide_html_encoding(b'<meta http-equiv="Content-Type" content="text/html; charset=EUC-JP">', None), ("euc-jp", "meta"))
+    check("save_source/種類: 先頭が%PDFならContent-Typeによらず PDF、先頭が「<」ならHTML、それ以外は失敗",
+          (ss.detect_kind(b"%PDF-1.7", "text/html"), ss.detect_kind(b"\xef\xbb\xbf  <!doctype html>", "application/octet-stream"),
+           ss.detect_kind(b"abc", "text/html; charset=utf-8")),
+          ("pdf", "html", "html"))
+    try:
+        ss.detect_kind(b"abc", "application/octet-stream")
+        refused = False
+    except ss.SaveSourceError:
+        refused = True
+    check("save_source/種類: PDFでもHTMLでもなければ失敗", refused, True)
+
+
+def test_save_source_fetch_url_limits():
+    """改修28第2回: 取得(fetch_url)は名乗り(User-Agent)・時間切れ60秒・上限50MBを守る(通信の部分を差し替えて確かめる)。"""
+    class FakeResponse:
+        def __init__(self, data, length=None):
+            self.data, self.headers = data, {"Content-Type": "application/pdf"}
+            if length is not None:
+                self.headers["Content-Length"] = str(length)
+            self.read_sizes = []
+
+        def read(self, size=-1):
+            self.read_sizes.append(size)
+            return self.data[:size] if size >= 0 else self.data
+
+        def geturl(self):
+            return PDF_URL
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+    class FakeOpener:
+        def __init__(self, response):
+            self.response, self.requests = response, []
+
+        def open(self, request, timeout=None):
+            self.requests.append((request.get_header("User-agent"), timeout))
+            return self.response
+
+    def fetch_with(response):
+        opener = FakeOpener(response)
+        with _kaishu28_patch(ss.urllib.request, "build_opener", lambda *handlers: opener):
+            try:
+                result = ss.fetch_url(PDF_URL, {})
+            except ss.SaveSourceError as e:
+                result = ("失敗", str(e))
+        return result, opener.requests
+
+    result, requests = fetch_with(FakeResponse(b"%PDF-1.4 abc"))
+    check("save_source/取得: 名乗り(User-Agent)を付け、時間切れは60秒",
+          (result[2], requests[0][0].startswith("daily-brief-routine save_source.py"), requests[0][1]), (b"%PDF-1.4 abc", True, 60))
+    with _kaishu28_patch(ss, "MAX_BYTES", 10):
+        check("save_source/取得: Content-Lengthが上限を超えれば読まずに失敗",
+              fetch_with(FakeResponse(b"x" * 5, length=11))[0][0], "失敗")
+        check("save_source/取得: Content-Lengthが無くても、上限を超えて届いたら失敗",
+              fetch_with(FakeResponse(b"x" * 11))[0][0], "失敗")
+        check("save_source/取得: 上限ちょうどなら成功", fetch_with(FakeResponse(b"x" * 10))[0][2], b"x" * 10)
+
+
+def _kaishu28_saved_cache(d, entries):
+    """entries: [(source_id, url, データ, Content-Type)]。save_sourceで保存したキャッシュのフォルダを作る。"""
+    cache = Path(d) / "cache"
+    for source_id, url, data, content_type in entries:
+        ss.save_source(source_id, url, cache, fetcher=_Kaishu28Fetcher(data, content_type))
+    return cache
+
+
+def test_source_body_check_classification():
+    """改修28第2回: 照合の記録(source_body_check)の4つの分類。記録だけで、行の印は変えない。"""
+    def edition_for(*sources):
+        return {"sources": [dict(s) for s in sources], "sections": []}
+    pdf_src = {"source_id": "SRC-P", "url": PDF_URL, "usage": "quotable"}
+    html_src = {"source_id": "SRC-H", "url": HTML_URL, "usage": "quotable"}
+
+    def run(mutate=None, sources=(pdf_src, html_src), tool_missing=False):
+        with tempfile.TemporaryDirectory() as d:
+            cache = _kaishu28_saved_cache(d, [("SRC-P", PDF_URL, _KAISHU28_PDF, "application/pdf"),
+                                              ("SRC-H", HTML_URL, _KAISHU28_HTML.encode("utf-8"), "text/html")])
+            if mutate:
+                mutate(cache)
+            edition = edition_for(*sources)
+            before = copy.deepcopy(edition)
+            if tool_missing:
+                with _kaishu28_patch(ss, "find_tool", lambda name: None):
+                    result = ve.run_check_source_body(edition, cache)
+            else:
+                result = ve.run_check_source_body(edition, cache)
+            return result, edition == before
+
+    def summary(result):
+        return {k: v["source_ids"] for k, v in result.items() if v["source_ids"]}, result["reconvert_mismatch"]["details"]
+
+    result, unchanged = run()
+    check("source_body_check/machine_saved: save_source.pyで保存したPDF・HTMLはmachine_saved",
+          (summary(result), unchanged), (({"machine_saved": ["SRC-P", "SRC-H"]}, []), True))
+    check("source_body_check/形: 4つの分類それぞれに件数と出典IDがあり、reconvert_mismatchには詳細も付く",
+          (sorted(result), sorted(result["reconvert_mismatch"]), result["machine_saved"]["count"]),
+          (sorted(ve.SOURCE_BODY_CHECK_KINDS), ["count", "details", "source_ids"], 2))
+
+    def remove_meta(cache):
+        (cache / "SRC-P.meta.json").unlink()
+    check("source_body_check/not_machine_saved: 記録ファイルが無い(AIが本文を書いた)ものはnot_machine_saved",
+          summary(run(remove_meta)[0]), ({"machine_saved": ["SRC-H"], "not_machine_saved": ["SRC-P"]}, []))
+
+    def mismatch(label, mutate, expected_items, sources=(pdf_src, html_src)):
+        result, unchanged = run(mutate, sources)
+        details = result["reconvert_mismatch"]["details"]
+        check(f"source_body_check/reconvert_mismatch({label})",
+              (result["reconvert_mismatch"]["source_ids"], [x["mismatched"] for x in details], unchanged),
+              (["SRC-P"], [expected_items], True))
+
+    def edit_text(cache):
+        (cache / "SRC-P.txt").write_text("AIが書き足した文。" + (cache / "SRC-P.txt").read_text(encoding="utf-8"), encoding="utf-8")
+    mismatch("本文を書き換えた → content_sha256", edit_text, ["content_sha256"])
+    mismatch("記録ファイルのURLと紙面のURLが違う → url", None, ["url"],
+             sources=({"source_id": "SRC-P", "url": PDF_URL + "?v=2", "usage": "quotable"}, html_src))
+
+    def edit_raw(cache):
+        (cache / "raw" / "SRC-P.pdf").write_bytes(_kaishu28_make_pdf(["Another document entirely, with other numbers 9.9."] * 4))
+    mismatch("元のファイルを差し替えた → raw_sha256", edit_raw, ["raw_sha256"])
+
+    def remove_raw(cache):
+        (cache / "raw" / "SRC-P.pdf").unlink()
+    mismatch("元のファイルが無い → raw_missing", remove_raw, ["raw_missing"])
+
+    def break_meta(cache):
+        (cache / "SRC-P.meta.json").write_text("{壊れた", encoding="utf-8")
+    mismatch("記録ファイルが読めない → meta_unreadable", break_meta, ["meta_unreadable"])
+
+    def forge_text_and_meta(cache):
+        # 本文と記録ファイルのハッシュをそろえて書き換えても、元のファイルから文字にした結果と食い違う
+        text_path = cache / "SRC-P.txt"
+        text_path.write_text(text_path.read_text(encoding="utf-8") + "\n表を見て足した文 3.2%\n", encoding="utf-8")
+        meta = json.loads((cache / "SRC-P.meta.json").read_text(encoding="utf-8"))
+        meta["content_sha256"] = hashlib.sha256(text_path.read_bytes()).hexdigest()
+        (cache / "SRC-P.meta.json").write_text(json.dumps(meta), encoding="utf-8")
+    mismatch("本文と記録ファイルをそろえて書き換えた → reconvert", forge_text_and_meta, ["reconvert"])
+
+    def broken_raw_with_meta(cache):
+        # 元のファイルと記録ファイルのハッシュをそろえて、文字にできないPDFに差し替える
+        raw = b"%PDF-1.4\nbroken"
+        (cache / "raw" / "SRC-P.pdf").write_bytes(raw)
+        meta = json.loads((cache / "SRC-P.meta.json").read_text(encoding="utf-8"))
+        meta["raw_sha256"] = hashlib.sha256(raw).hexdigest()
+        (cache / "SRC-P.meta.json").write_text(json.dumps(meta), encoding="utf-8")
+    mismatch("元のファイルをもう一度文字にできない → reconvert_failed", broken_raw_with_meta, ["reconvert_failed"])
+    result, _ = run(forge_text_and_meta)
+    check("source_body_check/reconvert: 食い違いの詳細に、保存時と今の道具の版が書かれる",
+          sorted((result["reconvert_mismatch"]["details"] or [{}])[0]), ["mismatched", "source_id", "tool_version_now", "tool_version_saved"])
+
+    result, unchanged = run(tool_missing=True)
+    check("source_body_check/reconvert_skipped: pdftotextが無ければPDFはreconvert_skipped(HTMLは道具が要らないのでmachine_saved)",
+          (summary(result), unchanged), (({"machine_saved": ["SRC-H"], "reconvert_skipped": ["SRC-P"]}, []), True))
+    result, _ = run(edit_text, tool_missing=True)
+    check("source_body_check/reconvert_skipped: 道具が無くても、ほかの食い違いがあればreconvert_mismatch",
+          summary(result)[0].get("reconvert_mismatch"), ["SRC-P"])
+
+    # 対象外: EDINET・quotable以外・本文ファイルが無い出典
+    def add_files(cache):
+        for name in ("SRC-E", "SRC-S"):
+            (cache / f"{name}.txt").write_text("本文" * 60, encoding="utf-8")
+    result, _ = run(add_files, sources=(
+        {"source_id": "SRC-E", "url": "https://disclosure2.edinet-fsa.go.jp/api/v2/documents/S100ABCD?type=1", "usage": "quotable"},
+        {"source_id": "SRC-S", "url": "https://www.nippon.com/x", "usage": "snippet_only"},
+        {"source_id": "SRC-N", "url": PDF_URL, "usage": "quotable"},
+    ))
+    check("source_body_check/対象外: EDINET・quotable以外・本文ファイルが無い出典は、どの分類にも入らない",
+          sum(v["count"] for v in result.values()), 0)
+
+    # 行の印は変えない(記録だけ): 照合全体(testdata)で、印と件数が記録の有無で変わらない
+    with tempfile.TemporaryDirectory() as d:
+        dst = Path(d) / "testdata"
+        shutil.copytree(REPO_ROOT / "scripts" / "testdata", dst)
+        edition_path, hyp_path, today_str = _rebuild_testdata_as_today_evening(REPO_ROOT / "scripts" / "testdata", dst)
+        calendar_dir = _write_temp_calendar(d, dt.datetime.strptime(today_str, "%Y-%m-%d").date(), 40)
+        result = _run_verify(d, edition_path, hyp_path, dst / "cache", calendar_dir)
+        v = json.loads(edition_path.read_text(encoding="utf-8")).get("verification") or {}
+        body = v.get("source_body_check") or {}
+        check("source_body_check/統合: testdataでは、税関のドメインのSRC-001(記録ファイル無し)だけがnot_machine_saved",
+              (result.returncode, {k: e["source_ids"] for k, e in body.items() if e["source_ids"]}),
+              (0, {"not_machine_saved": ["SRC-001"]}))
+        check("source_body_check/統合: 照合の画面表示に、本文ファイルの確認の行が出る",
+              "出典の本文ファイルの確認" in result.stdout and "記録ファイルが無い(機械で保存されたものではない): 1件（SRC-001）" in result.stdout,
+              True)
+    _assert_testdata_untouched("source_body_check/統合テスト")
+
+
+def test_save_source_import_no_cycle():
+    """改修28第2回: save_source.pyとverify_edition.pyは、どちらを先に読み込んでも動く(読み込みが循環しない)。"""
+    for first in ("save_source", "verify_edition"):
+        code = (f"import {first}; import verify_edition as ve, save_source as ss; "
+                "print(ve.run_check_source_body({'sources': []}, '.')['machine_saved']['count'], ss.MIN_TEXT_CHARS)")
+        result = subprocess.run([sys.executable, "-c", code], cwd=str(REPO_ROOT / "scripts"), capture_output=True, text=True)
+        check(f"save_source/読み込み: {first}を先に読み込んでも動く", (result.returncode, result.stdout.strip()), (0, "0 100"))
+
+
 def main():
     test_read_source_text()
     test_check_evidence_source_ref()
@@ -9081,6 +9533,15 @@ def main():
     test_kaishu28_find_mentions_accept_start_default()
     test_kaishu28_reported_without_source()
     test_kaishu28_published_at_source_timezone()
+
+    # 改修28(第2回): 本文を保存するスクリプト(save_source.py)と、照合での記録(source_body_check)のテスト。
+    test_save_source_refuses_without_network()
+    test_save_source_success_and_files()
+    test_save_source_refuses_existing_and_leaves_nothing()
+    test_save_source_conversion_failures()
+    test_save_source_fetch_url_limits()
+    test_source_body_check_classification()
+    test_save_source_import_no_cycle()
 
     total = len(results)
     passed = sum(1 for _, ok, _, _ in results if ok)
