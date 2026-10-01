@@ -282,8 +282,8 @@
        "excerpt": "（ＩＣ） 単位百万個 数量6,249 伸率4.5 価額697,209 構成比6.9 伸率56.9 増減寄与度3.0",
        "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
        "processing_note": "本サイトが同資料をもとに作成",
-       "mark": "source_number_match",
-       "mark_reason": null
+       "mark": "unverified",
+       "mark_reason": "excerpt_not_found"
       },
       {
        "line_id": "L-002-02",
@@ -305,8 +305,8 @@
        "excerpt": "7 電気機器 価額1,996,590 構成比19.9 伸率31.5 増減寄与度5.7",
        "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
        "processing_note": "本サイトが同資料をもとに作成",
-       "mark": "source_number_match",
-       "mark_reason": null
+       "mark": "unverified",
+       "mark_reason": "excerpt_not_found"
       },
       {
        "line_id": "L-002-03",
@@ -328,8 +328,8 @@
        "excerpt": "半導体等製造装置 単位トン 数量15,572 伸率43.1 価額489,764 構成比4.9 伸率40.1 増減寄与度1.7",
        "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
        "processing_note": "本サイトが同資料をもとに作成",
-       "mark": "source_number_match",
-       "mark_reason": null
+       "mark": "unverified",
+       "mark_reason": "excerpt_not_found"
       },
       {
        "line_id": "L-002-04",
@@ -346,8 +346,8 @@
        "excerpt": "半導体等製造装置 単位トン 数量1,207 伸率123.6 価額48,494 構成比2.8 伸率112.5 増減寄与度1.9",
        "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
        "processing_note": "本サイトが同資料をもとに作成",
-       "mark": "source_number_match",
-       "mark_reason": null
+       "mark": "unverified",
+       "mark_reason": "excerpt_not_found"
       },
       {
        "line_id": "L-002-05",
@@ -364,8 +364,8 @@
        "excerpt": "半導体等製造装置 単位トン 数量7,755 伸率30.8 価額194,791 構成比10.8 伸率16.3 増減寄与度1.8",
        "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
        "processing_note": "本サイトが同資料をもとに作成",
-       "mark": "source_number_match",
-       "mark_reason": null
+       "mark": "unverified",
+       "mark_reason": "excerpt_not_found"
       },
       {
        "line_id": "L-002-06",
@@ -445,8 +445,8 @@
        "excerpt": "原油及び粗油 単位千ＫＬ 数量11,594 伸率3.6 価額1,190,519 構成比10.7 伸率58.7",
        "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
        "processing_note": "本サイトが同資料をもとに作成",
-       "mark": "source_number_match",
-       "mark_reason": null
+       "mark": "unverified",
+       "mark_reason": "excerpt_not_found"
       },
       {
        "line_id": "L-003-02",
@@ -468,8 +468,8 @@
        "excerpt": "原油及び粗油 単位千ＫＬ 数量3,659 伸率603.5 価額400,477 構成比24.2 伸率1026.6",
        "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
        "processing_note": "本サイトが同資料をもとに作成",
-       "mark": "source_number_match",
-       "mark_reason": null
+       "mark": "unverified",
+       "mark_reason": "excerpt_not_found"
       },
       {
        "line_id": "L-003-03",
@@ -491,8 +491,8 @@
        "excerpt": "原油及び粗油 単位千ＫＬ 数量7,255 伸率-30.9 価額729,411 構成比84.0 伸率3.7",
        "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
        "processing_note": "本サイトが同資料をもとに作成",
-       "mark": "source_number_match",
-       "mark_reason": null
+       "mark": "unverified",
+       "mark_reason": "excerpt_not_found"
       },
       {
        "line_id": "L-003-04",
@@ -514,8 +514,8 @@
        "excerpt": "輸入 価額444,961 伸率21.0",
        "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
        "processing_note": "本サイトが同資料をもとに作成",
-       "mark": "source_number_match",
-       "mark_reason": null
+       "mark": "unverified",
+       "mark_reason": "excerpt_not_found"
       },
       {
        "line_id": "L-003-05",
@@ -537,8 +537,8 @@
        "excerpt": "輸入 価額319,548 伸率-3.1",
        "attribution": "出典：財務省「貿易統計（令和8年8月分速報）」（https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf）",
        "processing_note": "本サイトが同資料をもとに作成",
-       "mark": "source_number_match",
-       "mark_reason": null
+       "mark": "unverified",
+       "mark_reason": "excerpt_not_found"
       },
       {
        "line_id": "L-003-06",
@@ -583,8 +583,8 @@
   "script_version": "2.0.0",
   "run_at": "2026-09-20T20:12:43.736018+09:00",
   "lines_total": 24,
-  "passed": 16,
-  "unverified": 0,
+  "passed": 6,
+  "unverified": 10,
   "reported_unverified": 2,
   "explainer": 6,
   "recommendation_stop_hits": 0,
@@ -596,7 +596,9 @@
   "stale_check_skipped": 0,
   "inference_dropped": 0,
   "hypothesis_violations": 0,
-  "unverified_reasons": {},
+  "unverified_reasons": {
+   "excerpt_not_found": 10
+  },
   "ticker_crosscheck": "applied",
   "baseline_late": false,
   "source_usage_invalid_hits": 0,
@@ -624,5 +626,57 @@
    "names": []
   },
   "allowed_industries_count": 0
- }
+ },
+ "corrections": [
+  {
+   "corrected_at": "2026-10-01T23:29:13+09:00",
+   "kind": "mark_downgrade",
+   "line_ids": [
+    "L-002-01",
+    "L-002-02",
+    "L-002-03",
+    "L-002-04",
+    "L-002-05",
+    "L-003-01",
+    "L-003-02",
+    "L-003-03",
+    "L-003-04",
+    "L-003-05"
+   ],
+   "mark_before": "source_number_match",
+   "mark_after": "unverified",
+   "mark_reason": "excerpt_not_found",
+   "reason": "一次資料(SRC-005)の本文をもう一度作り直したところ、これらの行の抜き出しが見つからなかった。",
+   "method": {
+    "tool": "scripts/save_source.py",
+    "source_id": "SRC-005",
+    "source_url": "https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf",
+    "converter": "pdftotext",
+    "converter_version": "24.02.0",
+    "converter_args": "-layout -enc UTF-8",
+    "raw_sha256": "92fdd01f5c128ff16fb1a30977eea002ae76264a201b692eb23335a1d418b02c",
+    "text_sha256": "3733e62cc92b2c334aa93be459ee48b7ac73bddc38c3308b935a1172c3012e7f",
+    "text_chars": 32762,
+    "checked_at": "2026-10-01T23:28:05+09:00",
+    "excerpts_found": "SRC-005を出典とする10行のうち0行(同じ号のFRBの出典の6行は、すべて見つかった)",
+    "note": "紙面のsourcesに書かれたcontent_sha256(AIが書いた本文ファイルのハッシュ)は変えていない。"
+   },
+   "verification_changes": {
+    "passed": {
+     "before": 16,
+     "after": 6
+    },
+    "unverified": {
+     "before": 0,
+     "after": 10
+    },
+    "unverified_reasons": {
+     "before": {},
+     "after": {
+      "excerpt_not_found": 10
+     }
+    }
+   }
+  }
+ ]
 }

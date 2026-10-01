@@ -1,0 +1,292 @@
+{
+  "schema_version": "preview",
+  "edition_id": "preview-2026-10-01-evening",
+  "date": "2026-10-01",
+  "slot": "evening",
+  "generated_at": "2026-10-01T18:00:00+09:00",
+  "market_open": true,
+  "sources": [
+    {
+      "source_id": "SRC-001",
+      "publisher": "日本銀行",
+      "title": "【見本】日本銀行の公表資料（リンクの確認用）",
+      "url": "https://www.boj.or.jp/mopo/mpmdeci/mpr_2026/k260918a.pdf",
+      "view_url": null,
+      "publisher_type": "central_bank",
+      "usage": "quotable",
+      "published_at": "2026-09-18",
+      "attribution": "出典：日本銀行「【見本】日本銀行の公表資料（リンクの確認用）」（https://www.boj.or.jp/mopo/mpmdeci/mpr_2026/k260918a.pdf）"
+    }
+  ],
+  "sections": [
+    {
+      "section_id": "big",
+      "title": "大きな出来事",
+      "articles": [
+        {
+          "article_id": "ART-P-001",
+          "event_id": "EV-P-001",
+          "headline": "【見本】札の見本1：新しい資料あり（初出9/18）",
+          "followup": {
+            "is_followup": true,
+            "first_seen": "2026-09-18",
+            "first_seen_edition_id": "2026-09-18-evening",
+            "has_new_source": true
+          },
+          "lines": [
+            {
+              "line_id": "L1",
+              "text": "【見本】これは表示の確認用の文です。件数は12件（見本の数字）。",
+              "claimed_mark": "source_number_match",
+              "mark": "source_number_match",
+              "mark_reason": null,
+              "source_ref": "SRC-001",
+              "excerpt": "【見本】出典の抜き出しの見本",
+              "numbers": [
+                {
+                  "value": 12,
+                  "unit": "件"
+                }
+              ],
+              "attribution": "出典：日本銀行「【見本】日本銀行の公表資料（リンクの確認用）」（https://www.boj.or.jp/mopo/mpmdeci/mpr_2026/k260918a.pdf）"
+            },
+            {
+              "line_id": "L2",
+              "text": "【見本】印を訂正された行（1行目）。3件（見本の数字）。",
+              "claimed_mark": "source_number_match",
+              "mark": "unverified",
+              "mark_reason": "excerpt_not_found",
+              "source_ref": "SRC-001",
+              "excerpt": "【見本】出典の抜き出しの見本",
+              "numbers": [
+                {
+                  "value": 3,
+                  "unit": "件"
+                }
+              ],
+              "attribution": "出典：日本銀行「【見本】日本銀行の公表資料（リンクの確認用）」（https://www.boj.or.jp/mopo/mpmdeci/mpr_2026/k260918a.pdf）"
+            },
+            {
+              "line_id": "L3",
+              "text": "【見本】印を訂正された行（2行目）。4件（見本の数字）。",
+              "claimed_mark": "source_number_match",
+              "mark": "unverified",
+              "mark_reason": "excerpt_not_found",
+              "source_ref": "SRC-001",
+              "excerpt": "【見本】出典の抜き出しの見本",
+              "numbers": [
+                {
+                  "value": 4,
+                  "unit": "件"
+                }
+              ],
+              "attribution": "出典：日本銀行「【見本】日本銀行の公表資料（リンクの確認用）」（https://www.boj.or.jp/mopo/mpmdeci/mpr_2026/k260918a.pdf）"
+            },
+            {
+              "line_id": "L4",
+              "text": "【見本】印を訂正された行（3行目）。5件（見本の数字）。",
+              "claimed_mark": "source_number_match",
+              "mark": "unverified",
+              "mark_reason": "excerpt_not_found",
+              "source_ref": "SRC-001",
+              "excerpt": "【見本】出典の抜き出しの見本",
+              "numbers": [
+                {
+                  "value": 5,
+                  "unit": "件"
+                }
+              ],
+              "attribution": "出典：日本銀行「【見本】日本銀行の公表資料（リンクの確認用）」（https://www.boj.or.jp/mopo/mpmdeci/mpr_2026/k260918a.pdf）"
+            }
+          ],
+          "inferences": []
+        },
+        {
+          "article_id": "ART-P-002",
+          "event_id": "EV-P-002",
+          "headline": "【見本】札の見本2：前と同じ資料だけ（初出9/24）",
+          "followup": {
+            "is_followup": true,
+            "first_seen": "2026-09-24",
+            "first_seen_edition_id": "2026-09-24-evening",
+            "has_new_source": false
+          },
+          "lines": [
+            {
+              "line_id": "L5",
+              "text": "【見本】表示の確認用の文です。6件（見本の数字）。",
+              "claimed_mark": "source_number_match",
+              "mark": "source_number_match",
+              "mark_reason": null,
+              "source_ref": "SRC-001",
+              "excerpt": "【見本】出典の抜き出しの見本",
+              "numbers": [
+                {
+                  "value": 6,
+                  "unit": "件"
+                }
+              ],
+              "attribution": "出典：日本銀行「【見本】日本銀行の公表資料（リンクの確認用）」（https://www.boj.or.jp/mopo/mpmdeci/mpr_2026/k260918a.pdf）"
+            }
+          ],
+          "inferences": []
+        }
+      ]
+    },
+    {
+      "section_id": "change",
+      "title": "変化",
+      "articles": [
+        {
+          "article_id": "ART-P-003",
+          "event_id": "EV-P-003",
+          "headline": "【見本】札の見本3：初出の日付が読めない（新しい資料あり）",
+          "followup": {
+            "is_followup": true,
+            "first_seen": "日付不明",
+            "first_seen_edition_id": "日付不明-evening",
+            "has_new_source": true
+          },
+          "lines": [
+            {
+              "line_id": "L6",
+              "text": "【見本】表示の確認用の文です。",
+              "claimed_mark": "explainer",
+              "mark": "explainer",
+              "mark_reason": null,
+              "numbers": []
+            }
+          ],
+          "inferences": []
+        },
+        {
+          "article_id": "ART-P-004",
+          "event_id": "EV-P-004",
+          "headline": "【見本】札の見本4：新しい資料かどうかが真偽値でない（括弧なし）",
+          "followup": {
+            "is_followup": true,
+            "first_seen": "2026-09-20",
+            "first_seen_edition_id": "2026-09-20-evening",
+            "has_new_source": null
+          },
+          "lines": [
+            {
+              "line_id": "L7",
+              "text": "【見本】表示の確認用の文です。",
+              "claimed_mark": "explainer",
+              "mark": "explainer",
+              "mark_reason": null,
+              "numbers": []
+            }
+          ],
+          "inferences": []
+        },
+        {
+          "article_id": "ART-P-005",
+          "event_id": "EV-P-005",
+          "headline": "【見本】札の見本5：日付が長い場合（初出12/18）の幅の確認用",
+          "followup": {
+            "is_followup": true,
+            "first_seen": "2026-12-18",
+            "first_seen_edition_id": "2026-12-18-evening",
+            "has_new_source": true
+          },
+          "lines": [
+            {
+              "line_id": "L8",
+              "text": "【見本】表示の確認用の文です。",
+              "claimed_mark": "explainer",
+              "mark": "explainer",
+              "mark_reason": null,
+              "numbers": []
+            }
+          ],
+          "inferences": []
+        }
+      ]
+    },
+    {
+      "section_id": "ripple",
+      "title": "波及",
+      "articles": [
+        {
+          "article_id": "ART-P-006",
+          "event_id": "EV-P-006",
+          "headline": "【見本】続報：見出しに「続報」と書いてあるが、機械の判定は続報でない記事（札は出ない）",
+          "followup": {
+            "is_followup": false,
+            "first_seen": null,
+            "first_seen_edition_id": null,
+            "has_new_source": null
+          },
+          "lines": [
+            {
+              "line_id": "L9",
+              "text": "【見本】表示の確認用の文です。",
+              "claimed_mark": "explainer",
+              "mark": "explainer",
+              "mark_reason": null,
+              "numbers": []
+            }
+          ],
+          "inferences": []
+        }
+      ]
+    },
+    {
+      "section_id": "deep",
+      "title": "深掘り",
+      "articles": [
+        {
+          "article_id": "ART-P-007",
+          "event_id": "EV-P-007",
+          "headline": "【見本】続報の値を持たない記事（過去の号と同じ形。札は出ない）",
+          "lines": [
+            {
+              "line_id": "L10",
+              "text": "【見本】表示の確認用の文です。",
+              "claimed_mark": "explainer",
+              "mark": "explainer",
+              "mark_reason": null,
+              "numbers": []
+            }
+          ],
+          "inferences": []
+        }
+      ]
+    }
+  ],
+  "corrections": [
+    {
+      "corrected_at": "2026-10-01T23:30:00+09:00",
+      "kind": "mark_downgrade",
+      "line_ids": [
+        "L2",
+        "L3",
+        "L4"
+      ],
+      "mark_before": "source_number_match",
+      "mark_after": "unverified",
+      "mark_reason": "excerpt_not_found",
+      "reason": "【見本】この文は画面に出ません（記録の自由な文は出さず、決まった言い回しだけを出す）。"
+    },
+    {
+      "corrected_at": "2026-10-01T23:40:00+09:00",
+      "kind": "mark_downgrade",
+      "line_ids": [
+        "L2"
+      ],
+      "mark_before": "source_number_match",
+      "mark_after": "unverified",
+      "mark_reason": "unknown_reason_code",
+      "reason": "【見本】理由の種類が決まった言い回しに無い場合は、括弧なしで出ます。"
+    }
+  ],
+  "verification": {
+    "lines_total": 10,
+    "passed": 2,
+    "explainer": 6,
+    "unverified": 3,
+    "reported_unverified": 0
+  }
+}

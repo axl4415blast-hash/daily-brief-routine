@@ -190,6 +190,14 @@
     line-height:1.7;
   }
   .notice-box p{ margin:2px 0; }
+  .correction-box p + p{ margin-top:8px; }
+  /* 改修27-3の確認用(?preview=1)の帯。第2回で消す */
+  .notice-box.preview-box{
+    background:var(--warn-bg);
+    color:var(--warn);
+    border-color:var(--warn);
+    font-weight:700;
+  }
   .notice[hidden]{ display:none; }
 
   /* ============ 印の説明 ============ */
@@ -270,6 +278,8 @@
     padding:2px 8px;
     margin:0 0 6px;
   }
+  /* 札の括弧の部分は、途中で折り返さない(折り返すなら括弧の前) */
+  .followup-paren{ white-space:nowrap; }
 
   /* ============ 事実の行 ============ */
   .fact-line{
@@ -685,8 +695,10 @@
 
 <nav class="datebar wrap" id="dateBar"></nav>
 
+<div class="notice" id="previewNotice" hidden></div>
 <div class="notice" id="errorNotice" hidden></div>
 <div class="notice" id="delayNotice" hidden></div>
+<div class="notice" id="correctionNotice" hidden></div>
 
 <main class="wrap">
   <details class="mark-note">
@@ -772,6 +784,15 @@
   var COPY_BUTTON_LABEL = "質問文をコピー";
   var COPY_DONE_LABEL = "コピーしました";
 
+  // 改修28の確認用: ?preview=1 のときだけ、決まった場所(preview-28/)の見本の号を読む。
+  // 第4回で、この処理とpreview-28/を消す。
+  var PREVIEW_DIR = "preview-28/";
+  var PREVIEW_MODE = (function(){
+    try{ return new URLSearchParams(window.location.search).get("preview") === "1"; }
+    catch(e){ return false; }
+  })();
+  var INDEX_PATH = PREVIEW_MODE ? PREVIEW_DIR + "index.json" : "editions/index.json";
+
   var indexData = null;
   var currentKey = null;
 
@@ -843,10 +864,14 @@
   }
 
   // "2026-09-18" → "9/18"(続報の印の初出の日付。年は付けない)
+  // "2026-09-20" → "9/20"。形が違う・存在しない日付(2026-13-45など)は読めないものとしてnullを返す。
   function formatSlashMonthDay(s){
     var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(typeof s === "string" ? s : "");
     if(!m) return null;
-    return parseInt(m[2], 10) + "/" + parseInt(m[3], 10);
+    var y = parseInt(m[1], 10), mo = parseInt(m[2], 10), d = parseInt(m[3], 10);
+    var t = new Date(Date.UTC(y, mo - 1, d));
+    if(t.getUTCFullYear() !== y || t.getUTCMonth() !== mo - 1 || t.getUTCDate() !== d) return null;
+    return mo + "/" + d;
   }
 
   function formatHHMM(iso){
@@ -1346,18 +1371,70 @@
     return frag;
   }
 
-  // ---------- 続報の印 ----------
+  // ---------- 続報の札 ----------
   // 改修27-3(3-2): スクリプトが書いたfollowupのis_followupが真の記事だけに出す。
   // 見出しの文字(「続報：」の有無)は見ない。続報でない記事・followupが無い記事には何も出さない。
+  // 改修28(3-1): 文言を「{月/日}の号でも扱った話題（今回は新しい資料あり／前と同じ資料だけ）」にした。
+  //   ・first_seenが日付として読めなければ「以前の号でも扱った話題」
+  //   ・has_new_sourceが真偽値でなければ括弧の部分を付けない
+  // 括弧の部分は別の部品(paren)で返し、画面では途中で折り返さない指定(.followup-paren)を付ける。
+
+  function followupTagParts(followup){
+    if(!followup || typeof followup !== "object" || followup.is_followup !== true) return null;
+    var firstSeen = formatSlashMonthDay(followup.first_seen);
+    var lead = (firstSeen ? firstSeen + "の号" : "以前の号") + "でも扱った話題";
+    var paren = null;
+    if(followup.has_new_source === true) paren = "（今回は新しい資料あり）";
+    else if(followup.has_new_source === false) paren = "（前と同じ資料だけ）";
+    return { lead: lead, paren: paren };
+  }
 
   function followupTagText(followup){
-    if(!followup || typeof followup !== "object" || followup.is_followup !== true) return null;
-    var text = "続報";
-    var firstSeen = formatSlashMonthDay(followup.first_seen);
-    if(firstSeen) text += " 初出" + firstSeen;
-    if(followup.has_new_source === true) text += "（新しい出典あり）";
-    else if(followup.has_new_source === false) text += "（新しい出典なし）";
-    return text;
+    var parts = followupTagParts(followup);
+    return parts ? parts.lead + (parts.paren || "") : null;
+  }
+
+  // ---------- 訂正の1行 ----------
+  // 改修28(3-3): 号に修正の記録(corrections)があるときだけ、号の上の方に1行出す。
+  // 画面に出す文は、記録の中の日付・行の数と、下の固定の言い回しだけから作る(記録の中の自由な文は出さない。
+  // 記録は紙面を作るAIも書ける場所にあるため、出す言葉を決まった範囲に限る)。
+  var CORRECTION_REASON_TEXT = {
+    excerpt_not_found: "一次資料の本文の中に抜き出しが見つからなかったため"
+  };
+
+  function correctionNoticeTexts(ed){
+    var list = ed && Array.isArray(ed.corrections) ? ed.corrections : [];
+    var out = [];
+    list.forEach(function(c){
+      if(!c || typeof c !== "object" || c.kind !== "mark_downgrade") return;
+      var m = /^(\d{4}-\d{2}-\d{2})/.exec(typeof c.corrected_at === "string" ? c.corrected_at : "");
+      var day = m ? formatSlashMonthDay(m[1]) : null;
+      var n = Array.isArray(c.line_ids) ? c.line_ids.length : 0;
+      if(!day || n < 1) return;
+      var text = day + "にこの号の" + n + "行の印を訂正しました";
+      var reason = CORRECTION_REASON_TEXT[c.mark_reason];
+      var label = NONFACT_HEADINGS[c.mark_after];
+      if(reason && label) text += "（" + reason + "、『" + label + "』に変更）";
+      out.push(text);
+    });
+    return out;
+  }
+
+  function hideCorrectionNotice(){
+    var box = document.getElementById("correctionNotice");
+    clear(box);
+    box.hidden = true;
+  }
+
+  function renderCorrectionNotice(ed){
+    var box = document.getElementById("correctionNotice");
+    clear(box);
+    var texts = correctionNoticeTexts(ed);
+    if(texts.length === 0){ box.hidden = true; return; }
+    var inner = el("div", { class: "notice-box correction-box" });
+    texts.forEach(function(t){ inner.appendChild(el("p", { text: t })); });
+    box.appendChild(inner);
+    box.hidden = false;
   }
 
   // ---------- Claudeに聞く／質問文をコピー ----------
@@ -1501,8 +1578,13 @@
 
   function renderArticle(art, sourcesById, companyIndex, ed){
     var artEl = el("article", { class: "article" });
-    var tagText = followupTagText(art.followup);
-    if(tagText) artEl.appendChild(el("p", { class: "followup-tag", text: tagText }));
+    var tagParts = followupTagParts(art.followup);
+    if(tagParts){
+      var tagEl = el("p", { class: "followup-tag" });
+      tagEl.appendChild(document.createTextNode(tagParts.lead));
+      if(tagParts.paren) tagEl.appendChild(el("span", { class: "followup-paren", text: tagParts.paren }));
+      artEl.appendChild(tagEl);
+    }
     artEl.appendChild(el("h3", { class: "headline", text: art.headline || "" }));
 
     var lines = art.lines || [];
@@ -1851,10 +1933,23 @@
     var entry = indexData.editions.find(function(e){ return e.date === date && e.slot === slot; });
     if(!entry) return;
 
+    // 確認用(?preview=1)では、決まった場所(preview-28/)の外のファイルを読まない。
+    if(PREVIEW_MODE){
+      var outside = [entry.edition_path, entry.hypotheses_path].filter(function(p){
+        return typeof p !== "string" || p.indexOf(PREVIEW_DIR) !== 0 || p.indexOf("..") !== -1;
+      });
+      if(outside.length > 0){
+        showContentError(String(outside[0]));
+        renderFooter(null);
+        return;
+      }
+    }
+
     var main = document.getElementById("content");
     clear(main);
     main.appendChild(el("p", { class: "empty", text: "読み込み中…" }));
     hideCompaniesNotice();
+    hideCorrectionNotice();
     clear(document.getElementById("sources"));
     clear(document.getElementById("footer"));
 
@@ -1874,6 +1969,7 @@
     }
 
     if(edResult){
+      renderCorrectionNotice(edResult);
       renderContent(edResult, hyResult);
       renderSources(edResult.sources || []);
       renderFooter(edResult);
@@ -1884,12 +1980,23 @@
 
   // ---------- 起動 ----------
 
+  function renderPreviewNotice(){
+    var box = document.getElementById("previewNotice");
+    clear(box);
+    if(!PREVIEW_MODE){ box.hidden = true; return; }
+    box.appendChild(el("div", { class: "notice-box preview-box" }, [
+      el("p", { text: "確認用の見本です（実際の出来事ではありません）" })
+    ]));
+    box.hidden = false;
+  }
+
   async function init(){
+    renderPreviewNotice();
     try{
-      indexData = await fetchJson("editions/index.json?t=" + Date.now());
+      indexData = await fetchJson(INDEX_PATH + "?t=" + Date.now());
       hideFatalError();
     }catch(e){
-      showFatalError("editions/index.json", e);
+      showFatalError(INDEX_PATH, e);
       return;
     }
 
@@ -1899,7 +2006,8 @@
       return;
     }
 
-    renderDelayBanner();
+    // 見本の号では「号は作成されていません」の知らせを出さない。
+    if(!PREVIEW_MODE) renderDelayBanner();
 
     var first = indexData.editions[0];
     selectEdition(first.date, first.slot);
