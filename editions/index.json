@@ -1,6 +1,16 @@
 {
-  "generated_at": "2026-09-24T17:26:19.728184+09:00",
+  "generated_at": "2026-10-02T17:13:39.622595+09:00",
   "editions": [
+    {
+      "date": "2026-10-02",
+      "slot": "evening",
+      "edition_id": "2026-10-02-evening",
+      "generated_at": "2026-10-02T17:13:05.445338+09:00",
+      "market_open": true,
+      "hypotheses_count": 4,
+      "edition_path": "editions/2026-10-02/evening.json",
+      "hypotheses_path": "hypotheses/2026-10-02-evening.json"
+    },
     {
       "date": "2026-09-24",
       "slot": "evening",
