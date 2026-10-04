@@ -1,0 +1,1338 @@
+{
+ "schema_version": 2,
+ "edition_id": "2026-10-05-morning",
+ "date": "2026-10-05",
+ "slot": "morning",
+ "generated_at": "2026-10-05T07:41:17.244899+09:00",
+ "market_open": true,
+ "baseline": {
+  "date": "2026-10-05",
+  "price_type": "open"
+ },
+ "sources": [
+  {
+   "source_id": "SRC-EDINET-LIST",
+   "url": "https://api.edinet-fsa.go.jp/api/v2/documents.json?date=2026-10-05&type=2",
+   "publisher": "金融庁",
+   "publisher_type": "company_disclosure",
+   "title": "EDINET 書類一覧（2026年10月5日）",
+   "published_at": "2026-10-05",
+   "fetched_at": "2026-10-05T07:31:18+09:00",
+   "fetch_method": "urllib",
+   "content_sha256": "66fce2bb80d9ec0b43039c78c062484594c5e049389fe5f47403254ddaece8df",
+   "usage": "quotable",
+   "attribution": "出典：EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/）、PDL1.0（https://www.digital.go.jp/resources/open_data/public_data_license_v1.0）",
+   "processing_note": "EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/）をもとに本サイト作成",
+   "published_date_only": true,
+   "view_url": "https://disclosure2.edinet-fsa.go.jp/"
+  },
+  {
+   "source_id": "SRC-EDINET-LIST-PREV",
+   "url": "https://api.edinet-fsa.go.jp/api/v2/documents.json?date=2026-10-02&type=2",
+   "publisher": "金融庁",
+   "publisher_type": "company_disclosure",
+   "title": "EDINET 書類一覧（2026年10月2日）",
+   "published_at": "2026-10-02",
+   "fetched_at": "2026-10-05T07:31:25+09:00",
+   "fetch_method": "urllib",
+   "content_sha256": "d06250fac5b6fcdbea4f13a8ae0385b0d3cc2cb4fb379658c7ee7475a5fd125d",
+   "usage": "quotable",
+   "attribution": "出典：EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/）、PDL1.0（https://www.digital.go.jp/resources/open_data/public_data_license_v1.0）",
+   "processing_note": "EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/）をもとに本サイト作成",
+   "published_date_only": true,
+   "view_url": "https://disclosure2.edinet-fsa.go.jp/"
+  },
+  {
+   "source_id": "SRC-001",
+   "url": "https://disclosure2.edinet-fsa.go.jp/api/v2/documents/S100Z5WC?type=1",
+   "publisher": "株式会社ＩＮＰＥＸ",
+   "publisher_type": "company_disclosure",
+   "title": "発行登録追補書類（株券､社債券等）（株式会社ＩＮＰＥＸ）",
+   "published_at": "2026-10-02T10:24:00+09:00",
+   "fetched_at": "2026-10-05T07:32:45+09:00",
+   "fetch_method": "urllib",
+   "content_sha256": "54fcacf1ac3482c5cc21fe2116a02e11bdfc873f550855a4ce1685ff91cdd8fe",
+   "usage": "quotable",
+   "attribution": "出典：EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z5WC）、PDL1.0（https://www.digital.go.jp/resources/open_data/public_data_license_v1.0）",
+   "processing_note": "EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z5WC）をもとに本サイト作成",
+   "published_date_only": false,
+   "view_url": "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z5WC"
+  },
+  {
+   "source_id": "SRC-002",
+   "url": "https://disclosure2.edinet-fsa.go.jp/api/v2/documents/S100Z5MY?type=1",
+   "publisher": "第一三共株式会社",
+   "publisher_type": "company_disclosure",
+   "title": "発行登録追補書類（株券､社債券等）（第一三共株式会社）",
+   "published_at": "2026-10-02T10:27:00+09:00",
+   "fetched_at": "2026-10-05T07:32:52+09:00",
+   "fetch_method": "urllib",
+   "content_sha256": "b655ea177bc5cf111c5098e6396ae82664ae0f78b196af91b9b40ead88eedebb",
+   "usage": "quotable",
+   "attribution": "出典：EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z5MY）、PDL1.0（https://www.digital.go.jp/resources/open_data/public_data_license_v1.0）",
+   "processing_note": "EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z5MY）をもとに本サイト作成",
+   "published_date_only": false,
+   "view_url": "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z5MY"
+  },
+  {
+   "source_id": "SRC-003",
+   "url": "https://disclosure2.edinet-fsa.go.jp/api/v2/documents/S100Z5MI?type=1",
+   "publisher": "エーザイ株式会社",
+   "publisher_type": "company_disclosure",
+   "title": "臨時報告書（エーザイ株式会社）",
+   "published_at": "2026-10-02T15:35:00+09:00",
+   "fetched_at": "2026-10-05T07:32:58+09:00",
+   "fetch_method": "urllib",
+   "content_sha256": "3e59cbcc664710c5ef822d55968b5f0e8951aab4efc5fe8c37b72262405ca7ae",
+   "usage": "quotable",
+   "attribution": "出典：EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z5MI）、PDL1.0（https://www.digital.go.jp/resources/open_data/public_data_license_v1.0）",
+   "processing_note": "EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z5MI）をもとに本サイト作成",
+   "published_date_only": false,
+   "view_url": "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z5MI"
+  },
+  {
+   "source_id": "SRC-004",
+   "url": "https://disclosure2.edinet-fsa.go.jp/api/v2/documents/S100Z5OD?type=1",
+   "publisher": "ＮＩＰＰＯＮ　ＥＸＰＲＥＳＳホールディングス株式会社",
+   "publisher_type": "company_disclosure",
+   "title": "臨時報告書（ＮＩＰＰＯＮ　ＥＸＰＲＥＳＳホールディングス株式会社）",
+   "published_at": "2026-10-02T15:39:00+09:00",
+   "fetched_at": "2026-10-05T07:33:03+09:00",
+   "fetch_method": "urllib",
+   "content_sha256": "054d5010c73605eb5cf66081eceb5793e46b7c7b207a4cbc1d16b103ef537102",
+   "usage": "quotable",
+   "attribution": "出典：EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z5OD）、PDL1.0（https://www.digital.go.jp/resources/open_data/public_data_license_v1.0）",
+   "processing_note": "EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z5OD）をもとに本サイト作成",
+   "published_date_only": false,
+   "view_url": "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z5OD"
+  },
+  {
+   "source_id": "SRC-009",
+   "url": "https://www.mof.go.jp/policy/international_policy/reference/feio/data/monthly/20260930.html",
+   "publisher": "財務省",
+   "publisher_type": "government_statistics",
+   "title": "外国為替平衡操作の実施状況(令和8年8月27日～令和8年9月28日)",
+   "published_at": "2026-09-30",
+   "fetched_at": "2026-10-05T07:34:51+09:00",
+   "fetch_method": "urllib",
+   "content_sha256": "4bfcacdd6d294a2b5cbf49afb5de11b3dd03b2fb024f1be4c92e15bd5d8bc52f",
+   "usage": "quotable",
+   "attribution": "出典：財務省「外国為替平衡操作の実施状況(令和8年8月27日～令和8年9月28日)」（https://www.mof.go.jp/policy/international_policy/reference/feio/data/monthly/20260930.html）",
+   "processing_note": "財務省「外国為替平衡操作の実施状況(令和8年8月27日～令和8年9月28日)」（https://www.mof.go.jp/policy/international_policy/reference/feio/data/monthly/20260930.html）をもとに本サイト作成",
+   "published_date_only": true,
+   "view_url": null
+  },
+  {
+   "source_id": "SRC-010",
+   "url": "https://www.boj.or.jp/about/calendar/index.htm",
+   "publisher": "日本銀行",
+   "publisher_type": "central_bank",
+   "title": "公表予定",
+   "published_at": "2026-10-02",
+   "fetched_at": "2026-10-05T07:34:52+09:00",
+   "fetch_method": "urllib",
+   "content_sha256": "40a9ceb053f6c13978ccc83fa8b62f570aec5496c7f3c3852157e64448a8d009",
+   "usage": "quotable",
+   "attribution": "出典：日本銀行「公表予定」（https://www.boj.or.jp/about/calendar/index.htm）",
+   "processing_note": "日本銀行「公表予定」（https://www.boj.or.jp/about/calendar/index.htm）をもとに本サイト作成",
+   "published_date_only": true,
+   "view_url": null
+  },
+  {
+   "source_id": "SRC-012",
+   "url": "https://www.boj.or.jp/mopo/mpmdeci/mpr_2026/mpr260930a.pdf",
+   "publisher": "日本銀行",
+   "publisher_type": "central_bank",
+   "title": "長期国債買入れ（利回り・価格入札方式）の四半期予定（2026年10～12月）",
+   "published_at": "2026-09-30",
+   "fetched_at": "2026-10-05T07:34:53+09:00",
+   "fetch_method": "urllib",
+   "content_sha256": "7184f27cd7c0b86655257ca94dfe99858423c9883599c549784ea1e07baf4182",
+   "usage": "quotable",
+   "attribution": "出典：日本銀行「長期国債買入れ（利回り・価格入札方式）の四半期予定（2026年10～12月）」（https://www.boj.or.jp/mopo/mpmdeci/mpr_2026/mpr260930a.pdf）",
+   "processing_note": "日本銀行「長期国債買入れ（利回り・価格入札方式）の四半期予定（2026年10～12月）」（https://www.boj.or.jp/mopo/mpmdeci/mpr_2026/mpr260930a.pdf）をもとに本サイト作成",
+   "published_date_only": true,
+   "view_url": null
+  },
+  {
+   "source_id": "SRC-014",
+   "url": "https://www.gaitame.com/media/entry/2026/10/04/060300",
+   "publisher": "外為どっとコム",
+   "publisher_type": "other",
+   "title": "外為どっとコムの検索結果（2026-10-05）",
+   "published_at": null,
+   "fetched_at": "2026-10-05T07:37:21+09:00",
+   "fetch_method": "websearch_snippet",
+   "content_sha256": "bbad8df1a13b3956cb4e75cd2eb2734bb1fedc0087c74d7085c8516ff9b26251",
+   "usage": "snippet_only",
+   "attribution": "出典：外為どっとコム「外為どっとコムの検索結果（2026-10-05）」（https://www.gaitame.com/media/entry/2026/10/04/060300）",
+   "processing_note": "外為どっとコム「外為どっとコムの検索結果（2026-10-05）」（https://www.gaitame.com/media/entry/2026/10/04/060300）をもとに本サイト作成",
+   "published_date_only": false,
+   "view_url": null
+  },
+  {
+   "source_id": "SRC-015",
+   "url": "https://www.gaitame.com/media/entry/2026/10/04/060300",
+   "publisher": "外為どっとコム",
+   "publisher_type": "other",
+   "title": "外為どっとコムの検索結果（2026-10-05）",
+   "published_at": null,
+   "fetched_at": "2026-10-05T07:36:55+09:00",
+   "fetch_method": "websearch_snippet",
+   "content_sha256": "204cb31e4b501d446bf0908c8f8d5b7c760e02850d1640e27238d35b71b5293f",
+   "usage": "snippet_only",
+   "attribution": "出典：外為どっとコム「外為どっとコムの検索結果（2026-10-05）」（https://www.gaitame.com/media/entry/2026/10/04/060300）",
+   "processing_note": "外為どっとコム「外為どっとコムの検索結果（2026-10-05）」（https://www.gaitame.com/media/entry/2026/10/04/060300）をもとに本サイト作成",
+   "published_date_only": false,
+   "view_url": null
+  },
+  {
+   "source_id": "SRC-016",
+   "url": "https://www.gaitame.com/media/entry/2026/10/04/060300",
+   "publisher": "外為どっとコム",
+   "publisher_type": "other",
+   "title": "外為どっとコムの検索結果（2026-10-05）",
+   "published_at": null,
+   "fetched_at": "2026-10-05T07:39:08+09:00",
+   "fetch_method": "websearch_snippet",
+   "content_sha256": "69c79768ce190217bdcc8a622cb9e1cf6d840dd86edee74325a336e927615489",
+   "usage": "snippet_only",
+   "attribution": "出典：外為どっとコム「外為どっとコムの検索結果（2026-10-05）」（https://www.gaitame.com/media/entry/2026/10/04/060300）",
+   "processing_note": "外為どっとコム「外為どっとコムの検索結果（2026-10-05）」（https://www.gaitame.com/media/entry/2026/10/04/060300）をもとに本サイト作成",
+   "published_date_only": false,
+   "view_url": null
+  },
+  {
+   "source_id": "SRC-019",
+   "url": "https://www.boj.or.jp/statistics/market/forex/fxdaily/fxlist/fx261002.pdf",
+   "publisher": "日本銀行",
+   "publisher_type": "central_bank",
+   "title": "外国為替市況（10月2日）",
+   "published_at": "2026-10-02",
+   "fetched_at": "2026-10-05T07:39:33+09:00",
+   "fetch_method": "urllib",
+   "content_sha256": "79e8671cbcaa5c24463a4eb31b5e2269dbdf3237723254ea56be3d80e952fb21",
+   "usage": "quotable",
+   "attribution": "出典：日本銀行「外国為替市況（10月2日）」（https://www.boj.or.jp/statistics/market/forex/fxdaily/fxlist/fx261002.pdf）",
+   "processing_note": "日本銀行「外国為替市況（10月2日）」（https://www.boj.or.jp/statistics/market/forex/fxdaily/fxlist/fx261002.pdf）をもとに本サイト作成",
+   "published_date_only": true,
+   "view_url": null
+  }
+ ],
+ "sections": [
+  {
+   "section_id": "big",
+   "title": "大きな出来事",
+   "articles": [
+    {
+     "article_id": "ART-2026-10-05-001",
+     "event_id": "EVT-2026-10-05-001",
+     "headline": "今週の日本銀行の日程：総裁の挨拶、地域経済報告、月末の会合",
+     "lines": [
+      {
+       "line_id": "L-001-01",
+       "text": "報道によると、日本銀行は9月の会合で政策金利を1.25%に引き上げたが、次の利上げの時期をめぐる市場の見方は定まっていない。",
+       "claimed_mark": "reported_unverified",
+       "numbers": [
+        {
+         "value": 1.25,
+         "unit": "%",
+         "label": "政策金利"
+        }
+       ],
+       "source_ref": "SRC-015",
+       "excerpt": null,
+       "attribution": "出典：外為どっとコム「外為どっとコムの検索結果（2026-10-05）」（https://www.gaitame.com/media/entry/2026/10/04/060300）",
+       "processing_note": "外為どっとコム「外為どっとコムの検索結果（2026-10-05）」（https://www.gaitame.com/media/entry/2026/10/04/060300）をもとに本サイト作成",
+       "mark": "reported_unverified",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-001-02",
+       "text": "日本銀行の公表予定によると、5日（月）14時に、需給ギャップと潜在成長率などの指標が公表される。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 5,
+         "unit": "日",
+         "label": "日付（公表日）"
+        },
+        {
+         "value": 14,
+         "unit": "時",
+         "label": "日付（公表の時刻）"
+        }
+       ],
+       "source_ref": "SRC-010",
+       "excerpt": "10月 5日（月） 8:50 ○ ● 日銀当座預金増減要因（10月見込み） 14:00 ○ ● 需給ギャップ・潜在成長率および労働需給関連指標",
+       "attribution": "出典：日本銀行「公表予定」（https://www.boj.or.jp/about/calendar/index.htm）",
+       "processing_note": "日本銀行「公表予定」（https://www.boj.or.jp/about/calendar/index.htm）をもとに本サイト作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-001-03",
+       "text": "同じ公表予定では、6日（火）15時35分に、日本銀行の総裁が全国証券大会で挨拶をする。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 6,
+         "unit": "日",
+         "label": "日付（挨拶の日）"
+        }
+       ],
+       "source_ref": "SRC-010",
+       "excerpt": "6日（火） 15:35 ○ 【挨拶】",
+       "attribution": "出典：日本銀行「公表予定」（https://www.boj.or.jp/about/calendar/index.htm）",
+       "processing_note": "日本銀行「公表予定」（https://www.boj.or.jp/about/calendar/index.htm）をもとに本サイト作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-001-04",
+       "text": "8日（木）14時には、各地域の景気の様子をまとめた「地域経済報告（10月）」が公表される予定である。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 8,
+         "unit": "日",
+         "label": "日付（公表日）"
+        },
+        {
+         "value": 14,
+         "unit": "時",
+         "label": "日付（公表の時刻）"
+        }
+       ],
+       "source_ref": "SRC-010",
+       "excerpt": "8日（木） 8:50 ○ ● 業種別・地域別直接投資（4～6月期） 14:00 ○ ● 地域経済報告（10月）",
+       "attribution": "出典：日本銀行「公表予定」（https://www.boj.or.jp/about/calendar/index.htm）",
+       "processing_note": "日本銀行「公表予定」（https://www.boj.or.jp/about/calendar/index.htm）をもとに本サイト作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-001-05",
+       "text": "次の金融政策決定会合は、10月29日と30日に開かれる予定である。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 29,
+         "unit": "日",
+         "label": "日付（会合の1日目）"
+        },
+        {
+         "value": 30,
+         "unit": "日",
+         "label": "日付（会合の2日目）"
+        }
+       ],
+       "source_ref": "SRC-010",
+       "excerpt": "次回政策委員会・金融政策決定会合の日程 2026年10月29日（木）、30日（金）",
+       "attribution": "出典：日本銀行「公表予定」（https://www.boj.or.jp/about/calendar/index.htm）",
+       "processing_note": "日本銀行「公表予定」（https://www.boj.or.jp/about/calendar/index.htm）をもとに本サイト作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-001-06",
+       "text": "日本銀行が9月30日に公表した予定では、10月に長期国債を買い入れる月間の金額は合計2兆3000億円である。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 23000,
+         "unit": "億円",
+         "label": "10月の長期国債買入れの月間オファー金額の合計"
+        }
+       ],
+       "source_ref": "SRC-012",
+       "excerpt": "計 23,000",
+       "attribution": "出典：日本銀行「長期国債買入れ（利回り・価格入札方式）の四半期予定（2026年10～12月）」（https://www.boj.or.jp/mopo/mpmdeci/mpr_2026/mpr260930a.pdf）",
+       "processing_note": "日本銀行「長期国債買入れ（利回り・価格入札方式）の四半期予定（2026年10～12月）」（https://www.boj.or.jp/mopo/mpmdeci/mpr_2026/mpr260930a.pdf）をもとに本サイト作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-001-07",
+       "text": "報道によると、米国の連邦公開市場委員会（FOMC）の議事要旨で、追加の利上げがどの程度議論されたかにも関心が集まっている。",
+       "claimed_mark": "reported_unverified",
+       "numbers": [],
+       "source_ref": "SRC-014",
+       "excerpt": null,
+       "attribution": "出典：外為どっとコム「外為どっとコムの検索結果（2026-10-05）」（https://www.gaitame.com/media/entry/2026/10/04/060300）",
+       "processing_note": "外為どっとコム「外為どっとコムの検索結果（2026-10-05）」（https://www.gaitame.com/media/entry/2026/10/04/060300）をもとに本サイト作成",
+       "mark": "reported_unverified",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-001-08",
+       "text": "政策金利が上がると、銀行が貸し出しに付ける金利も上がりやすい。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "source_ref": null,
+       "excerpt": null,
+       "attribution": null,
+       "processing_note": null,
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-001-09",
+       "text": "日本銀行が国債を買い入れる量を減らすと、長い期間の金利には上がる方向の力が働きやすい。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "source_ref": null,
+       "excerpt": null,
+       "attribution": null,
+       "processing_note": null,
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-001-10",
+       "text": "地域経済報告は、日本銀行の支店などが、地域ごとの景気の様子を報告した内容をまとめた資料である。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "source_ref": null,
+       "excerpt": null,
+       "attribution": null,
+       "processing_note": null,
+       "mark": "explainer",
+       "mark_reason": null
+      }
+     ],
+     "inferences": [
+      {
+       "inference_id": "INF-2026-10-05-001-1",
+       "text": "総裁の挨拶で追加の利上げに前向きな見方が示されれば、銀行業の貸出金利や、借入の多い不動産業の資金調達の費用に関心が向く可能性がある。",
+       "falsifier": "10月29・30日の会合で政策金利が据え置かれ、次の利上げの時期についての手がかりも示されなければ、この見方は当てはまらない。",
+       "check_metric": "日本銀行 10月29・30日の金融政策決定会合の公表文（政策金利）",
+       "check_by": "2026-10-30"
+      }
+     ],
+     "followup": {
+      "is_followup": false,
+      "first_seen": null,
+      "first_seen_edition_id": null,
+      "has_new_source": null
+     }
+    }
+   ]
+  },
+  {
+   "section_id": "change",
+   "title": "新しい変化",
+   "articles": []
+  },
+  {
+   "section_id": "ripple",
+   "title": "波及を追う",
+   "articles": [
+    {
+     "article_id": "ART-2026-10-05-002",
+     "event_id": "EVT-2026-10-05-002",
+     "headline": "利上げのあとの社債の利率：資源と医薬品の大手が発行条件を届け出（法定書類から）",
+     "lines": [
+      {
+       "line_id": "L-002-01",
+       "text": "社債は、会社が投資家からお金を借りるために出す債券で、決めた利率で利息を払い、期限が来たら元本を返す。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "source_ref": null,
+       "excerpt": null,
+       "attribution": null,
+       "processing_note": null,
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-02",
+       "text": "INPEXが10月2日に提出した書類によると、同社の社債3本のうち、2年債の第7回社債の発行額は206億円である。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 2,
+         "unit": "年",
+         "label": "社債の期間"
+        },
+        {
+         "value": 7,
+         "unit": "回",
+         "label": "社債の回号"
+        },
+        {
+         "value": 20600,
+         "unit": "百万円",
+         "label": "第7回社債の発行価額の総額"
+        }
+       ],
+       "source_ref": "SRC-001",
+       "excerpt": "（２年債）】 銘柄 株式会社INPEX第７回無担保社債（社債間限定同順位特約付） 記名・無記名の別 － 券面総額又は振替社債の総額（円） 金20,600百万円",
+       "attribution": "出典：EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z5WC）、PDL1.0（https://www.digital.go.jp/resources/open_data/public_data_license_v1.0）",
+       "processing_note": "EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z5WC）をもとに本サイト作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-03",
+       "text": "INPEXの発行額206億円の社債の利率は、年2.21%である。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 20600,
+         "unit": "百万円",
+         "label": "社債の発行価額の総額"
+        },
+        {
+         "value": 2.21,
+         "unit": "%",
+         "label": "社債の利率"
+        }
+       ],
+       "source_ref": "SRC-001",
+       "excerpt": "金20,600百万円 発行価格（円） 各社債の金額100円につき金100円 利率（％） 年2.210％",
+       "attribution": "出典：EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z5WC）、PDL1.0（https://www.digital.go.jp/resources/open_data/public_data_license_v1.0）",
+       "processing_note": "EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z5WC）をもとに本サイト作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-04",
+       "text": "INPEXの発行額169億円の社債の利率は、年2.38%である。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 16900,
+         "unit": "百万円",
+         "label": "社債の発行価額の総額"
+        },
+        {
+         "value": 2.38,
+         "unit": "%",
+         "label": "社債の利率"
+        }
+       ],
+       "source_ref": "SRC-001",
+       "excerpt": "金16,900百万円 発行価格（円） 各社債の金額100円につき金100円 利率（％） 年2.380％",
+       "attribution": "出典：EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z5WC）、PDL1.0（https://www.digital.go.jp/resources/open_data/public_data_license_v1.0）",
+       "processing_note": "EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z5WC）をもとに本サイト作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-05",
+       "text": "INPEXの発行額125億円の社債の利率は、年2.721%である。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 12500,
+         "unit": "百万円",
+         "label": "社債の発行価額の総額"
+        },
+        {
+         "value": 2.721,
+         "unit": "%",
+         "label": "社債の利率"
+        }
+       ],
+       "source_ref": "SRC-001",
+       "excerpt": "金12,500百万円 発行価格（円） 各社債の金額100円につき金100円 利率（％） 年2.721％",
+       "attribution": "出典：EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z5WC）、PDL1.0（https://www.digital.go.jp/resources/open_data/public_data_license_v1.0）",
+       "processing_note": "EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z5WC）をもとに本サイト作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-06",
+       "text": "INPEXの3本のうち、発行額125億円の第9回社債は5年債である。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 5,
+         "unit": "年",
+         "label": "社債の期間"
+        },
+        {
+         "value": 9,
+         "unit": "回",
+         "label": "社債の回号"
+        },
+        {
+         "value": 12500,
+         "unit": "百万円",
+         "label": "第9回社債の発行価額の総額"
+        }
+       ],
+       "source_ref": "SRC-001",
+       "excerpt": "（５年債）】 銘柄 株式会社INPEX第９回無担保社債（社債間限定同順位特約付） 記名・無記名の別 － 券面総額又は振替社債の総額（円） 金12,500百万円",
+       "attribution": "出典：EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z5WC）、PDL1.0（https://www.digital.go.jp/resources/open_data/public_data_license_v1.0）",
+       "processing_note": "EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z5WC）をもとに本サイト作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-07",
+       "text": "第一三共が同じ日に提出した書類では、3年債の第11回社債の発行額は370億円である。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 3,
+         "unit": "年",
+         "label": "社債の期間"
+        },
+        {
+         "value": 11,
+         "unit": "回",
+         "label": "社債の回号"
+        },
+        {
+         "value": 37000,
+         "unit": "百万円",
+         "label": "第11回社債の発行価額の総額"
+        }
+       ],
+       "source_ref": "SRC-002",
+       "excerpt": "（３年債）】 銘柄 第一三共株式会社第11回無担保社債（社債間限定同順位特約付） 記名・無記名の別 － 券面総額又は振替社債の総額（円） 金37,000百万円",
+       "attribution": "出典：EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z5MY）、PDL1.0（https://www.digital.go.jp/resources/open_data/public_data_license_v1.0）",
+       "processing_note": "EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z5MY）をもとに本サイト作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-08",
+       "text": "第一三共の発行額370億円の社債の利率は、年2.41%である。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 37000,
+         "unit": "百万円",
+         "label": "社債の発行価額の総額"
+        },
+        {
+         "value": 2.41,
+         "unit": "%",
+         "label": "社債の利率"
+        }
+       ],
+       "source_ref": "SRC-002",
+       "excerpt": "金37,000百万円 発行価格（円） 各社債の金額100円につき金100円 利率（％） 年2.410％",
+       "attribution": "出典：EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z5MY）、PDL1.0（https://www.digital.go.jp/resources/open_data/public_data_license_v1.0）",
+       "processing_note": "EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z5MY）をもとに本サイト作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-09",
+       "text": "第一三共の発行額450億円の社債の利率は、年2.821%である。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 45000,
+         "unit": "百万円",
+         "label": "社債の発行価額の総額"
+        },
+        {
+         "value": 2.821,
+         "unit": "%",
+         "label": "社債の利率"
+        }
+       ],
+       "source_ref": "SRC-002",
+       "excerpt": "金45,000百万円 発行価格（円） 各社債の金額100円につき金100円 利率（％） 年2.821％",
+       "attribution": "出典：EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z5MY）、PDL1.0（https://www.digital.go.jp/resources/open_data/public_data_license_v1.0）",
+       "processing_note": "EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z5MY）をもとに本サイト作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-10",
+       "text": "第一三共の発行額340億円の社債の利率は、年3.161%である。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 34000,
+         "unit": "百万円",
+         "label": "社債の発行価額の総額"
+        },
+        {
+         "value": 3.161,
+         "unit": "%",
+         "label": "社債の利率"
+        }
+       ],
+       "source_ref": "SRC-002",
+       "excerpt": "金34,000百万円 発行価格（円） 各社債の金額100円につき金100円 利率（％） 年3.161％",
+       "attribution": "出典：EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z5MY）、PDL1.0（https://www.digital.go.jp/resources/open_data/public_data_license_v1.0）",
+       "processing_note": "EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z5MY）をもとに本サイト作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-11",
+       "text": "第一三共の3本のうち、発行額340億円の第13回社債は7年債である。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 7,
+         "unit": "年",
+         "label": "社債の期間"
+        },
+        {
+         "value": 13,
+         "unit": "回",
+         "label": "社債の回号"
+        },
+        {
+         "value": 34000,
+         "unit": "百万円",
+         "label": "第13回社債の発行価額の総額"
+        }
+       ],
+       "source_ref": "SRC-002",
+       "excerpt": "（７年債）】 銘柄 第一三共株式会社第13回無担保社債（社債間限定同順位特約付） 記名・無記名の別 － 券面総額又は振替社債の総額（円） 金34,000百万円",
+       "attribution": "出典：EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z5MY）、PDL1.0（https://www.digital.go.jp/resources/open_data/public_data_license_v1.0）",
+       "processing_note": "EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z5MY）をもとに本サイト作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-12",
+       "text": "一般に、お金を返すまでの期間が長い社債ほど、利率は高く決められやすい。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "source_ref": null,
+       "excerpt": null,
+       "attribution": null,
+       "processing_note": null,
+       "mark": "explainer",
+       "mark_reason": null
+      }
+     ],
+     "inferences": [
+      {
+       "inference_id": "INF-2026-10-05-002-1",
+       "text": "政策金利が上がった局面では、社債でお金を集める会社の利払いの負担が増え、借入の多い業種ほど利益への影響が大きくなる可能性がある。",
+       "falsifier": "今後3か月に届け出られる同じくらいの期間の社債の利率が、今回の水準より低くなれば、この見方は弱まる。",
+       "check_metric": "EDINETの発行登録追補書類に書かれる社債の利率（2年〜7年債）",
+       "check_by": "2026-12-30"
+      }
+     ],
+     "followup": {
+      "is_followup": false,
+      "first_seen": null,
+      "first_seen_edition_id": null,
+      "has_new_source": null
+     }
+    },
+    {
+     "article_id": "ART-2026-10-05-003",
+     "event_id": "EVT-2026-10-05-003",
+     "headline": "海外子会社からの配当と、カナダの物流会社をめぐる子会社の異動（法定書類から）",
+     "lines": [
+      {
+       "line_id": "L-003-01",
+       "text": "臨時報告書は、会社に大きな出来事があったときに、法律に基づいて提出する書類である。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "source_ref": null,
+       "excerpt": null,
+       "attribution": null,
+       "processing_note": null,
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-02",
+       "text": "エーザイは10月2日に提出した臨時報告書で、連結子会社のEisai Europe Ltd.から剰余金の配当1億5000万ポンドを受け取ることになったと届け出た。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 150,
+         "unit": "百万ポンド",
+         "label": "子会社からの剰余金の配当"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "当社は、連結子会社であるEisai Europe Ltd.より、剰余金の配当150百万ポンドを受領することとなりました。",
+       "attribution": "出典：EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z5MI）、PDL1.0（https://www.digital.go.jp/resources/open_data/public_data_license_v1.0）",
+       "processing_note": "EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z5MI）をもとに本サイト作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-03",
+       "text": "受取配当金は約312億円で、2027年3月期の個別決算で営業外収益として計上する予定である。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 312,
+         "unit": "億円",
+         "label": "受取配当金"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "受取配当金約312億円（※）を営業外収益として計上する予定です。",
+       "attribution": "出典：EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z5MI）、PDL1.0（https://www.digital.go.jp/resources/open_data/public_data_license_v1.0）",
+       "processing_note": "EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z5MI）をもとに本サイト作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-04",
+       "text": "連結子会社からの配当のため、2027年3月期の連結業績への影響はないとしている。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 2027,
+         "unit": "年",
+         "label": "日付（決算期の年）"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "連結子会社からの配当であるため、2027年３月期の連結業績に与える影響はありません。",
+       "attribution": "出典：EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z5MI）、PDL1.0（https://www.digital.go.jp/resources/open_data/public_data_license_v1.0）",
+       "processing_note": "EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z5MI）をもとに本サイト作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-05",
+       "text": "円への換算には1ポンド＝208.11円を使っており、実際の入金日の為替レートで影響額は変わるとしている。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 208.11,
+         "unit": "円",
+         "label": "換算に使った1ポンドあたりの円"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "１ポンド＝208.11円にて換算しています。実際の入金日の為替レートにより、影響額は変動します。",
+       "attribution": "出典：EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z5MI）、PDL1.0（https://www.digital.go.jp/resources/open_data/public_data_license_v1.0）",
+       "processing_note": "EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z5MI）をもとに本サイト作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-06",
+       "text": "NIPPON EXPRESSホールディングスは臨時報告書で、カナダに設立した特別目的会社に18億カナダドルを増資し、この会社が特定子会社になったと届け出た。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 1800000000,
+         "unit": "カナダドル",
+         "label": "特別目的会社への増資額"
+        }
+       ],
+       "source_ref": "SRC-004",
+       "excerpt": "同社に1,800,000,000カナダドルの増資をしたことにより、同社の資本金の額が、当社の資本金の額の100分の10以上に相当し",
+       "attribution": "出典：EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z5OD）、PDL1.0（https://www.digital.go.jp/resources/open_data/public_data_license_v1.0）",
+       "processing_note": "EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z5OD）をもとに本サイト作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-07",
+       "text": "同じ書類では、1カナダドル＝115円で円に換算している。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 115,
+         "unit": "円",
+         "label": "換算に使った1カナダドルあたりの円"
+        }
+       ],
+       "source_ref": "SRC-004",
+       "excerpt": "*1カナダドル＝115円で換算。",
+       "attribution": "出典：EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z5OD）、PDL1.0（https://www.digital.go.jp/resources/open_data/public_data_license_v1.0）",
+       "processing_note": "EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z5OD）をもとに本サイト作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-08",
+       "text": "同じ書類には、カナダで3PL（物流業務の一括受託）事業を営む、資本金2億6636万4千カナダドルのMetro Supply Chain Group Inc.も、異動の対象の会社として書かれている。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 266364,
+         "unit": "千カナダドル",
+         "label": "Metro Supply Chain Group Inc.の資本金"
+        }
+       ],
+       "source_ref": "SRC-004",
+       "excerpt": "資本金の額 266,364千カナダドル（30,632百万円*） 事業の内容 3PL（サードパーティ・ロジスティクス）事業",
+       "attribution": "出典：EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z5OD）、PDL1.0（https://www.digital.go.jp/resources/open_data/public_data_license_v1.0）",
+       "processing_note": "EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z5OD）をもとに本サイト作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-09",
+       "text": "外国の通貨で受け取ったり払ったりするお金は、円に換えるときの為替レートによって、円での金額が変わる。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "source_ref": null,
+       "excerpt": null,
+       "attribution": null,
+       "processing_note": null,
+       "mark": "explainer",
+       "mark_reason": null
+      }
+     ],
+     "inferences": [
+      {
+       "inference_id": "INF-2026-10-05-003-1",
+       "text": "円安が続けば、海外に子会社を持つ医薬品や物流の会社では、海外から受け取る配当の円での金額がふくらむ一方、海外への投資に必要な円の金額も大きくなる可能性がある。",
+       "falsifier": "円相場が1ドル150円より円高の水準に動けば、円に換えた金額は小さくなり、この見方は当てはまりにくくなる。",
+       "check_metric": "日本銀行 外国為替市況（ドル／円の17時時点のレート）",
+       "check_by": "2026-12-30"
+      }
+     ],
+     "followup": {
+      "is_followup": false,
+      "first_seen": null,
+      "first_seen_edition_id": null,
+      "has_new_source": null
+     }
+    }
+   ]
+  },
+  {
+   "section_id": "deep",
+   "title": "深掘り",
+   "articles": [
+    {
+     "article_id": "ART-2026-10-05-004",
+     "event_id": "EVT-2026-10-05-004",
+     "headline": "為替介入の仕組みと、9月までの実績",
+     "lines": [
+      {
+       "line_id": "L-004-01",
+       "text": "財務省は9月30日、8月27日から9月28日までの為替介入（外国為替平衡操作）の額が0円だったと公表した。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 27,
+         "unit": "日",
+         "label": "日付（期間の始まり）"
+        },
+        {
+         "value": 28,
+         "unit": "日",
+         "label": "日付（期間の終わり）"
+        },
+        {
+         "value": 0,
+         "unit": "円",
+         "label": "外国為替平衡操作額"
+        }
+       ],
+       "source_ref": "SRC-009",
+       "excerpt": "令和8年8月27日～令和8年9月28日における外国為替平衡操作額 0円",
+       "attribution": "出典：財務省「外国為替平衡操作の実施状況(令和8年8月27日～令和8年9月28日)」（https://www.mof.go.jp/policy/international_policy/reference/feio/data/monthly/20260930.html）",
+       "processing_note": "財務省「外国為替平衡操作の実施状況(令和8年8月27日～令和8年9月28日)」（https://www.mof.go.jp/policy/international_policy/reference/feio/data/monthly/20260930.html）をもとに本サイト作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-02",
+       "text": "日本銀行の外国為替市況によると、10月2日17時時点のドル／円の相場は157.57〜59円だった。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 157.57,
+         "unit": "円",
+         "label": "10月2日17時時点のドル／円（買値側）"
+        }
+       ],
+       "source_ref": "SRC-019",
+       "excerpt": "17:00時点 157.57-59",
+       "attribution": "出典：日本銀行「外国為替市況（10月2日）」（https://www.boj.or.jp/statistics/market/forex/fxdaily/fxlist/fx261002.pdf）",
+       "processing_note": "日本銀行「外国為替市況（10月2日）」（https://www.boj.or.jp/statistics/market/forex/fxdaily/fxlist/fx261002.pdf）をもとに本サイト作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-03",
+       "text": "同じ日の9時時点の相場は157.93〜95円だった。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 157.93,
+         "unit": "円",
+         "label": "10月2日9時時点のドル／円"
+        }
+       ],
+       "source_ref": "SRC-019",
+       "excerpt": "9:00時点 157.93-95",
+       "attribution": "出典：日本銀行「外国為替市況（10月2日）」（https://www.boj.or.jp/statistics/market/forex/fxdaily/fxlist/fx261002.pdf）",
+       "processing_note": "日本銀行「外国為替市況（10月2日）」（https://www.boj.or.jp/statistics/market/forex/fxdaily/fxlist/fx261002.pdf）をもとに本サイト作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-04",
+       "text": "報道によると、今週のドル／円の予想の範囲は155.50〜159.00円とされている。",
+       "claimed_mark": "reported_unverified",
+       "numbers": [
+        {
+         "value": 155.5,
+         "unit": "円",
+         "label": "予想の下限"
+        },
+        {
+         "value": 159.0,
+         "unit": "円",
+         "label": "予想の上限"
+        }
+       ],
+       "source_ref": "SRC-016",
+       "excerpt": null,
+       "attribution": "出典：外為どっとコム「外為どっとコムの検索結果（2026-10-05）」（https://www.gaitame.com/media/entry/2026/10/04/060300）",
+       "processing_note": "外為どっとコム「外為どっとコムの検索結果（2026-10-05）」（https://www.gaitame.com/media/entry/2026/10/04/060300）をもとに本サイト作成",
+       "mark": "reported_unverified",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-05",
+       "text": "為替介入は、通貨当局が為替相場に影響を与えるために、外国為替市場で通貨を売り買いすることで、正式には外国為替平衡操作という。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "source_ref": null,
+       "excerpt": null,
+       "attribution": null,
+       "processing_note": null,
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-06",
+       "text": "日本では、為替介入は財務大臣の権限で行われ、日本銀行が代理人として実際の売り買いをする。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "source_ref": null,
+       "excerpt": null,
+       "attribution": null,
+       "processing_note": null,
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-07",
+       "text": "急な円安に対応するときは、国が持つドルを売って円を買う。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "source_ref": null,
+       "excerpt": null,
+       "attribution": null,
+       "processing_note": null,
+       "mark": "explainer",
+       "mark_reason": null
+      }
+     ],
+     "inferences": [
+      {
+       "inference_id": "INF-2026-10-05-004-1",
+       "text": "円安がさらに進んで為替介入が行われれば、輸出の多い輸送用機器や電気機器の業種で、円に換えた売上の見通しが変わる可能性がある。",
+       "falsifier": "9月29日以降の分の公表でも介入額が0円で、ドル／円が155〜159円の範囲にとどまれば、この見方は当てはまらない。",
+       "check_metric": "財務省 外国為替平衡操作の実施状況（9月29日以降の月次分）",
+       "check_by": "2026-11-02"
+      }
+     ],
+     "followup": {
+      "is_followup": false,
+      "first_seen": null,
+      "first_seen_edition_id": null,
+      "has_new_source": null
+     }
+    }
+   ]
+  }
+ ],
+ "baseline_late": false,
+ "verification": {
+  "script_version": "2.0.0",
+  "run_at": "2026-10-05T07:41:17.244899+09:00",
+  "first_run": {
+   "run_at": "2026-10-05T07:41:17.244899+09:00",
+   "baseline_late": false,
+   "market_open_reported": null,
+   "source_policy_overwritten": 13,
+   "generated_at_reported": null,
+   "generated_at_parsed": false,
+   "generated_at_drift_minutes": null,
+   "hypotheses_generated_at_reported": null,
+   "hypotheses_generated_at_parsed": false,
+   "hypotheses_generated_at_drift_minutes": null
+  },
+  "lines_total": 38,
+  "passed": 25,
+  "unverified": 0,
+  "reported_unverified": 3,
+  "explainer": 10,
+  "recommendation_stop_hits": 0,
+  "recommendation_stop_removed": 0,
+  "recommendation_warn_hits": 0,
+  "recommendation_warnings": [],
+  "stale_source_hits": 0,
+  "stale_source_hits_by_kind": {
+   "timed": 0,
+   "date_only": 0
+  },
+  "unknown_published_at_hits": 0,
+  "stale_check_skipped": 0,
+  "inference_dropped": 0,
+  "inference_company_name_removed": {
+   "count": 0,
+   "removed": []
+  },
+  "inference_company_name_check_skipped": false,
+  "hypothesis_violations": 0,
+  "unverified_reasons": {},
+  "ticker_crosscheck": "applied",
+  "edinet_doclist_partial": [],
+  "edinet_published_at_overwritten": 6,
+  "edinet_other_url_hits": 0,
+  "edinet_doc_files": {
+   "SRC-001": {
+    "files": [
+     "XBRL/PublicDoc/0101010_honbun_jpcrp120000-rep-001_E00043-000_2026-10-02_01_2026-10-02_ixbrl.htm",
+     "XBRL/PublicDoc/0000000_header_jpcrp120000-rep-001_E00043-000_2026-10-02_01_2026-10-02_ixbrl.htm"
+    ],
+    "fallback": false
+   },
+   "SRC-002": {
+    "files": [
+     "XBRL/PublicDoc/0101010_honbun_jpcrp120000-rep-001_E00984-000_2026-10-02_01_2026-10-02_ixbrl.htm",
+     "XBRL/PublicDoc/0000000_header_jpcrp120000-rep-001_E00984-000_2026-10-02_01_2026-10-02_ixbrl.htm"
+    ],
+    "fallback": false
+   },
+   "SRC-003": {
+    "files": [
+     "XBRL/PublicDoc/0100010_honbun_jpcrp050300-esr-001_E00939-000_2026-10-02_01_2026-10-02_ixbrl.htm",
+     "XBRL/PublicDoc/0000000_header_jpcrp050300-esr-001_E00939-000_2026-10-02_01_2026-10-02_ixbrl.htm"
+    ],
+    "fallback": false
+   },
+   "SRC-004": {
+    "files": [
+     "XBRL/PublicDoc/0101010_honbun_jpcrp050300-esr-001_E36706-000_2026-10-02_01_2026-10-02_ixbrl.htm",
+     "XBRL/PublicDoc/0000000_header_jpcrp050300-esr-001_E36706-000_2026-10-02_01_2026-10-02_ixbrl.htm"
+    ],
+    "fallback": false
+   }
+  },
+  "edinet_view_url_count": 6,
+  "attribution_overwritten": 41,
+  "attribution_generation_skipped": 0,
+  "baseline_late": false,
+  "slot_expected": "morning",
+  "slot_mismatch": false,
+  "source_usage_invalid_hits": 0,
+  "source_policy_applied": true,
+  "source_policy_overwritten": 13,
+  "source_policy_unlisted_domains": [
+   "www.gaitame.com"
+  ],
+  "market_open_source": "calendar",
+  "market_open_overwritten": true,
+  "market_open_reported": null,
+  "codelist_unavailable": false,
+  "baseline_date_check_skipped": 0,
+  "evidence_filer_name_overridden": 4,
+  "evidence_doc_type_overridden": 4,
+  "impact_kind_overridden": 0,
+  "impact_kind_source_counts": {
+   "edinet_doctype_unmapped": 4
+  },
+  "impact_kind_undetermined_by_doc_type": {
+   "100": 2,
+   "180": 2
+  },
+  "edinet_url_unparsed": 0,
+  "edinet_doclist_unavailable": false,
+  "horizon_overridden": 4,
+  "deadline_uncomputable": 0,
+  "horizon_recount_mismatch": 0,
+  "horizon_recount_skipped": 0,
+  "tob_side_subject_code_missing": 0,
+  "check11_removed": [],
+  "name_match_stage": {
+   "raw": 2,
+   "nfkc": 2,
+   "match_name": 0
+  },
+  "check11_longer_name_check_skipped": 0,
+  "check37_removed": [],
+  "field_type_invalid_removed": [],
+  "industry_pick_field_type_invalid_removed": [],
+  "published_date_not_found": {
+   "count": 0,
+   "source_ids": [],
+   "reasons": {},
+   "dropped_line_ids": []
+  },
+  "published_at_unverified_hits": 0,
+  "published_at_unverified_sources": [],
+  "sources_published_at_null": {
+   "count": 3,
+   "source_ids": [
+    "SRC-014",
+    "SRC-015",
+    "SRC-016"
+   ]
+  },
+  "number_coverage": {
+   "text_number_tokens": 82,
+   "numbers_declared": 47,
+   "gap": 35,
+   "by_mark": {
+    "reported_unverified": {
+     "text_number_tokens": 4,
+     "numbers_declared": 3
+    },
+    "source_number_match": {
+     "text_number_tokens": 78,
+     "numbers_declared": 44
+    },
+    "explainer": {
+     "text_number_tokens": 0,
+     "numbers_declared": 0
+    }
+   }
+  },
+  "rerun_detected": false,
+  "date_only_number_lines": {
+   "count": 5,
+   "line_ids": [
+    "L-001-02",
+    "L-001-03",
+    "L-001-04",
+    "L-001-05",
+    "L-003-04"
+   ]
+  },
+  "self_declared_unverified": {
+   "count": 0,
+   "line_ids": []
+  },
+  "banned_word_hits": [],
+  "speculative_word_counts": {
+   "relation_text": {
+    "恩恵": 0,
+    "見込まれる": 0,
+    "意識される": 0,
+    "なりやすい": 0
+   },
+   "impact_reason": {
+    "恩恵": 0,
+    "見込まれる": 0,
+    "意識される": 0,
+    "なりやすい": 0
+   }
+  },
+  "change_verified_lines_by_section": {
+   "big": 5,
+   "change": 0,
+   "ripple": 17,
+   "deep": 3
+  },
+  "recent_headlines_failed": false,
+  "published_date_only_sources": {
+   "count": 6,
+   "source_ids": [
+    "SRC-EDINET-LIST",
+    "SRC-EDINET-LIST-PREV",
+    "SRC-009",
+    "SRC-010",
+    "SRC-012",
+    "SRC-019"
+   ]
+  },
+  "empty_title_or_url_refs": {
+   "count": 0,
+   "line_ids": []
+  },
+  "reported_without_source": {
+   "count": 0,
+   "line_ids": []
+  },
+  "source_body_check": {
+   "machine_saved": {
+    "count": 4,
+    "source_ids": [
+     "SRC-009",
+     "SRC-010",
+     "SRC-012",
+     "SRC-019"
+    ]
+   },
+   "not_machine_saved": {
+    "count": 0,
+    "source_ids": []
+   },
+   "reconvert_mismatch": {
+    "count": 0,
+    "source_ids": [],
+    "details": []
+   },
+   "reconvert_skipped": {
+    "count": 0,
+    "source_ids": []
+   }
+  },
+  "reported_relation_text_mismatch": {
+   "count": 0,
+   "hypothesis_ids": []
+  },
+  "recent_editions_index_unavailable": false,
+  "recent_editions_unreadable": [],
+  "cross_edition_duplicates": {
+   "count": 0,
+   "duplicates": []
+  },
+  "followup_counts": {
+   "followup": 0,
+   "not_followup": 4
+  },
+  "followup_without_new_source": {
+   "count": 0,
+   "article_ids": []
+  },
+  "url_normalized_matches": {
+   "count": 0,
+   "matches": []
+  },
+  "followup_headline_mismatch": {
+   "count": 0,
+   "articles": []
+  },
+  "industry_picks_discarded": 0,
+  "industry_picks_total": 1,
+  "industry_examples_total": 1,
+  "industry_example_violations": {
+   "total": 0,
+   "reasons": {}
+  },
+  "ai_written_examples_discarded": 0,
+  "slot_violations": {
+   "total": 0,
+   "reasons": {}
+  },
+  "short_name_match_count": {
+   "count": 0,
+   "names": []
+  },
+  "allowed_industries_count": 30,
+  "legacy_substring_rule_dropped": {
+   "count": 0,
+   "names": []
+  },
+  "generic_name_dropped": {
+   "count": 0,
+   "names": []
+  }
+ }
+}

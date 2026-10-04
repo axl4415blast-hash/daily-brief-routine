@@ -1,0 +1,195 @@
+{
+ "schema_version": 3,
+ "edition_id": "2026-10-05-morning",
+ "generated_at": "2026-10-05T07:41:17.244899+09:00",
+ "market_open": true,
+ "baseline_late": false,
+ "hypotheses": [
+  {
+   "hypothesis_id": "2026-10-05-morning-1",
+   "event_id": "EVT-2026-10-05-002",
+   "company_name": "株式会社ＩＮＰＥＸ",
+   "ticker": "1605",
+   "ticker_source": "edinet_seccode",
+   "article_id": "ART-2026-10-05-002",
+   "line_ids": [
+    "L-002-02"
+   ],
+   "evidence_grade": "primary",
+   "evidence_source_ref": "SRC-001",
+   "evidence_filer_name": "株式会社ＩＮＰＥＸ",
+   "evidence_doc_type": "発行登録追補書類（株券､社債券等）",
+   "evidence_role": "filer_self",
+   "impact_kind": null,
+   "impact_reason": "発行登録追補書類（株券､社債券等）。本文に第7回社債の発行価額の総額を20,600百万円とすると書かれている。",
+   "news_entity": null,
+   "entity_relation": "same",
+   "relation_text": "株式会社ＩＮＰＥＸは、社債の発行条件を記した発行登録追補書類を自ら提出した発行者という立場にある。",
+   "auto_check_target": false,
+   "added_by": "auto",
+   "baseline_date": "2026-10-05",
+   "baseline_price_type": "open",
+   "baseline_observed_at": null,
+   "baseline_benchmark_price": null,
+   "baseline_benchmark_observed_at": null,
+   "baseline_late_input": false,
+   "horizon_business_days": 20,
+   "deadline_date": "2026-11-04",
+   "links": {
+    "price_history": "https://finance.yahoo.co.jp/quote/1605.T/history",
+    "disclosure_search": "https://www.release.tdnet.info/inbs/I_main_00.html"
+   },
+   "impact_kind_source": "edinet_doctype_unmapped",
+   "tob_side": null,
+   "duplicate_of": null
+  },
+  {
+   "hypothesis_id": "2026-10-05-morning-2",
+   "event_id": "EVT-2026-10-05-002",
+   "company_name": "第一三共株式会社",
+   "ticker": "4568",
+   "ticker_source": "edinet_seccode",
+   "article_id": "ART-2026-10-05-002",
+   "line_ids": [
+    "L-002-07"
+   ],
+   "evidence_grade": "primary",
+   "evidence_source_ref": "SRC-002",
+   "evidence_filer_name": "第一三共株式会社",
+   "evidence_doc_type": "発行登録追補書類（株券､社債券等）",
+   "evidence_role": "filer_self",
+   "impact_kind": null,
+   "impact_reason": "発行登録追補書類（株券､社債券等）。本文に第11回社債の発行価額の総額を37,000百万円とすると書かれている。",
+   "news_entity": null,
+   "entity_relation": "same",
+   "relation_text": "第一三共株式会社は、社債の発行条件を記した発行登録追補書類を自ら提出した発行者という立場にある。",
+   "auto_check_target": false,
+   "added_by": "auto",
+   "baseline_date": "2026-10-05",
+   "baseline_price_type": "open",
+   "baseline_observed_at": null,
+   "baseline_benchmark_price": null,
+   "baseline_benchmark_observed_at": null,
+   "baseline_late_input": false,
+   "horizon_business_days": 20,
+   "deadline_date": "2026-11-04",
+   "links": {
+    "price_history": "https://finance.yahoo.co.jp/quote/4568.T/history",
+    "disclosure_search": "https://www.release.tdnet.info/inbs/I_main_00.html"
+   },
+   "impact_kind_source": "edinet_doctype_unmapped",
+   "tob_side": null,
+   "duplicate_of": null
+  },
+  {
+   "hypothesis_id": "2026-10-05-morning-3",
+   "event_id": "EVT-2026-10-05-003",
+   "company_name": "エーザイ株式会社",
+   "ticker": "4523",
+   "ticker_source": "edinet_seccode",
+   "article_id": "ART-2026-10-05-003",
+   "line_ids": [
+    "L-003-02"
+   ],
+   "evidence_grade": "primary",
+   "evidence_source_ref": "SRC-003",
+   "evidence_filer_name": "エーザイ株式会社",
+   "evidence_doc_type": "臨時報告書",
+   "evidence_role": "filer_self",
+   "impact_kind": null,
+   "impact_reason": "臨時報告書。本文に連結子会社から剰余金の配当150百万ポンドを受領すると書かれている。",
+   "news_entity": null,
+   "entity_relation": "same",
+   "relation_text": "エーザイ株式会社は、連結子会社からの配当の受領について臨時報告書を自ら提出した会社という立場にある。",
+   "auto_check_target": false,
+   "added_by": "auto",
+   "baseline_date": "2026-10-05",
+   "baseline_price_type": "open",
+   "baseline_observed_at": null,
+   "baseline_benchmark_price": null,
+   "baseline_benchmark_observed_at": null,
+   "baseline_late_input": false,
+   "horizon_business_days": 20,
+   "deadline_date": "2026-11-04",
+   "links": {
+    "price_history": "https://finance.yahoo.co.jp/quote/4523.T/history",
+    "disclosure_search": "https://www.release.tdnet.info/inbs/I_main_00.html"
+   },
+   "impact_kind_source": "edinet_doctype_unmapped",
+   "tob_side": null,
+   "duplicate_of": null
+  },
+  {
+   "hypothesis_id": "2026-10-05-morning-4",
+   "event_id": "EVT-2026-10-05-003",
+   "company_name": "ＮＩＰＰＯＮ　ＥＸＰＲＥＳＳホールディングス株式会社",
+   "ticker": "9147",
+   "ticker_source": "edinet_seccode",
+   "article_id": "ART-2026-10-05-003",
+   "line_ids": [
+    "L-003-06"
+   ],
+   "evidence_grade": "primary",
+   "evidence_source_ref": "SRC-004",
+   "evidence_filer_name": "ＮＩＰＰＯＮ　ＥＸＰＲＥＳＳホールディングス株式会社",
+   "evidence_doc_type": "臨時報告書",
+   "evidence_role": "filer_self",
+   "impact_kind": null,
+   "impact_reason": "臨時報告書。本文に特別目的会社へ1,800,000,000カナダドルの増資をしたと書かれている。",
+   "news_entity": null,
+   "entity_relation": "same",
+   "relation_text": "ＮＩＰＰＯＮ　ＥＸＰＲＥＳＳホールディングス株式会社は、特定子会社の異動について臨時報告書を自ら提出した会社という立場にある。",
+   "auto_check_target": false,
+   "added_by": "auto",
+   "baseline_date": "2026-10-05",
+   "baseline_price_type": "open",
+   "baseline_observed_at": null,
+   "baseline_benchmark_price": null,
+   "baseline_benchmark_observed_at": null,
+   "baseline_late_input": false,
+   "horizon_business_days": 20,
+   "deadline_date": "2026-11-04",
+   "links": {
+    "price_history": "https://finance.yahoo.co.jp/quote/9147.T/history",
+    "disclosure_search": "https://www.release.tdnet.info/inbs/I_main_00.html"
+   },
+   "impact_kind_source": "edinet_doctype_unmapped",
+   "tob_side": null,
+   "duplicate_of": null
+  }
+ ],
+ "industry_picks": [
+  {
+   "article_id": "ART-2026-10-05-001",
+   "event_id": "EVT-2026-10-05-001",
+   "industry": "銀行業",
+   "industry_line_ids": [
+    "L-001-01"
+   ]
+  }
+ ],
+ "industry_examples": [
+  {
+   "example_id": "2026-10-05-morning-x1",
+   "article_id": "ART-2026-10-05-001",
+   "event_id": "EVT-2026-10-05-001",
+   "industry": "銀行業",
+   "line_ids": [
+    "L-001-01"
+   ],
+   "company_name": "株式会社ゆうちょ銀行",
+   "ticker": "7182",
+   "ticker_source": "edinet_codelist",
+   "news_entity": null,
+   "entity_relation": "same",
+   "evidence_grade": "inferred",
+   "selection_rule": "capital_rank",
+   "impact_kind": null,
+   "relation_text": "東証33業種の「銀行業」に属する上場企業の例です。この業種で資本金がもっとも大きい会社から順に、機械が選んでいます。",
+   "industry_source": "edinet_codelist",
+   "industry_retrieved_date": "2026-10-05",
+   "attribution": "出典：EDINET閲覧（提出）サイト EDINETコードリスト（https://disclosure2dl.edinet-fsa.go.jp/searchdocument/codelist/Edinetcode.zip）、PDL1.0（https://www.digital.go.jp/resources/open_data/public_data_license_v1.0）（2026年10月5日に取得）",
+   "processing_note": "EDINET閲覧（提出）サイトをもとに本サイト作成（上場区分が「上場」の行を抽出し、証券コードの末尾0を除いた）"
+  }
+ ]
+}
