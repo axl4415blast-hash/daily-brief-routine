@@ -317,6 +317,296 @@ def read_source_body_for_checks(cache_path, source):
     return raw_text
 
 
+# ---------------------------------------------------------------------------
+# 改修29第1回: 出典の本文を「1行」に区切る関数と、1行の中で数字を確かめる関数。
+# normalize_text()・_WS_RE・find_number()は変えない(日付の検索・記録の数え方・今あるテストが使うため)。
+# ---------------------------------------------------------------------------
+
+# 普通の文字の本文(PDFをpdftotextで文字にしたもの等)の1行の区切り。改行(\n・\r\n・\r)と
+# 改ページ(\f)で分ける。改ページは、この1行の判定でだけ改行として扱う(normalize_text()では消さない)。
+_SOURCE_LINE_SPLIT_RE = re.compile(r"\r\n|[\r\n\f]")
+
+# HTMLの区切りで「文中のタグ」として扱う(区切りにしない)タグ。これ以外のタグ(p・div・h1〜h6・
+# td・li・br など)は区切りにする。ix:で始まるタグ(EDINETのiXBRLの値の札)も文中のタグとして扱う。
+_HTML_INLINE_TAG_NAMES = frozenset({
+    "span", "a", "b", "i", "u", "s", "sub", "sup", "font", "em", "strong", "small", "big",
+    "abbr", "code", "ruby", "rt", "rp", "wbr", "img", "label", "nobr",
+})
+_HTML_TAG_NAME_RE = re.compile(r"<\s*(/?)\s*([A-Za-z][A-Za-z0-9:._-]*)")
+
+
+def split_html_lines(html_text):
+    """HTML(タグ入り)を「1行」の区切りのリストにする(事前調査R2-2の作り方)。
+    ①<style>・<script>を消す ②文中のタグ(_HTML_INLINE_TAG_NAMES・ix:〜)は区切りにしない
+    ③<tr>〜</tr>の中は区切らない(入れ子の表も外側の行に含める) ④それ以外のブロックのタグと
+    <br>で区切る。タグの見分け方はstrip_html_tags()と同じ正規表現を使うので、区切りを
+    つなげ直すとstrip_html_tags()の結果と同じ文字になる(呼び出し側で確かめる)。"""
+    text = _HTML_STYLE_SCRIPT_RE.sub("", html_text or "")
+    units = []
+    current = []
+    tr_depth = 0
+    pos = 0
+    for m in _HTML_TAG_RE.finditer(text):
+        if m.start() > pos:
+            current.append(text[pos:m.start()])
+        pos = m.end()
+        name_match = _HTML_TAG_NAME_RE.match(m.group())
+        if not name_match:
+            continue
+        name = name_match.group(2).lower()
+        closing = name_match.group(1) == "/"
+        self_closing = m.group().rstrip(">").rstrip().endswith("/")
+        if name.startswith("ix:") or name in _HTML_INLINE_TAG_NAMES:
+            continue
+        if name == "tr":
+            if closing:
+                tr_depth = max(0, tr_depth - 1)
+                if tr_depth == 0 and current:
+                    units.append("".join(current))
+                    current = []
+            elif not self_closing:
+                if tr_depth == 0 and current:
+                    units.append("".join(current))
+                    current = []
+                tr_depth += 1
+            continue
+        if tr_depth > 0:
+            continue
+        if current:
+            units.append("".join(current))
+            current = []
+    if pos < len(text):
+        current.append(text[pos:])
+    if current:
+        units.append("".join(current))
+    return [html.unescape(u) for u in units]
+
+
+def _normalize_for_line_join(text):
+    """区切りをつなげ直した文字と照合の本文を比べるときのそろえ方。normalize_text()と同じ
+    そろえ方に、改ページ(\f)を消すことだけを足す(\fは1行の判定で改行として扱い、区切りの
+    印として取り除くため。normalize_text()は改行を消すが\fは消さない)。"""
+    return normalize_text((text or "").replace("\f", ""))
+
+
+def _read_raw_html_for_lines(cache_path):
+    """EDINET以外のHTMLの出典について、{id}.meta.jsonのkindがhtmlで、raw/{id}.htmlが
+    あれば、save_source.pyと同じ決め方の文字コードで読んだHTMLを返す。
+    戻り値: (HTMLの文字 or None, 読めなかった理由 or None)。元のファイルが無い・
+    記録ファイルが無い/htmlでない場合は(None, None)(本文の改行で分ける)。"""
+    cache_path = Path(cache_path)
+    source_id = cache_path.stem
+    meta_path = cache_path.parent / f"{source_id}.meta.json"
+    raw_path = cache_path.parent / "raw" / f"{source_id}.html"
+    if not meta_path.is_file() or not raw_path.is_file():
+        return None, None
+    try:
+        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return None, None
+    if not isinstance(meta, dict) or meta.get("kind") != "html":
+        return None, None
+    # save_source.pyはこのファイルを読み込むため、ここで(呼ばれたときに)読み込む(循環を避ける)。
+    import save_source
+    try:
+        data = raw_path.read_bytes()
+        encoding, _found_in = save_source.decide_html_encoding(data, meta.get("content_type"))
+        return data.decode("utf-8-sig" if encoding in ("utf-8", "utf8") else encoding), None
+    except (OSError, LookupError, UnicodeDecodeError):
+        return None, "raw_html_unreadable"
+
+
+def split_source_lines(cache_path, source, body_text=None):
+    """出典の本文を「1行」のリストに区切る。
+    ・EDINET(is_edinet_domain): キャッシュの{id}.txt(タグ入りのHTML)からsplit_html_lines()で区切る。
+    ・EDINET以外のHTML: {id}.meta.jsonのkindがhtmlでraw/{id}.htmlがあれば、そこから同じ作り方で
+      区切る。元のファイルが無ければ、本文の改行で分ける。
+    ・PDF・普通の文字の本文: 改行(\n・\r\n・\r)と改ページ(\f)で分ける。
+    区切りをつなげ直した文字が、照合の本文(read_source_body_for_checks()の結果)と
+    _normalize_for_line_join()のそろえ方の後で1文字も違わないことを確かめ、違えば区切らない。
+    戻り値: (行のリスト, None) か (None, 区切れなかった理由)。"""
+    if body_text is None:
+        body_text = read_source_body_for_checks(cache_path, source)
+    if body_text is None:
+        return None, "source_unreadable"
+    if is_edinet_domain((source or {}).get("url")):
+        raw_text = read_source_text(cache_path)
+        if raw_text is None:
+            return None, "source_unreadable"
+        lines = split_html_lines(raw_text)
+    else:
+        raw_html, problem = _read_raw_html_for_lines(cache_path)
+        if problem:
+            return None, problem
+        if raw_html is not None:
+            lines = split_html_lines(raw_html)
+        else:
+            lines = _SOURCE_LINE_SPLIT_RE.split(body_text)
+    if _normalize_for_line_join("".join(lines)) != _normalize_for_line_join(body_text):
+        return None, "join_mismatch"
+    return lines, None
+
+
+def find_excerpt_lines(lines, excerpt_norm):
+    """抜き出し(normalize_text()でそろえた後)が丸ごと入る行の番号(0始まり)のリスト。"""
+    return [i for i, seg in enumerate(lines) if excerpt_norm in normalize_text(seg)]
+
+
+def find_spanned_lines(lines, excerpt_norm):
+    """どの1行にも入らない抜き出しが、続けて並んだどの行にまたがっていたか(行の番号の
+    リスト、最初の行から最後の行まで)。各行をそろえてつないだ文字の中に見つからなければ
+    空のリスト(check_excerpts.pyの表示用)。"""
+    norms = [normalize_text(seg) for seg in lines]
+    joined = "".join(norms)
+    k = joined.find(excerpt_norm)
+    if k < 0 or not excerpt_norm:
+        return []
+    end = k + len(excerpt_norm)
+    touched = []
+    offset = 0
+    for i, n in enumerate(norms):
+        if n and offset < end and offset + len(n) > k:
+            touched.append(i)
+        offset += len(n)
+    return touched
+
+
+_LINE_WS_CHARS = frozenset(" \t\r\n　")
+_HALFWIDTH_VOICED_MARKS = "ﾞﾟ゙゚"
+# 1桁の数字のあとに「空白ちょうど1つ＋数字・小数点・カンマ」が続く並び(税関のPDFの
+# 「1 3 . 7」「6 1 , 6 7 4」、日付の「1 6」など)。前後が数字・小数点・カンマや
+# 「それ＋空白1つ」に続く場合は並びの途中なので当てない(列が空白2つ以上で区切られた表の
+# 数は、空白1つでは並ばないためつながらない)。
+_SPACED_DIGITS_RE = re.compile(r"(?<![0-9.,])(?<![0-9.,] )[0-9](?: [0-9.,])+(?![0-9.,])(?! [0-9.,])")
+# 改修29第1回: 数字の直前の「▲」は負の数の印として読む(「△」は読まない)。
+_NEGATIVE_TRIANGLE = "▲"
+
+
+def _line_clusters(seg):
+    """1文字(と、その後ろに付く結合文字・半角の濁点/半濁点)ずつ、元の位置と一緒に返す。
+    NFKCで「ｶﾞ」→「ガ」のように文字数が変わっても、元の行の位置との対応を保つため。"""
+    i = 0
+    while i < len(seg):
+        j = i + 1
+        while j < len(seg) and (seg[j] in _HALFWIDTH_VOICED_MARKS or unicodedata.combining(seg[j])):
+            j += 1
+        yield i, seg[i:j]
+        i = j
+
+
+def _map_line_chars(seg, keep_space):
+    """本文の1行を、normalize_text()と同じそろえ方の文字にし、各文字が元の行の何文字目
+    から来たかの対応表と一緒に返す。keep_spaceが真なら、空白を消さずに1文字ずつ
+    半角の空白にそろえる(空白の数は変えない)。数字にはさまれたカンマは消す。"""
+    chars = []
+    index = []
+    for i, cluster in _line_clusters(seg):
+        n = unicodedata.normalize("NFKC", cluster)
+        for ch in _DASH_CHARS:
+            n = n.replace(ch, "-")
+        for k, v in _QUOTE_MAP.items():
+            n = n.replace(k, v)
+        for ch in n:
+            if ch in _LINE_WS_CHARS:
+                if not keep_space:
+                    continue
+                ch = " "
+            chars.append(ch)
+            index.append(i)
+    keep = [
+        j for j, ch in enumerate(chars)
+        if not (ch == "," and 0 < j < len(chars) - 1
+                and _is_half_width_digit(chars[j - 1]) and _is_half_width_digit(chars[j + 1]))
+    ]
+    return "".join(chars[j] for j in keep), [index[j] for j in keep]
+
+
+def line_number_tokens(seg):
+    """本文の1行から、その行の空白で数を切り出す(案3・緩)。戻り値: [(数の文字, 元の行での
+    最初の文字の位置, 最後の文字の位置)]。
+    ・空白2つ以上は区切り。空白1つで並ぶ1桁の数字の並び(数字が2つ以上)はつなげる(緩)。
+    ・ダッシュ類(_DASH_CHARSを「-」にそろえたもの)の直後の数は負。数字の直前の「▲」も負。"""
+    s, idx = _map_line_chars(seg, keep_space=True)
+    out = []
+    out_idx = []
+    pos = 0
+    for m in _SPACED_DIGITS_RE.finditer(s):
+        if sum(ch.isdigit() for ch in m.group()) < 2:
+            continue
+        out.append(s[pos:m.start()])
+        out_idx.extend(idx[pos:m.start()])
+        for k in range(m.start(), m.end()):
+            if s[k] in " ,":
+                continue
+            out.append(s[k])
+            out_idx.append(idx[k])
+        pos = m.end()
+    out.append(s[pos:])
+    out_idx.extend(idx[pos:])
+    s = "".join(out)
+    s = "".join(
+        "-" if ch == _NEGATIVE_TRIANGLE and i + 1 < len(s) and _is_half_width_digit(s[i + 1]) else ch
+        for i, ch in enumerate(s)
+    )
+    return [(m.group(), out_idx[m.start()], out_idx[m.end() - 1]) for m in _NUMBER_TOKEN_RE.finditer(s)]
+
+
+def find_number_in_line(seg, excerpt_norm, value):
+    """抜き出しが当たった本文の1行segについて、その行の空白で切り出した数のうち、抜き出しが
+    当たった範囲に丸ごと入っている数の中にvalueがあるかを見る(案3・緩)。抜き出しが行の中に
+    何か所か当たれば、どれか1か所で見つかれば真。valueが数として読めない(文字など)なら、
+    今までどおりfind_number()で抜き出しの中を探す。"""
+    decimal_value = _to_decimal(value)
+    if decimal_value is None:
+        return find_number(excerpt_norm, value)
+    seg_norm, seg_idx = _map_line_chars(seg, keep_space=False)
+    tokens = line_number_tokens(seg)
+    start = 0
+    while excerpt_norm:
+        k = seg_norm.find(excerpt_norm, start)
+        if k < 0:
+            return False
+        first = seg_idx[k]
+        last = seg_idx[k + len(excerpt_norm) - 1]
+        for token, a, b in tokens:
+            if a < first or b > last or _has_leading_zero(token):
+                continue
+            try:
+                if decimal.Decimal(token) == decimal_value:
+                    return True
+            except decimal.InvalidOperation:
+                continue
+        start = k + 1
+    return False
+
+
+def check_excerpt_numbers(lines, excerpt_norm, numbers):
+    """1行の検査と数字の確認(照合とcheck_excerpts.pyが共通で使う)。
+    linesがNone(区切れなかった出典)なら1行の検査はせず、数字は今までどおり
+    find_number(抜き出し)で確かめる。
+    戻り値: {"fits": 真偽 or None(判定しない), "hit_lines": 当たった行の番号,
+             "missing_numbers": 見つからなかったnumbersの要素}。
+    ・1行に収まる場合: 当たった行のどれか1行で、numbersがすべて見つかれば合格
+      (見つからない数は、いちばん多く見つかった行での残り)。
+    ・1行に収まらない場合(第1回だけの扱い): 今までどおりfind_number()で抜き出しの中を探す。"""
+    def missing_by_excerpt():
+        return [num for num in numbers if not find_number(excerpt_norm, num.get("value"))]
+
+    if lines is None:
+        return {"fits": None, "hit_lines": [], "missing_numbers": missing_by_excerpt()}
+    hit_lines = find_excerpt_lines(lines, excerpt_norm)
+    if not hit_lines:
+        return {"fits": False, "hit_lines": [], "missing_numbers": missing_by_excerpt()}
+    best = None
+    for i in hit_lines:
+        missing = [num for num in numbers if not find_number_in_line(lines[i], excerpt_norm, num.get("value"))]
+        if best is None or len(missing) < len(best):
+            best = missing
+        if not missing:
+            break
+    return {"fits": True, "hit_lines": hit_lines, "missing_numbers": best}
+
+
 def load_ng_words(path):
     words = []
     with open(path, "r", encoding="utf-8") as f:
@@ -896,7 +1186,54 @@ def apply_source_attribution(edition, policy_path):
     return counts
 
 
-def verify_line(line, sources_by_id, cache_dir):
+def verify_excerpt_against_source(source, source_ref, excerpt, numbers, cache_dir, line_check=None):
+    """出典の本文と抜き出し・数字を照合する部分(verify_line()と、改修29第1回の
+    check_excerpts.pyが共通で使う)。ハッシュ確認 → 本文が読めるか → excerpt_not_found →
+    1行の検査(改修29第1回。記録だけ) → 数字の確認、の順に見る。
+    line_checkに辞書を渡すと、1行の検査の結果を書き込む:
+      "fits": 真(どれか1行に収まる)・偽(収まらない)・None(区切れず判定しない)
+      "skipped_reason": 区切れなかった理由(fitsがNoneのとき)
+      "lines": 区切った行のリスト、"hit_lines": 当たった行の番号
+    戻り値: verify_line()と同じ(印, 理由, 見つからなかった数字)。"""
+    cache_path = Path(cache_dir) / f"{source_ref}.txt"
+    if not cache_path.is_file():
+        return "unverified", "source_unfetchable", None
+
+    raw_bytes = cache_path.read_bytes()
+    actual_hash = hashlib.sha256(raw_bytes).hexdigest()
+    expected_hash = source.get("content_sha256")
+    if not expected_hash:
+        return "unverified", "hash_missing", None
+    if actual_hash != expected_hash:
+        return "unverified", "hash_mismatch", None
+
+    # 改修27-1(4-9): EDINETの出典はHTMLタグを取り除いた本文で照合する
+    # (キャッシュの元ファイル・ハッシュの確認は上のraw_bytesのまま変えない)。
+    body_text = read_source_body_for_checks(cache_path, source)
+    if body_text is None:
+        return "unverified", "source_unreadable", None
+    body_norm = normalize_text(body_text)
+    excerpt_norm = normalize_text(excerpt)
+    if excerpt_norm not in body_norm:
+        return "unverified", "excerpt_not_found", None
+
+    # 改修29第1回: 抜き出しが本文のどれか1行に丸ごと入るかを調べる(第1回は記録だけで、
+    # 印は変えない)。区切れない出典は1行の判定をせず、今までどおりの照合だけにする。
+    lines, skipped_reason = split_source_lines(cache_path, source, body_text)
+    result = check_excerpt_numbers(lines, excerpt_norm, numbers)
+    if line_check is not None:
+        line_check["fits"] = result["fits"]
+        line_check["skipped_reason"] = skipped_reason
+        line_check["lines"] = lines
+        line_check["hit_lines"] = result["hit_lines"]
+    missing_numbers = result["missing_numbers"]
+    if missing_numbers:
+        return "unverified", "number_not_in_excerpt", missing_numbers
+
+    return "source_number_match", None, None
+
+
+def verify_line(line, sources_by_id, cache_dir, line_check=None):
     claimed = line["claimed_mark"]
     numbers = line.get("numbers", [])
     source_ref = line.get("source_ref")
@@ -939,36 +1276,8 @@ def verify_line(line, sources_by_id, cache_dir):
         # 検査33により、ここに到達した時点でsource_refは必ずsources一覧に見つかっている
         # (source is Noneにはならない)。source_unfetchableは「sourcesには載っているが、
         # キャッシュに本文のファイルが無い」という意味だけになった。
-        cache_path = Path(cache_dir) / f"{source_ref}.txt"
-        if not cache_path.is_file():
-            return "unverified", "source_unfetchable", None
-
-        raw_bytes = cache_path.read_bytes()
-        actual_hash = hashlib.sha256(raw_bytes).hexdigest()
-        expected_hash = source.get("content_sha256")
-        if not expected_hash:
-            return "unverified", "hash_missing", None
-        if actual_hash != expected_hash:
-            return "unverified", "hash_mismatch", None
-
-        # 改修27-1(4-9): EDINETの出典はHTMLタグを取り除いた本文で照合する
-        # (キャッシュの元ファイル・ハッシュの確認は上のraw_bytesのまま変えない)。
-        body_text = read_source_body_for_checks(cache_path, source)
-        if body_text is None:
-            return "unverified", "source_unreadable", None
-        body_norm = normalize_text(body_text)
-        excerpt_norm = normalize_text(excerpt)
-        if excerpt_norm not in body_norm:
-            return "unverified", "excerpt_not_found", None
-
-        missing_numbers = []
-        for num in numbers:
-            if not find_number(excerpt_norm, num.get("value")):
-                missing_numbers.append(num)
-        if missing_numbers:
-            return "unverified", "number_not_in_excerpt", missing_numbers
-
-        return "source_number_match", None, None
+        source = sources_by_id[source_ref]
+        return verify_excerpt_against_source(source, source_ref, excerpt, numbers, cache_dir, line_check)
 
     if claimed == "reported_unverified":
         return "reported_unverified", None, None
@@ -1012,12 +1321,24 @@ def run_line_verification(edition, cache_dir):
         # 改修28第1回: 出典の無い「報道で見た・未確認」の行のline_id(記録専用のキー
         # reported_without_sourceの元)。
         "reported_without_source_line_ids": [],
+        # 改修29第1回: 抜き出しが本文のどの1行にも収まらなかった行のline_id(記録専用のキー
+        # excerpt_spans_linesの元。第1回は印を変えない)と、1行に区切れず1行の判定をしなかった
+        # 出典のsource_id(記録専用のキーexcerpt_line_check_skippedの元)。
+        "excerpt_spans_lines_line_ids": [],
+        "excerpt_line_check_skipped_source_ids": [],
     }
     number_failure_details = []
 
     for section, article, line in iter_lines(edition):
         stats["lines_total"] += 1
-        mark, reason, missing_numbers = verify_line(line, sources_by_id, cache_dir)
+        line_check = {}
+        mark, reason, missing_numbers = verify_line(line, sources_by_id, cache_dir, line_check)
+        if line_check.get("fits") is False:
+            stats["excerpt_spans_lines_line_ids"].append(line.get("line_id"))
+        elif "fits" in line_check and line_check["fits"] is None:
+            skipped_ids = stats["excerpt_line_check_skipped_source_ids"]
+            if line.get("source_ref") not in skipped_ids:
+                skipped_ids.append(line.get("source_ref"))
         # 改修27-2(S12): titleかurlが空の出典を参照する行は、claimed_markの種類を問わず
         # 確定した印をunverifiedにする(他の理由で既にunverifiedでも、理由はこちらに
         # 揃える)。verify_line()の中の副作用(検査16のexcerpt削除など)は残る。
@@ -3798,7 +4119,8 @@ def print_report(edition_path, stats, stop_hits, watch_hits, dropped_inferences,
                   industry_report=None, source_policy_unlisted_domains=None,
                   number_coverage=None, sources_published_at_null=None, rerun_detected=False,
                   published_date_not_found=None, inference_company_names=None,
-                  inference_company_name_check_skipped=False, source_body_check=None):
+                  inference_company_name_check_skipped=False, source_body_check=None,
+                  excerpt_spans_lines=None, excerpt_line_check_skipped=None):
     print("=" * 60)
     print(f"照合結果: {edition_path}")
     print("=" * 60)
@@ -3836,6 +4158,14 @@ def print_report(edition_path, stats, stop_hits, watch_hits, dropped_inferences,
         for detail in number_failure_details:
             values = ", ".join(str(n.get("value")) for n in detail["missing_numbers"])
             print(f"  ・{detail['line_id']}: {values}")
+
+    # 改修29第1回: 記録だけ(行の印は変えない)。
+    if excerpt_spans_lines is not None:
+        print(f"抜き出しが出典の本文の1行に収まらなかった行(記録だけ): {excerpt_spans_lines['count']}件")
+        for line_id in excerpt_spans_lines["line_ids"]:
+            print(f"  ・{line_id}")
+    if excerpt_line_check_skipped is not None and excerpt_line_check_skipped["count"]:
+        print(f"本文を1行に区切れず、1行の判定をしなかった出典: {', '.join(map(str, excerpt_line_check_skipped['source_ids']))}")
 
     print(f"推奨表現(停止)により削除した行数: {len(stop_hits)}")
     if stop_hits:
@@ -4204,6 +4534,15 @@ def run_verification(edition_file, hypotheses_file, cache_dir_arg, calendar_dir_
             "count": len(stats["reported_without_source_line_ids"]),
             "line_ids": stats["reported_without_source_line_ids"],
         }
+        # 改修29第1回: 抜き出しが本文の1行に収まらなかった行と、1行に区切れなかった出典(記録だけ)。
+        excerpt_spans_lines = {
+            "count": len(stats["excerpt_spans_lines_line_ids"]),
+            "line_ids": stats["excerpt_spans_lines_line_ids"],
+        }
+        excerpt_line_check_skipped = {
+            "count": len(stats["excerpt_line_check_skipped_source_ids"]),
+            "source_ids": stats["excerpt_line_check_skipped_source_ids"],
+        }
         source_usage_invalid_hits = count_invalid_source_usages(edition)
         dropped_inferences = run_check_d_inferences(edition)
         # 改修27-2第6回(S7): コードリストは、--hypothesesの有無にかかわらずここで1回だけ読む
@@ -4546,6 +4885,10 @@ def run_verification(edition_file, hypotheses_file, cache_dir_arg, calendar_dir_
             "empty_title_or_url_refs": empty_title_or_url_refs,
             # 改修28第1回: 出典の無い「報道で見た・未確認」の行(印をunverifiedにした)。
             "reported_without_source": reported_without_source,
+            # 改修29第1回: 抜き出しが出典の本文のどの1行にも収まらなかった(2行以上をつないでいた)行と、
+            # 本文を1行に区切れず1行の判定をしなかった出典(記録専用。第1回は行の印を変えない)。
+            "excerpt_spans_lines": excerpt_spans_lines,
+            "excerpt_line_check_skipped": excerpt_line_check_skipped,
             # 改修28第2回: EDINET以外のquotableの出典で本文ファイルがあるものを、機械で保存されたもの
             # (machine_saved)・記録ファイルが無いもの(not_machine_saved)・食い違ったもの
             # (reconvert_mismatch、detailsに食い違った項目)・道具が無くて確かめられなかったもの
@@ -4594,6 +4937,8 @@ def run_verification(edition_file, hypotheses_file, cache_dir_arg, calendar_dir_
             inference_company_names=inference_company_names,
             inference_company_name_check_skipped=codelist_rows is None,
             source_body_check=source_body_check,
+            excerpt_spans_lines=excerpt_spans_lines,
+            excerpt_line_check_skipped=excerpt_line_check_skipped,
         )
         return 0
 
