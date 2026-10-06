@@ -6,7 +6,8 @@
 数字の確認)で調べ、1行ごとに次のどれかを表示する。
 
   ok                 1行に収まり、数字もすべて見つかった
-  spans_lines        どの1行にも収まらない(抜き出しにつながっていた本文の行を前後とも表示する)
+  spans_lines        どの1行にも収まらない(抜き出しにつながっていた本文の行を前後とも表示する。
+                     改修29第2回から、照合ではこの行の印を未確認に下げる)
   excerpt_not_found  抜き出しが出典の本文に見つからない
   number_missing     数字が見つからない(見つからなかった数字を表示する)
   skipped            調べられなかった(本文が無い・ハッシュ不一致・区切れない等。理由も表示する)
@@ -140,8 +141,8 @@ def check_line(line, sources_by_id, cache_dir):
                     continue
                 keep = "tail" if pos == 0 and len(touched) > 1 else "head"
                 detail.append(f"  本文の{i + 1}行目: {_shorten(lines[i], keep)}")
-        if missing:
-            detail.append(f"(参考)見つからなかった数字: {_number_values(missing)}")
+        # 改修29第2回: 1行に収まらない抜き出しは照合で印を下げる(excerpt_spans_lines)ため、数字は確かめない。
+        detail.append("(照合ではこの行の印を未確認に下げる。抜き出しを本文の1行に縮めるか、紙面の行を分ける)")
         return "spans_lines", detail
 
     if missing:

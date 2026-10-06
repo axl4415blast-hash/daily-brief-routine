@@ -478,8 +478,10 @@ _HALFWIDTH_VOICED_MARKS = "ﾞﾟ゙゚"
 # 「それ＋空白1つ」に続く場合は並びの途中なので当てない(列が空白2つ以上で区切られた表の
 # 数は、空白1つでは並ばないためつながらない)。
 _SPACED_DIGITS_RE = re.compile(r"(?<![0-9.,])(?<![0-9.,] )[0-9](?: [0-9.,])+(?![0-9.,])(?! [0-9.,])")
-# 改修29第1回: 数字の直前の「▲」は負の数の印として読む(「△」は読まない)。
-_NEGATIVE_TRIANGLE = "▲"
+# 改修29: 「▲」「△」は負の数の印として読む。第1回は数字の直前の「▲」だけだったが、第2回から、
+# 記号と数字の間に空白(半角・全角の空白・タブ。HTMLの1行の中の改行も同じ1行の空白として扱う)しか
+# 無いものと、「△」も読む。記号と数字の間に空白以外の文字があるもの(凡例の「（△）」等)は読まない。
+_NEGATIVE_MARKS = "▲△"
 
 
 def _line_clusters(seg):
@@ -525,7 +527,10 @@ def line_number_tokens(seg):
     """本文の1行から、その行の空白で数を切り出す(案3・緩)。戻り値: [(数の文字, 元の行での
     最初の文字の位置, 最後の文字の位置)]。
     ・空白2つ以上は区切り。空白1つで並ぶ1桁の数字の並び(数字が2つ以上)はつなげる(緩)。
-    ・ダッシュ類(_DASH_CHARSを「-」にそろえたもの)の直後の数は負。数字の直前の「▲」も負。"""
+    ・ダッシュ類(_DASH_CHARSを「-」にそろえたもの)の直後の数は負。
+    ・「▲」「△」の後ろに、空白だけをはさんで(またはすぐに)数字が続けば、その数は負。
+      負の数の最初の文字の位置は記号の位置にする(抜き出しが記号を含まなければ、その数は
+      抜き出しに丸ごと入らない)。同じ1行の中だけを見るので、行をまたぐ記号は読まない。"""
     s, idx = _map_line_chars(seg, keep_space=True)
     out = []
     out_idx = []
@@ -543,11 +548,20 @@ def line_number_tokens(seg):
         pos = m.end()
     out.append(s[pos:])
     out_idx.extend(idx[pos:])
-    s = "".join(out)
-    s = "".join(
-        "-" if ch == _NEGATIVE_TRIANGLE and i + 1 < len(s) and _is_half_width_digit(s[i + 1]) else ch
-        for i, ch in enumerate(s)
-    )
+    chars = list("".join(out))
+    for i, ch in enumerate(chars):
+        if ch not in _NEGATIVE_MARKS:
+            continue
+        j = i + 1
+        while j < len(chars) and chars[j] == " ":
+            j += 1
+        if j < len(chars) and _is_half_width_digit(chars[j]):
+            # 数字の直前の1文字を「-」にし(記号そのもの、または間の空白の最後の1つ)、記号は空白にする。
+            # 「-」の位置は記号の元の位置にそろえる。
+            chars[i] = " "
+            chars[j - 1] = "-"
+            out_idx[j - 1] = out_idx[i]
+    s = "".join(chars)
     return [(m.group(), out_idx[m.start()], out_idx[m.end() - 1]) for m in _NUMBER_TOKEN_RE.finditer(s)]
 
 
@@ -588,7 +602,8 @@ def check_excerpt_numbers(lines, excerpt_norm, numbers):
              "missing_numbers": 見つからなかったnumbersの要素}。
     ・1行に収まる場合: 当たった行のどれか1行で、numbersがすべて見つかれば合格
       (見つからない数は、いちばん多く見つかった行での残り)。
-    ・1行に収まらない場合(第1回だけの扱い): 今までどおりfind_number()で抜き出しの中を探す。"""
+    ・1行に収まらない場合: 改修29第2回で、数字は確かめない(missing_numbersは空。
+      呼び出し側がexcerpt_spans_linesとして印を下げる)。第1回のfind_number()での確認はやめた。"""
     def missing_by_excerpt():
         return [num for num in numbers if not find_number(excerpt_norm, num.get("value"))]
 
@@ -596,7 +611,7 @@ def check_excerpt_numbers(lines, excerpt_norm, numbers):
         return {"fits": None, "hit_lines": [], "missing_numbers": missing_by_excerpt()}
     hit_lines = find_excerpt_lines(lines, excerpt_norm)
     if not hit_lines:
-        return {"fits": False, "hit_lines": [], "missing_numbers": missing_by_excerpt()}
+        return {"fits": False, "hit_lines": [], "missing_numbers": []}
     best = None
     for i in hit_lines:
         missing = [num for num in numbers if not find_number_in_line(lines[i], excerpt_norm, num.get("value"))]
@@ -1189,7 +1204,8 @@ def apply_source_attribution(edition, policy_path):
 def verify_excerpt_against_source(source, source_ref, excerpt, numbers, cache_dir, line_check=None):
     """出典の本文と抜き出し・数字を照合する部分(verify_line()と、改修29第1回の
     check_excerpts.pyが共通で使う)。ハッシュ確認 → 本文が読めるか → excerpt_not_found →
-    1行の検査(改修29第1回。記録だけ) → 数字の確認、の順に見る。
+    1行の検査(改修29。第2回から、どの1行にも収まらなければexcerpt_spans_linesで印を下げる) →
+    数字の確認、の順に見る。
     line_checkに辞書を渡すと、1行の検査の結果を書き込む:
       "fits": 真(どれか1行に収まる)・偽(収まらない)・None(区切れず判定しない)
       "skipped_reason": 区切れなかった理由(fitsがNoneのとき)
@@ -1217,8 +1233,9 @@ def verify_excerpt_against_source(source, source_ref, excerpt, numbers, cache_di
     if excerpt_norm not in body_norm:
         return "unverified", "excerpt_not_found", None
 
-    # 改修29第1回: 抜き出しが本文のどれか1行に丸ごと入るかを調べる(第1回は記録だけで、
-    # 印は変えない)。区切れない出典は1行の判定をせず、今までどおりの照合だけにする。
+    # 改修29: 抜き出しが本文のどれか1行に丸ごと入るかを調べる。第2回から、どの1行にも
+    # 収まらない(2行以上をつないでいた)行は印を下げる(excerpt_spans_lines)。区切れない出典は
+    # 1行の判定をせず、今までどおりの照合だけにする(印は下げず、記録だけ)。
     lines, skipped_reason = split_source_lines(cache_path, source, body_text)
     result = check_excerpt_numbers(lines, excerpt_norm, numbers)
     if line_check is not None:
@@ -1226,6 +1243,8 @@ def verify_excerpt_against_source(source, source_ref, excerpt, numbers, cache_di
         line_check["skipped_reason"] = skipped_reason
         line_check["lines"] = lines
         line_check["hit_lines"] = result["hit_lines"]
+    if result["fits"] is False:
+        return "unverified", "excerpt_spans_lines", None
     missing_numbers = result["missing_numbers"]
     if missing_numbers:
         return "unverified", "number_not_in_excerpt", missing_numbers
@@ -1321,9 +1340,9 @@ def run_line_verification(edition, cache_dir):
         # 改修28第1回: 出典の無い「報道で見た・未確認」の行のline_id(記録専用のキー
         # reported_without_sourceの元)。
         "reported_without_source_line_ids": [],
-        # 改修29第1回: 抜き出しが本文のどの1行にも収まらなかった行のline_id(記録専用のキー
-        # excerpt_spans_linesの元。第1回は印を変えない)と、1行に区切れず1行の判定をしなかった
-        # 出典のsource_id(記録専用のキーexcerpt_line_check_skippedの元)。
+        # 改修29: 抜き出しが本文のどの1行にも収まらなかった行のline_id(キーexcerpt_spans_linesの
+        # 元。第2回からこの行の印はunverified)と、1行に区切れず1行の判定をしなかった出典の
+        # source_id(記録専用のキーexcerpt_line_check_skippedの元。印は下げない)。
         "excerpt_spans_lines_line_ids": [],
         "excerpt_line_check_skipped_source_ids": [],
     }
@@ -4142,6 +4161,7 @@ def print_report(edition_path, stats, stop_hits, watch_hits, dropped_inferences,
             "hash_mismatch": "保存されている出典の本文が、記録されたハッシュと一致しなかった",
             "hash_missing": "出典の本文のハッシュが記録されていなかった",
             "excerpt_not_found": "抜き出した文が出典の本文の中に見つからなかった",
+            "excerpt_spans_lines": "抜き出した文が出典の本文の1行に収まらなかった（2行以上をつないでいた）",
             "number_not_in_excerpt": "数字が抜き出した文の中に見つからなかった",
             "mark_mismatch": "数字が入っているのに「解説」として申告されていた",
             "source_unreadable": "出典ファイルが文字コードの問題で読めなかった",
@@ -4159,9 +4179,9 @@ def print_report(edition_path, stats, stop_hits, watch_hits, dropped_inferences,
             values = ", ".join(str(n.get("value")) for n in detail["missing_numbers"])
             print(f"  ・{detail['line_id']}: {values}")
 
-    # 改修29第1回: 記録だけ(行の印は変えない)。
+    # 改修29: 第2回からこの行の印はunverifiedにしている(理由excerpt_spans_lines)。
     if excerpt_spans_lines is not None:
-        print(f"抜き出しが出典の本文の1行に収まらなかった行(記録だけ): {excerpt_spans_lines['count']}件")
+        print(f"抜き出しが出典の本文の1行に収まらなかった行(印を未確認に下げた): {excerpt_spans_lines['count']}件")
         for line_id in excerpt_spans_lines["line_ids"]:
             print(f"  ・{line_id}")
     if excerpt_line_check_skipped is not None and excerpt_line_check_skipped["count"]:
@@ -4534,7 +4554,8 @@ def run_verification(edition_file, hypotheses_file, cache_dir_arg, calendar_dir_
             "count": len(stats["reported_without_source_line_ids"]),
             "line_ids": stats["reported_without_source_line_ids"],
         }
-        # 改修29第1回: 抜き出しが本文の1行に収まらなかった行と、1行に区切れなかった出典(記録だけ)。
+        # 改修29: 抜き出しが本文の1行に収まらなかった行(第2回から印をunverifiedにした)と、
+        # 1行に区切れなかった出典(記録だけ。印は下げない)。
         excerpt_spans_lines = {
             "count": len(stats["excerpt_spans_lines_line_ids"]),
             "line_ids": stats["excerpt_spans_lines_line_ids"],
@@ -4885,8 +4906,9 @@ def run_verification(edition_file, hypotheses_file, cache_dir_arg, calendar_dir_
             "empty_title_or_url_refs": empty_title_or_url_refs,
             # 改修28第1回: 出典の無い「報道で見た・未確認」の行(印をunverifiedにした)。
             "reported_without_source": reported_without_source,
-            # 改修29第1回: 抜き出しが出典の本文のどの1行にも収まらなかった(2行以上をつないでいた)行と、
-            # 本文を1行に区切れず1行の判定をしなかった出典(記録専用。第1回は行の印を変えない)。
+            # 改修29: 抜き出しが出典の本文のどの1行にも収まらなかった(2行以上をつないでいた)行
+            # (第2回から印をunverifiedにした)と、本文を1行に区切れず1行の判定をしなかった出典
+            # (記録専用。印は下げない)。
             "excerpt_spans_lines": excerpt_spans_lines,
             "excerpt_line_check_skipped": excerpt_line_check_skipped,
             # 改修28第2回: EDINET以外のquotableの出典で本文ファイルがあるものを、機械で保存されたもの

@@ -9407,19 +9407,21 @@ def test_kaishu29_table_b():
 
 
 def test_kaishu29_triangle():
-    """改修29第1回: 数字の直前の「▲」は負の数として読む(空白をはさむ「▲」と「△」は読まない)。"""
+    """改修29: 数字の直前の「▲」は負の数として読む(第1回)。第2回から、空白をはさむ「▲」「△」と、
+    数字の直前の「△」も負の数として読む(下の2つは第2回で期待値を変えた)。"""
     check("改修29/▲/実 差引額「▲８，４０６億円」: −8406として見つかる", _k29_in_line(K29_GAIYO_TRIANGLE, "差引額 ▲８，４０６億円", -8406), True)
     check("改修29/▲/実 差引額「▲８，４０６億円」: +8406としては見つからない", _k29_in_line(K29_GAIYO_TRIANGLE, "差引額 ▲８，４０６億円", 8406), False)
     check("改修29/▲/作 「▲1,234」: −1234として見つかり、1234では見つからない",
           (_k29_in_line("差引  ▲1,234", "差引 ▲1,234", -1234), _k29_in_line("差引  ▲1,234", "差引 ▲1,234", 1234)),
           (True, False))
-    check("改修29/▲/実 空白をはさむ「▲ 36.3％」は負として読まない(36.3で見つかり、−36.3では見つからない)",
+    # 改修29第2回で期待値を変えた(第1回は「空白をはさむ▲」「△」を負として読まなかった)。
+    check("改修29/▲/実 空白をはさむ「▲ 36.3％」は第2回から負として読む(−36.3で見つかり、36.3では見つからない)",
           (_k29_in_line(K29_GAIYO_TRIANGLE_SPACE, "二輪自動車 ： ▲ 36.3％", 36.3),
            _k29_in_line(K29_GAIYO_TRIANGLE_SPACE, "二輪自動車 ： ▲ 36.3％", -36.3)),
-          (True, False))
-    check("改修29/▲/作 「△1,234」は負として読まない(1234で見つかり、−1234では見つからない)",
+          (False, True))
+    check("改修29/▲/作 「△1,234」は第2回から負として読む(−1234で見つかり、1234では見つからない)",
           (_k29_in_line("差引  △1,234", "差引 △1,234", 1234), _k29_in_line("差引  △1,234", "差引 △1,234", -1234)),
-          (True, False))
+          (False, True))
     check("改修29/▲/作 抜き出しが「▲」を含まなければ、負の数は抜き出しに丸ごと入らず見つからない",
           (_k29_in_line("差引  ▲1,234", "1,234", -1234), _k29_in_line("差引  ▲1,234", "1,234", 1234)),
           (False, False))
@@ -9538,7 +9540,8 @@ def _k29_cache(d):
 
 
 def test_kaishu29_line_check_records():
-    """改修29第1回: 照合の中の1行の検査(記録だけ。印は変えない)と、数字の確認の組み合わせ。"""
+    """改修29: 照合の中の1行の検査と、数字の確認の組み合わせ。第1回は記録だけだったが、第2回から
+    1行に収まらない行は印をunverified(excerpt_spans_lines)にするため、4つの期待値を変えた。"""
     with tempfile.TemporaryDirectory() as d:
         sources_by_id = _k29_cache(d)
 
@@ -9549,17 +9552,19 @@ def test_kaishu29_line_check_records():
 
         check("改修29/1行の検査/正例: 短観の1行に収まる抜き出しは合格で、1行に収まる(fits=真)",
               run(_k29_line("L-1", "SRC-P", "製造業 22 17 24", [24])), (("source_number_match", None), True, None))
-        check("改修29/1行の検査/正例: 見出しの行と数字の行をつないだ抜き出しは、1行に収まらない(fits=偽)。"
-              "第1回は記録だけで、数字は今までどおり抜き出しの中で探すため24は見つからず number_not_in_excerpt",
-              run(_k29_line("L-2", "SRC-P", "変化幅 製造業 22 17 24", [24])), (("unverified", "number_not_in_excerpt"), False, None))
-        check("改修29/1行の検査/正例: 公表文の折り返し2行をつないだ抜き出しは、印は合格のまま(記録だけ)でfits=偽",
-              run(_k29_line("L-3", "SRC-P", "１．２５％程度で推移するよう促す", [1.25])), (("source_number_match", None), False, None))
+        check("改修29/1行の検査/正例: 見出しの行と数字の行をつないだ抜き出しは、1行に収まらない(fits=偽)ため"
+              "unverified(excerpt_spans_lines)。第2回で期待値を変えた(第1回はnumber_not_in_excerpt)",
+              run(_k29_line("L-2", "SRC-P", "変化幅 製造業 22 17 24", [24])), (("unverified", "excerpt_spans_lines"), False, None))
+        check("改修29/1行の検査/正例: 公表文の折り返し2行をつないだ抜き出しは、数字が合っていてもunverified"
+              "(excerpt_spans_lines)。第2回で期待値を変えた(第1回は合格のまま)",
+              run(_k29_line("L-3", "SRC-P", "１．２５％程度で推移するよう促す", [1.25])), (("unverified", "excerpt_spans_lines"), False, None))
         check("改修29/1行の検査/負例: 改ページ(\\f)をまたぐ抜き出しは、今までどおり本文に見つからない(excerpt_not_found)",
               run(_k29_line("L-4", "SRC-P", "促す1。次のページの最初の行", [1])), (("unverified", "excerpt_not_found"), None, None))
         check("改修29/1行の検査/正例: EDINETの段落の中の抜き出しは1行に収まる",
               run(_k29_line("L-5", "SRC-E", "テスト物産の株式を1,234株取得", [1234])), (("source_number_match", None), True, None))
-        check("改修29/1行の検査/正例: EDINETの別々の<div>をつないだ抜き出しは1行に収まらない",
-              run(_k29_line("L-6", "SRC-E", "当該事象の発生年月日2026年10月1日", [2026])), (("source_number_match", None), False, None))
+        check("改修29/1行の検査/正例: EDINETの別々の<div>をつないだ抜き出しは1行に収まらず、unverified"
+              "(excerpt_spans_lines)。第2回で期待値を変えた(第1回は合格のまま)",
+              run(_k29_line("L-6", "SRC-E", "当該事象の発生年月日2026年10月1日", [2026])), (("unverified", "excerpt_spans_lines"), False, None))
         check("改修29/1行の検査/正例: 区切れない出典(元のHTMLと食い違う)は1行の判定をせず(fits=None)、今までどおりの照合だけ",
               run(_k29_line("L-7", "SRC-H", "段落 2026年 12件", [2026, 12])), (("source_number_match", None), None, "join_mismatch"))
         check("改修29/1行の検査/負例: ハッシュ確認より前で止まる行は1行の検査をしない",
@@ -9580,8 +9585,11 @@ def test_kaishu29_line_check_records():
         check("改修29/記録/run_line_verification: 1行に収まらなかった行のline_idと、区切れなかった出典(重複なし)を記録する",
               (stats["excerpt_spans_lines_line_ids"], stats["excerpt_line_check_skipped_source_ids"]),
               (["L-3", "L-6"], ["SRC-H"]))
-        check("改修29/記録/run_line_verification: 第1回は印を変えない(またがる行も合格のまま。L-9は数字が無いため不合格)",
-              marks, ["source_number_match", "source_number_match", "source_number_match", "source_number_match", "unverified"])
+        check("改修29/記録/run_line_verification: またがる行(L-3・L-6)はunverified、区切れない出典の行(L-7)は"
+              "合格のまま(L-9は数字が無いため不合格)。第2回で期待値を変えた(第1回はL-3・L-6も合格のまま)",
+              marks, ["source_number_match", "unverified", "unverified", "source_number_match", "unverified"])
+        check("改修29/記録/run_line_verification: 格下げの理由の内訳にexcerpt_spans_linesが2件入る",
+              stats["unverified_reasons"].get("excerpt_spans_lines"), 2)
 
 
 def _k29_edition_file(d, lines, sources_by_id, name="edition.json"):
@@ -9647,6 +9655,158 @@ def test_kaishu29_check_excerpts():
 
         result = _k29_run_check_excerpts(d / "無い.json", cache)
         check("改修29/check_excerpts/紙面が読めないなどスクリプト自体のエラーは終了コード2", result.returncode, 2)
+
+
+# ---------------------------------------------------------------------------
+# 改修29第2回: またがる行の印を下げる・空白をはさむ「▲」「△」・会社が消えること
+# ---------------------------------------------------------------------------
+
+# 実データの本文の1行(税関 2026084.pdf)と、兼松の臨時報告書(EDINET)の表の1行を写した例。
+K29_CUSTOMS_DELTA = "差         引              △ 1,105,607           △ 294,090               275.9"
+K29_KANEMATSU_ROW_HTML = (
+    "<html><body><table><tr><td><p>営業利益または損失（△）</p></td><td><p>7百万円</p></td>"
+    "<td><p>△27百万円</p></td><td><p>△72百万円</p></td></tr>"
+    "<tr><td><p>純資産</p></td><td><p>29百万円</p></td><td><p>△\n236百万円</p></td></tr></table></body></html>"
+)
+
+
+def test_kaishu29_round2_marks():
+    """改修29第2回: 空白をはさむ「▲」「△」と「△」を負の数として読むこと、読まないもの。"""
+    check("改修29第2回/記号/実 「▲ 36.3％」は−36.3(36.3では見つからない)",
+          (_k29_in_line(K29_GAIYO_TRIANGLE_SPACE, "二輪自動車 ： ▲ 36.3％", -36.3),
+           _k29_in_line(K29_GAIYO_TRIANGLE_SPACE, "二輪自動車 ： ▲ 36.3％", 36.3)), (True, False))
+    check("改修29第2回/記号/実 「▲   0.8」(空白3つ)も−0.8",
+          _k29_in_line(K29_GAIYO_TRIANGLE_SPACE, "▲ 36.3％ ▲ 0.8", -0.8), True)
+    check("改修29第2回/記号/実 税関「差引 △ 1,105,607」は−1105607(1105607では見つからない)",
+          (_k29_in_line(K29_CUSTOMS_DELTA, "差 引 △ 1,105,607", -1105607),
+           _k29_in_line(K29_CUSTOMS_DELTA, "差 引 △ 1,105,607", 1105607)), (True, False))
+    check("改修29第2回/記号/作 全角の空白・タブをはさむ「△　1,234」「▲\\t5」も負",
+          (_k29_in_line("差引　△　1,234", "△　1,234", -1234), _k29_in_line("前年差  ▲\t5", "▲\t5", -5)), (True, True))
+    check("改修29第2回/記号/抜き出しが記号を含まなければ、その数は抜き出しに丸ごと入らず、正でも負でも見つからない",
+          (_k29_in_line(K29_CUSTOMS_DELTA, "1,105,607", -1105607), _k29_in_line(K29_CUSTOMS_DELTA, "1,105,607", 1105607)),
+          (False, False))
+    check("改修29第2回/記号/「−」の印は数字の直前の「-」と同じ扱い(−1,234と▲1,234は同じ数)",
+          _k29_in_line("差引  ▲ 1,234", "差引 ▲ 1,234", -1234) == _k29_in_line("差引  -1,234", "差引 -1,234", -1234), True)
+
+    with tempfile.TemporaryDirectory() as d:
+        d = Path(d)
+        raw = K29_KANEMATSU_ROW_HTML.encode("utf-8")
+        write(d, "SRC-K.txt", raw)
+        src = _k29_source("SRC-K", EDINET_URL_K29, raw)
+        sources_by_id = {"SRC-K": src}
+
+        def run(excerpt, values):
+            return ve.verify_line(_k29_line("L-K", "SRC-K", excerpt, values), sources_by_id, d)[:2]
+
+        check("改修29第2回/記号/EDINET型 「△27百万円」「△72百万円」は−27・−72",
+              run("営業利益または損失（△） 7百万円 △27百万円 △72百万円", [-27, -72]), ("source_number_match", None))
+        check("改修29第2回/記号/EDINET型 凡例「損失（△）」の後ろの7は負にならない(記号と数字の間に「）」がある)",
+              (run("営業利益または損失（△） 7百万円", [7]), run("営業利益または損失（△） 7百万円", [-7])),
+              (("source_number_match", None), ("unverified", "number_not_in_excerpt")))
+        check("改修29第2回/記号/EDINET型 同じマス(1行)の中で改行をはさむ「△\\n236」も−236",
+              run("純資産 29百万円 △236百万円", [-236]), ("source_number_match", None))
+
+        # 行をまたぐ記号は読まない(PDFの本文で、記号が行の最後にあり、数字が次の行にある)。
+        pdf = "差引額 ▲\n1,234 億円\n".encode("utf-8")
+        write(d, "SRC-Q.txt", pdf)
+        sources_by_id["SRC-Q"] = _k29_source("SRC-Q", "https://www.customs.go.jp/test.pdf", pdf)
+        check("改修29第2回/記号/行をまたぐ「▲」は読まない(次の行の1,234は正のまま。−1234では見つからない)",
+              (ve.verify_line(_k29_line("L-Q", "SRC-Q", "1,234 億円", [1234]), sources_by_id, d)[:2],
+               ve.verify_line(_k29_line("L-Q", "SRC-Q", "1,234 億円", [-1234]), sources_by_id, d)[:2]),
+              (("source_number_match", None), ("unverified", "number_not_in_excerpt")))
+        check("改修29第2回/記号/行をまたぐ「▲1,234」の抜き出しは1行に収まらず excerpt_spans_lines",
+              ve.verify_line(_k29_line("L-Q", "SRC-Q", "▲1,234 億円", [-1234]), sources_by_id, d)[:2],
+              ("unverified", "excerpt_spans_lines"))
+
+
+def test_kaishu29_round2_spans_and_tables():
+    """改修29第2回: 区切れない出典は印を下げないこと。表の空のマスは上の行の文字を引き継がないこと
+    (B-1の調べで、日銀の公表予定は rowspan ではなく空のマスだったため、引き継ぎの処理は作らない)。"""
+    with tempfile.TemporaryDirectory() as d:
+        sources_by_id = _k29_cache(d)
+        lc = {}
+        result = ve.verify_line(_k29_line("L-S", "SRC-H", "本文の段落 2026年", [2026]), sources_by_id, d, lc)
+        check("改修29第2回/区切れない出典/本文の改行をまたぐ抜き出しでも、区切れない出典(join_mismatch)なら印を下げず、"
+              "find_number()で確かめて合格(1行の判定はしない)",
+              (result[:2], lc.get("fits"), lc.get("skipped_reason")), (("source_number_match", None), None, "join_mismatch"))
+
+        d = Path(d)
+        cal = ("<html><body><table><tr><th>公表日</th><th>時刻</th><th>資料名</th></tr>"
+               "<tr><td>10月 5日（月）</td><td> 8:50</td><td>日銀当座預金増減要因</td></tr>"
+               "<tr><td></td><td> 14:00</td><td>需給ギャップ・潜在成長率</td></tr>"
+               "<tr><td rowspan=\"2\">10月 8日（木）</td><td> 8:50</td><td>業種別・地域別直接投資</td></tr>"
+               "<tr><td> 14:00</td><td>地域経済報告</td></tr></table></body></html>")
+        body = ss.html_to_text(cal.encode("utf-8"), "text/html; charset=utf-8")[0]
+        write(d, "SRC-C.txt", body.encode("utf-8"))
+        write(d / "raw", "SRC-C.html", cal.encode("utf-8"))
+        write(d, "SRC-C.meta.json", json.dumps({"kind": "html", "content_type": "text/html; charset=utf-8"}))
+        sources_by_id["SRC-C"] = _k29_source("SRC-C", "https://www.boj.or.jp/test.htm", body.encode("utf-8"))
+
+        def run(excerpt, values):
+            return ve.verify_line(_k29_line("L-C", "SRC-C", excerpt, values), sources_by_id, d)[:2]
+
+        check("改修29第2回/表/公表日の欄が空の行は、その行だけなら1行に収まる(14時は確かめられる)",
+              run("14:00 需給ギャップ・潜在成長率", [14]), ("source_number_match", None))
+        check("改修29第2回/表/空のマスに上の行の日付を当てはめない(日付の行とつなぐと excerpt_spans_lines)",
+              run("10月 5日（月） 8:50 日銀当座預金増減要因 14:00 需給ギャップ・潜在成長率", [5, 14]),
+              ("unverified", "excerpt_spans_lines"))
+        check("改修29第2回/表/rowspanの表で、日付と2行目の中身を本文に無い順でつないだ抜き出しは、1行の検査より前の"
+              "excerpt_not_foundで止まる(引き継ぎの処理は作っていない)",
+              run("10月 8日（木） 14:00 地域経済報告", [8, 14]), ("unverified", "excerpt_not_found"))
+        check("改修29第2回/表/rowspanの表で、日付の行と2行目を本文どおりにつないだ抜き出しは excerpt_spans_lines",
+              run("10月 8日（木） 8:50 業種別・地域別直接投資 14:00 地域経済報告", [8, 14]), ("unverified", "excerpt_spans_lines"))
+
+
+def test_kaishu29_round2_companies():
+    """改修29第2回: またがる行の印が下がると、その行を根拠にした会社が既存の検査で消えること
+    (見本の号のコピーで、照合全体を通して確かめる。検査の仕組みは変えていない)。
+    ・reported(報道)の会社: 根拠の行がどれも事実の印でなくなると検査37(no_fact_line)で消える。
+      事実の印の行が1行でも残れば残る。
+    ・primary(最上位)の会社: 根拠の行がまたがる行だけなら検査37(no_fact_line)で、事実の印の行と
+      またがる行の両方なら primary_requires_verified_line(1行でもunverifiedなら消える)で消える。
+      根拠の行がすべて1行に収まる会社は残る。"""
+    with tempfile.TemporaryDirectory() as d:
+        work_dir = Path(d)
+        edition_path, hyp_path, cache_dir, today_str, prev_str = _rebuild_canary_as_today(work_dir)
+        calendar_dir = _write_temp_calendar(
+            work_dir, dt.datetime.strptime(prev_str, "%Y-%m-%d").date() - dt.timedelta(days=3), 60,
+        )
+        edition = json.loads(edition_path.read_text(encoding="utf-8"))
+        hyps = json.loads(hyp_path.read_text(encoding="utf-8"))
+        for _s, _a, line in ve.iter_lines(edition):
+            if line["line_id"] == "L-07":
+                # C01の本文は「<p>【提出者】カナリア物産株式会社</p><p>買付価格は…</p>」。2つの段落をつなぐ。
+                line["excerpt"] = "カナリア物産株式会社買付価格は1株につき2,500円とする"
+        by_id = {h["hypothesis_id"]: h for h in hyps["hypotheses"]}
+        by_id["H-1"]["line_ids"] = ["L-07"]
+        by_id["H-4"]["line_ids"] = ["L-07", "L-08"]
+        hyps["hypotheses"] += [
+            dict(copy.deepcopy(by_id["H-1"]), hypothesis_id="H-21", evidence_grade="primary"),
+            dict(copy.deepcopy(by_id["H-4"]), hypothesis_id="H-22", evidence_grade="primary"),
+            dict(copy.deepcopy(by_id["H-4"]), hypothesis_id="H-23", evidence_grade="primary", line_ids=["L-08"]),
+        ]
+        edition_path.write_text(json.dumps(edition, ensure_ascii=False), encoding="utf-8")
+        hyp_path.write_text(json.dumps(hyps, ensure_ascii=False), encoding="utf-8")
+        with _patched_codelist(_fake_codelist_rows(CANARY_CODELIST_ENTRIES)):
+            result = _run_verify(work_dir, edition_path, hyp_path, cache_dir, calendar_dir)
+        after_edition = json.loads(edition_path.read_text(encoding="utf-8"))
+        after_hyp = json.loads(hyp_path.read_text(encoding="utf-8"))
+        v = after_edition.get("verification") or {}
+        marks = {l["line_id"]: (l.get("mark"), l.get("mark_reason")) for _s, _a, l in ve.iter_lines(after_edition)}
+        kept = [h["hypothesis_id"] for h in after_hyp["hypotheses"]]
+        check37 = {r["hypothesis_id"]: [x["reason"] for x in r["reasons"]] for r in v.get("check37_removed") or []}
+        check("改修29第2回/会社/照合全体が正常終了し、L-07はexcerpt_spans_lines、L-08は合格のまま",
+              (result.returncode, marks["L-07"], marks["L-08"], v.get("excerpt_spans_lines")),
+              (0, ("unverified", "excerpt_spans_lines"), ("source_number_match", None), {"count": 1, "line_ids": ["L-07"]}))
+        check("改修29第2回/会社/reportedでまたがる行だけを根拠にしたH-1は消える(検査37のno_fact_line)",
+              ("H-1" in kept, check37.get("H-1")), (False, ["no_fact_line"]))
+        check("改修29第2回/会社/reportedで事実の印の行が1行残るH-4(L-07とL-08)は残る", "H-4" in kept, True)
+        check("改修29第2回/会社/primaryでまたがる行だけを根拠にしたH-21は消える(検査37が先に当たり、理由はno_fact_line)",
+              ("H-21" in kept, check37.get("H-21")), (False, ["no_fact_line"]))
+        check("改修29第2回/会社/primaryで事実の印の行とまたがる行の両方を根拠にしたH-22は、primary_requires_verified_lineで消える",
+              ("H-22" in kept, "H-22" in check37, "根拠が最上位なのに参照行が未確認だった(削除): 1件" in result.stdout),
+              (False, False, True))
+        check("改修29第2回/会社/primaryで根拠の行がすべて1行に収まるH-23は残る", "H-23" in kept, True)
 
 
 def main():
@@ -9858,6 +10018,11 @@ def main():
     test_kaishu29_split_lines()
     test_kaishu29_line_check_records()
     test_kaishu29_check_excerpts()
+
+    # 改修29(第2回): またがる行の印を下げる・空白をはさむ「▲」「△」・表の空のマス・会社が消えることのテスト。
+    test_kaishu29_round2_marks()
+    test_kaishu29_round2_spans_and_tables()
+    test_kaishu29_round2_companies()
 
     total = len(results)
     passed = sum(1 for _, ok, _, _ in results if ok)
