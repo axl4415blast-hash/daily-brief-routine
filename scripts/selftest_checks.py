@@ -9657,6 +9657,90 @@ def test_kaishu29_check_excerpts():
         check("改修29/check_excerpts/紙面が読めないなどスクリプト自体のエラーは終了コード2", result.returncode, 2)
 
 
+def _k29_null_policy_edition(d, lines, sources_by_id, name="edition_null.json"):
+    """紙面を作るAIが書く形(出典のusage・publisher_typeがnull)の紙面ファイルを作る。"""
+    nulled = {k: dict(v, usage=None, publisher_type=None) for k, v in sources_by_id.items()}
+    return _k29_edition_file(d, lines, nulled, name=name)
+
+
+def _k29_status(out):
+    return dict(re.findall(r"^(L-[A-Z]+)  (\S+)  ", out, re.M))
+
+
+def test_kaishu29_check_excerpts_policy(script_path=None, label="改修29/check_excerpts(表)"):
+    """改修29第3回: check_excerpts.py が、照合と同じく source_policy.csv の値で usage・publisher_type を
+    決めてから調べること(紙面を作るAIはusageにnullを置く)。紙面ファイルは書き換えない。
+    script_path を渡すと、その写しで動かす(わざと壊すテスト用)。戻り値: 正例の(状態, 終了コード)。"""
+    with tempfile.TemporaryDirectory() as d:
+        d = Path(d)
+        cache = d / "cache"
+        cache.mkdir()
+        sources_by_id = _k29_cache(cache)
+        lines = [
+            _k29_line("L-OK", "SRC-P", "製造業 22 17 24", [24, 17]),
+            _k29_line("L-SPAN", "SRC-P", "変化幅 製造業 22 17 24", [22]),
+        ]
+
+        def run_script(edition_path):
+            script = Path(script_path) if script_path else Path(__file__).resolve().parent / "check_excerpts.py"
+            return subprocess.run([sys.executable, str(script), "--edition", str(edition_path), "--cache-dir", str(cache)],
+                                  capture_output=True, text=True, timeout=120)
+
+        # 正例: usage・publisher_type が null の紙面
+        null_path = _k29_null_policy_edition(d, lines, sources_by_id)
+        before = null_path.read_bytes()
+        result = run_script(null_path)
+        status = _k29_status(result.stdout)
+        positive = (status, result.returncode)
+        after = null_path.read_bytes()
+        if script_path is None:
+            check(f"{label}/正例 usageがnullの紙面でも L-OK は ok、L-SPAN は spans_lines",
+                  status, {"L-OK": "ok", "L-SPAN": "spans_lines"})
+            check(f"{label}/正例 L-SPAN(ok以外)があるので終了コード1(L-OKだけの紙面は0)",
+                  result.returncode, 1)
+            ok_only = _k29_null_policy_edition(d, lines[:1], sources_by_id, name="edition_null_ok.json")
+            result_ok = run_script(ok_only)
+            check(f"{label}/正例 usageがnullでL-OKだけの紙面は ok・終了コード0",
+                  (_k29_status(result_ok.stdout), result_ok.returncode), ({"L-OK": "ok"}, 0))
+            check(f"{label}/書き換えない usageをnullにした紙面ファイルが実行の前後で1バイトも変わらない(usageはnullのまま)",
+                  (after == before, json.loads(after.decode("utf-8"))["sources"][0]["usage"]), (True, None))
+
+            # 負例(表が勝つ): 表に無いドメインは、usageにquotableと書いてあってもskipped
+            unlisted = {k: dict(v, url="https://example.com/test.pdf") for k, v in sources_by_id.items()}
+            p1 = _k29_edition_file(d, lines[:1], unlisted, name="edition_unlisted.json")
+            r1 = run_script(p1)
+            check(f"{label}/負例 表に無いドメイン(quotableと書いてあっても)はskipped・理由にsource_policy.csv",
+                  (_k29_status(r1.stdout), "source_policy.csv" in r1.stdout, r1.returncode),
+                  ({"L-OK": "skipped"}, True, 1))
+            # 負例(表が勝つ): 表でsnippet_onlyのドメインは、quotableと書いてあってもskipped
+            snippet = {k: dict(v, url="https://www.nippon.com/ja/test/") for k, v in sources_by_id.items()}
+            p2 = _k29_edition_file(d, lines[:1], snippet, name="edition_snippet.json")
+            r2 = run_script(p2)
+            check(f"{label}/負例 表でsnippet_onlyのドメイン(quotableと書いてあっても)はskipped",
+                  (_k29_status(r2.stdout), "source_policy.csv" in r2.stdout, r2.returncode),
+                  ({"L-OK": "skipped"}, True, 1))
+    return positive
+
+
+def test_kaishu29_check_excerpts_policy_sabotage():
+    """改修29第3回: わざと壊すテスト。表を当てはめる呼び出しを外した写しでは、正例が失敗する(skippedになる)ことを確かめる。"""
+    here = Path(__file__).resolve().parent
+    src = (here / "check_excerpts.py").read_text(encoding="utf-8")
+    call = 've.apply_source_policy(edition, Path(ve.__file__).resolve().parent / "source_policy.csv")'
+    with tempfile.TemporaryDirectory() as t:
+        t = Path(t)
+        removed = src.replace(call, "pass")
+        check("改修29/check_excerpts(表)/壊した写しの作り方: 呼び出しが1か所あり、外せた", (src.count(call), removed != src), (1, True))
+        broken = t / "check_excerpts.py"
+        broken.write_text(removed, encoding="utf-8")
+        # 写しは verify_edition を同じ場所から読めるよう、scriptsを検索の道筋に入れる。
+        broken.write_text(removed.replace("sys.path.insert(0, str(Path(__file__).resolve().parent))",
+                                          f"sys.path.insert(0, {str(here)!r})", 1), encoding="utf-8")
+        status, code = test_kaishu29_check_excerpts_policy(script_path=broken, label="改修29/check_excerpts(表・壊した写し)")
+        check("改修29/check_excerpts(表)/壊した写しでは、正例が失敗する(usageがnullだと全行skipped・終了コード1)",
+              (status == {"L-OK": "ok", "L-SPAN": "spans_lines"}, status.get("L-OK")), (False, "skipped"))
+
+
 # ---------------------------------------------------------------------------
 # 改修29第2回: またがる行の印を下げる・空白をはさむ「▲」「△」・会社が消えること
 # ---------------------------------------------------------------------------
@@ -10018,6 +10102,8 @@ def main():
     test_kaishu29_split_lines()
     test_kaishu29_line_check_records()
     test_kaishu29_check_excerpts()
+    test_kaishu29_check_excerpts_policy()
+    test_kaishu29_check_excerpts_policy_sabotage()
 
     # 改修29(第2回): またがる行の印を下げる・空白をはさむ「▲」「△」・表の空のマス・会社が消えることのテスト。
     test_kaishu29_round2_marks()

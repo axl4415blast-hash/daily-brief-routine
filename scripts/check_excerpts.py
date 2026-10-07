@@ -13,6 +13,7 @@
   skipped            調べられなかった(本文が無い・ハッシュ不一致・区切れない等。理由も表示する)
 
 表示する本文の行は、抜き出しの確認に要る行だけにする(本文を丸ごと出さない)。
+出典の usage・publisher_type は、照合と同じく source_policy.csv の値で決めてから調べる(紙面には書き戻さない)。紙面を作るAIは usage に null を置くため。
 
 使い方:
   python3 scripts/check_excerpts.py --edition editions/{日付}/{時間帯}.json [--cache-dir .cache/sources]
@@ -37,7 +38,7 @@ SHOW_SPAN_LINES = 4
 SKIP_REASON_TEXT = {
     "no_source_ref": "出典の番号(source_ref)が空",
     "source_ref_not_found": "出典の番号が出典の一覧(sources)に無い",
-    "not_quotable": "本文を取得していない出典(usageがquotable以外)",
+    "not_quotable": "抜き出しを付けられない出典(scripts/source_policy.csv で quotable でないドメイン、または表に無いドメイン)",
     "no_excerpt": "抜き出し(excerpt)が空",
     "numbers_empty": "数字(numbers)が1つも無い",
     "numbers_malformed": "数字(numbers)の形が正しくない(一覧の中が{\"value\": …}の形でない)",
@@ -157,6 +158,8 @@ def check_line(line, sources_by_id, cache_dir):
 def run(edition_path, cache_dir, out=sys.stdout):
     """紙面を読み、source_number_matchの行をすべて調べて表示する。戻り値: 終了コード(0か1)。"""
     edition = ve.load_json(edition_path)
+    # 照合(verify_edition.run_verification)と同じ表・同じ関数で usage・publisher_type を決める(メモリの中だけ。紙面は書き換えない)。
+    ve.apply_source_policy(edition, Path(ve.__file__).resolve().parent / "source_policy.csv")
     sources_by_id = {s.get("source_id"): s for s in edition.get("sources", []) if isinstance(s, dict)}
     counts = {status: 0 for status in STATUSES}
     print(f"抜き出しの事前確認: {edition_path}(出典の本文: {cache_dir})", file=out)
