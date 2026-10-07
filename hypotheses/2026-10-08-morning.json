@@ -1,0 +1,195 @@
+{
+ "schema_version": 3,
+ "edition_id": "2026-10-08-morning",
+ "generated_at": "2026-10-08T07:36:44.126673+09:00",
+ "market_open": true,
+ "baseline_late": false,
+ "hypotheses": [
+  {
+   "hypothesis_id": "2026-10-08-morning-1",
+   "event_id": "EVT-2026-10-08-002",
+   "company_name": "ソフトバンク株式会社",
+   "ticker": "9434",
+   "ticker_source": "edinet_seccode",
+   "article_id": "ART-2026-10-08-002",
+   "line_ids": [
+    "L-002-02"
+   ],
+   "evidence_grade": "primary",
+   "evidence_source_ref": "SRC-006",
+   "evidence_filer_name": "ソフトバンク株式会社",
+   "evidence_doc_type": "発行登録追補書類（株券､社債券等）",
+   "evidence_role": "filer_self",
+   "impact_kind": null,
+   "impact_reason": "発行登録追補書類（株券､社債券等）。本文に第36回無担保社債の利率が年2.564%と書かれている。",
+   "news_entity": null,
+   "entity_relation": "same",
+   "relation_text": "ソフトバンク株式会社は、発行登録追補書類を自ら提出した社債の発行者という立場にある。",
+   "auto_check_target": false,
+   "added_by": "auto",
+   "baseline_date": "2026-10-08",
+   "baseline_price_type": "open",
+   "baseline_observed_at": null,
+   "baseline_benchmark_price": null,
+   "baseline_benchmark_observed_at": null,
+   "baseline_late_input": false,
+   "horizon_business_days": 20,
+   "deadline_date": "2026-11-09",
+   "links": {
+    "price_history": "https://finance.yahoo.co.jp/quote/9434.T/history",
+    "disclosure_search": "https://www.release.tdnet.info/inbs/I_main_00.html"
+   },
+   "impact_kind_source": "edinet_doctype_unmapped",
+   "tob_side": null,
+   "duplicate_of": null
+  },
+  {
+   "hypothesis_id": "2026-10-08-morning-2",
+   "event_id": "EVT-2026-10-08-003",
+   "company_name": "Ａｉロボティクス株式会社",
+   "ticker": "247A",
+   "ticker_source": "edinet_seccode",
+   "article_id": "ART-2026-10-08-003",
+   "line_ids": [
+    "L-003-04"
+   ],
+   "evidence_grade": "primary",
+   "evidence_source_ref": "SRC-001",
+   "evidence_filer_name": "Ａｉロボティクス株式会社",
+   "evidence_doc_type": "臨時報告書",
+   "evidence_role": "filer_self",
+   "impact_kind": null,
+   "impact_reason": "臨時報告書。本文に3つの銀行との借入の元本が合計13,600百万円と書かれている。",
+   "news_entity": null,
+   "entity_relation": "same",
+   "relation_text": "Ａｉロボティクス株式会社は、銀行との借入契約を結んだことを臨時報告書で自ら届け出た借り手という立場にある。",
+   "auto_check_target": false,
+   "added_by": "auto",
+   "baseline_date": "2026-10-08",
+   "baseline_price_type": "open",
+   "baseline_observed_at": null,
+   "baseline_benchmark_price": null,
+   "baseline_benchmark_observed_at": null,
+   "baseline_late_input": false,
+   "horizon_business_days": 20,
+   "deadline_date": "2026-11-09",
+   "links": {
+    "price_history": "https://finance.yahoo.co.jp/quote/247A.T/history",
+    "disclosure_search": "https://www.release.tdnet.info/inbs/I_main_00.html"
+   },
+   "impact_kind_source": "edinet_doctype_unmapped",
+   "tob_side": null,
+   "duplicate_of": null
+  },
+  {
+   "hypothesis_id": "2026-10-08-morning-3",
+   "event_id": "EVT-2026-10-08-004",
+   "company_name": "株式会社Ｔｒｕｅ　Ｄａｔａ",
+   "ticker": "4416",
+   "ticker_source": "edinet_seccode",
+   "article_id": "ART-2026-10-08-004",
+   "line_ids": [
+    "L-004-01"
+   ],
+   "evidence_grade": "primary",
+   "evidence_source_ref": "SRC-003",
+   "evidence_filer_name": "株式会社Ｔｒｕｅ　Ｄａｔａ",
+   "evidence_doc_type": "臨時報告書",
+   "evidence_role": "filer_self",
+   "impact_kind": null,
+   "impact_reason": "臨時報告書。本文に株式会社コスモネットの全株式を取得し子会社化することを決議したと書かれている。",
+   "news_entity": null,
+   "entity_relation": "same",
+   "relation_text": "株式会社Ｔｒｕｅ　Ｄａｔａは、他社の全株式を取得して子会社にすることを決めた買い手という立場にある。",
+   "auto_check_target": false,
+   "added_by": "auto",
+   "baseline_date": "2026-10-08",
+   "baseline_price_type": "open",
+   "baseline_observed_at": null,
+   "baseline_benchmark_price": null,
+   "baseline_benchmark_observed_at": null,
+   "baseline_late_input": false,
+   "horizon_business_days": 20,
+   "deadline_date": "2026-11-09",
+   "links": {
+    "price_history": "https://finance.yahoo.co.jp/quote/4416.T/history",
+    "disclosure_search": "https://www.release.tdnet.info/inbs/I_main_00.html"
+   },
+   "impact_kind_source": "edinet_doctype_unmapped",
+   "tob_side": null,
+   "duplicate_of": null
+  },
+  {
+   "hypothesis_id": "2026-10-08-morning-4",
+   "event_id": "EVT-2026-10-08-006",
+   "company_name": "株式会社村田製作所",
+   "ticker": "6981",
+   "ticker_source": "edinet_seccode",
+   "article_id": "ART-2026-10-08-006",
+   "line_ids": [
+    "L-006-04"
+   ],
+   "evidence_grade": "primary",
+   "evidence_source_ref": "SRC-007",
+   "evidence_filer_name": "株式会社村田製作所",
+   "evidence_doc_type": "自己株券買付状況報告書（法２４条の６第１項に基づくもの）",
+   "evidence_role": "filer_self",
+   "impact_kind": "amount_stated",
+   "impact_reason": "自己株券買付状況報告書（法２４条の６第１項に基づくもの）。本文に9月末までの累計で10,401,300株を取得したと書かれている。",
+   "news_entity": null,
+   "entity_relation": "same",
+   "relation_text": "株式会社村田製作所は、自己株式の取得を進めていることを自ら報告した会社という立場にある。",
+   "auto_check_target": true,
+   "added_by": "auto",
+   "baseline_date": "2026-10-08",
+   "baseline_price_type": "open",
+   "baseline_observed_at": null,
+   "baseline_benchmark_price": null,
+   "baseline_benchmark_observed_at": null,
+   "baseline_late_input": false,
+   "horizon_business_days": 20,
+   "deadline_date": "2026-11-09",
+   "links": {
+    "price_history": "https://finance.yahoo.co.jp/quote/6981.T/history",
+    "disclosure_search": "https://www.release.tdnet.info/inbs/I_main_00.html"
+   },
+   "impact_kind_source": "edinet_doctype",
+   "tob_side": null,
+   "duplicate_of": null
+  }
+ ],
+ "industry_picks": [
+  {
+   "article_id": "ART-2026-10-08-003",
+   "event_id": "EVT-2026-10-08-003",
+   "industry": "銀行業",
+   "industry_line_ids": [
+    "L-003-04"
+   ]
+  }
+ ],
+ "industry_examples": [
+  {
+   "example_id": "2026-10-08-morning-x1",
+   "article_id": "ART-2026-10-08-003",
+   "event_id": "EVT-2026-10-08-003",
+   "industry": "銀行業",
+   "line_ids": [
+    "L-003-04"
+   ],
+   "company_name": "株式会社みずほフィナンシャルグループ",
+   "ticker": "8411",
+   "ticker_source": "edinet_codelist",
+   "news_entity": "みずほ銀行",
+   "entity_relation": "parent",
+   "evidence_grade": "inferred",
+   "selection_rule": "mentioned_in_text",
+   "impact_kind": null,
+   "relation_text": "東証33業種の「銀行業」に属する上場企業の例です。この記事の本文にこの会社名が出ています（関係の中身は確認していません）。",
+   "industry_source": "edinet_codelist",
+   "industry_retrieved_date": "2026-10-08",
+   "attribution": "出典：EDINET閲覧（提出）サイト EDINETコードリスト（https://disclosure2dl.edinet-fsa.go.jp/searchdocument/codelist/Edinetcode.zip）、PDL1.0（https://www.digital.go.jp/resources/open_data/public_data_license_v1.0）（2026年10月8日に取得）",
+   "processing_note": "EDINET閲覧（提出）サイトをもとに本サイト作成（上場区分が「上場」の行を抽出し、証券コードの末尾0を除いた）"
+  }
+ ]
+}
