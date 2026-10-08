@@ -153,6 +153,21 @@ def strip_ws(value):
     return value.strip()
 
 
+_ANY_WS_RE = re.compile(r"\s+")
+
+
+def normalize_filer_name_for_compare(value):
+    """提出者名の比較用の形にする(改修30)。NFKC正規化(全角英数字・全角空白を半角に)をして、
+    空白(全角・半角・タブ・改行)をすべて取り除く。法人格(株式会社など)は提出者名の
+    正式な一部なので取り除かない。文字列でない・空になる場合はNoneを返す。
+    AIが書いた company_name と、EDINET書類一覧の提出者名(「株式会社　商船三井」のように
+    社名の間に全角空白が入ることがある)を同じ規則で比べるために使う。"""
+    if not isinstance(value, str):
+        return None
+    normalized = _ANY_WS_RE.sub("", unicodedata.normalize("NFKC", value))
+    return normalized or None
+
+
 def format_number(value):
     if isinstance(value, bool):
         return str(value)
@@ -1701,7 +1716,8 @@ def published_at_candidates(year, month, day):
     日本語・数字の6通り(要件定義書v12 13章)と、改修27-2第4回で足した英語
     (September 18, 2026 / Sept. 18, 2026 / Sep. 18, 2026 / Sep 18, 2026)。
     月日にゼロ埋めが要る書き方(2件)以外は、ゼロ埋めしない元の月日をそのまま使う
-    (英語の日も September 1, 2026 のようにゼロ埋めしない)。大文字・小文字の違いは
+    (英語の日も September 1, 2026 のようにゼロ埋めしない。ただし改修30で、日が1〜9のときだけ
+    September 01, 2026 のようにゼロ埋めした形も足した)。大文字・小文字の違いは
     date_found_in_text()が同じとみなす。"""
     forms = [
         f"{year:04d}-{month:02d}-{day:02d}",
@@ -1712,6 +1728,10 @@ def published_at_candidates(year, month, day):
         f"{month}月{day}日",
     ]
     forms += [f"{name} {day}, {year:04d}" for name in _english_month_forms(month)]
+    if day < 10:
+        # 改修30: 日が1〜9のときは、日を2桁にした書き方(October 07, 2026)も足す。
+        # FRBの議事要旨は「Last Update: October 07, 2026」とゼロ埋めで書いてある。
+        forms += [f"{name} {day:02d}, {year:04d}" for name in _english_month_forms(month)]
     return forms
 
 
@@ -3012,7 +3032,7 @@ def apply_edinet_evidence(hyps, sources_by_id, edinet_companies, codelist_rows):
                 doc_by_id[doc_id] = c
 
     for hyp in hyps:
-        company_name = strip_ws(hyp.get("company_name"))
+        company_name = normalize_filer_name_for_compare(hyp.get("company_name"))
         ref = hyp.get("evidence_source_ref")
         source = sources_by_id.get(ref) if ref else None
         url = source.get("url") if source else None
@@ -3036,8 +3056,8 @@ def apply_edinet_evidence(hyps, sources_by_id, edinet_companies, codelist_rows):
         elif record is not None:
             new_filer_name = record.get("filer_name")
             new_doc_type = record.get("doc_description")
-            filer_name_stripped = strip_ws(new_filer_name)
-            new_role = "filer_self" if (company_name and filer_name_stripped and company_name == filer_name_stripped) else "mentioned"
+            filer_name_normalized = normalize_filer_name_for_compare(new_filer_name)
+            new_role = "filer_self" if (company_name and filer_name_normalized and company_name == filer_name_normalized) else "mentioned"
             doc_type_code = record.get("doc_type_code")
             if doc_type_code in EDINET_DOC_TYPE_IMPACT_KIND:
                 new_impact_kind = EDINET_DOC_TYPE_IMPACT_KIND[doc_type_code]
@@ -3109,10 +3129,10 @@ def check_ticker_fields(hyp, edinet_companies):
         return "ticker_source_missing"
 
     if hyp.get("ticker_source") == "edinet_seccode" and edinet_companies is not None:
-        company_name = strip_ws(hyp.get("company_name"))
+        company_name = normalize_filer_name_for_compare(hyp.get("company_name"))
         match = None
         for c in edinet_companies:
-            if strip_ws(c.get("filer_name")) == company_name:
+            if normalize_filer_name_for_compare(c.get("filer_name")) == company_name:
                 match = c
                 break
         if match is None or match.get("ticker") != ticker:

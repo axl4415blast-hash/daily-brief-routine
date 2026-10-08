@@ -407,6 +407,83 @@ def test_stop_and_watch_split():
     check("注意/負例: 除外語(株式会社・売上高)は近接ルールに引っかけない", len(hits), 0)
 
 
+def test_kaishu30_filer_name_and_date_zero_pad():
+    """改修30: (1) 提出者名の比較で空白・全角半角の違いを無視する(検査13と evidence_role)。
+    (2) 英語の日付で、日をゼロ埋めした形(October 07, 2026)も候補に入れる(検査36)。"""
+    # --- 3-1: 比較用の関数そのもの ---
+    n = ve.normalize_filer_name_for_compare
+    check("改修30/比較関数: 全角空白を取り除く", n("株式会社　商船三井"), "株式会社商船三井")
+    check("改修30/比較関数: 半角空白・タブ・改行を取り除く", n(" 株式会社 \t商船\n三井 "), "株式会社商船三井")
+    check("改修30/比較関数: 全角英字は半角になる", n("株式会社Ｔｒｕｅ　Ｄａｔａ"), "株式会社TrueData")
+    check("改修30/比較関数: 法人格は取り除かない", n("株式会社　商船三井") != n("商船三井"), True)
+    check("改修30/比較関数: 文字列でない・空はNone", (n(None), n(123), n(""), n(" 　 ")), (None, None, None, None))
+
+    # --- 3-1: 検査13 ---
+    def run13(company_name, filer_name, ticker="9104", filer_ticker="9104"):
+        hyp = {"company_name": company_name, "ticker": ticker, "ticker_source": "edinet_seccode"}
+        return ve.check_ticker_fields(hyp, [{"filer_name": filer_name, "ticker": filer_ticker}])
+
+    for label, cn, fn in [
+        ("書類一覧に全角空白", "株式会社商船三井", "株式会社　商船三井"),
+        ("書類一覧に半角空白", "株式会社商船三井", "株式会社 商船三井"),
+        ("AI側に空白・書類一覧は空白なし", "株式会社 商船三井", "株式会社商船三井"),
+        ("両方空白なし(今までどおり)", "株式会社商船三井", "株式会社商船三井"),
+        ("全角英字と半角英字", "株式会社True Data", "株式会社Ｔｒｕｅ　Ｄａｔａ"),
+        ("半角英字と全角英字(逆)", "株式会社Ｔｒｕｅ　Ｄａｔａ", "株式会社True Data"),
+    ]:
+        check(f"改修30/検査13: {label}で証券コードが一致すれば通る", run13(cn, fn), None)
+    check("改修30/検査13: 空白を除けば一致でも、証券コードが違えばticker_mismatch",
+          run13("株式会社商船三井", "株式会社　商船三井", filer_ticker="9999"), "ticker_mismatch")
+    check("改修30/検査13: 空白以外が違う名前(商船三井テクノ)は一致しない",
+          run13("株式会社商船三井", "株式会社　商船三井テクノ"), "ticker_mismatch")
+    check("改修30/検査13: 法人格だけが違う名前(商船三井と株式会社　商船三井)は一致しない",
+          run13("商船三井", "株式会社　商船三井"), "ticker_mismatch")
+
+    # --- 3-1: evidence_role ---
+    sources = {"SRC-1": {"source_id": "SRC-1",
+                         "url": "https://disclosure2.edinet-fsa.go.jp/api/v2/documents/S100K30AA?type=1"}}
+
+    def role(company_name, filer_name):
+        records = [{"filer_name": filer_name, "ticker": "9104", "doc_id": "S100K30AA",
+                    "doc_type_code": "120", "doc_description": "有価証券報告書"}]
+        h = {"company_name": company_name, "evidence_source_ref": "SRC-1", "impact_kind": None}
+        ve.apply_edinet_evidence([h], sources, records, None)
+        return h["evidence_role"], h["evidence_filer_name"]
+
+    check("改修30/evidence_role: 全角空白の違いでもfiler_self(evidence_filer_nameは書類一覧の値のまま)",
+          role("株式会社商船三井", "株式会社　商船三井"), ("filer_self", "株式会社　商船三井"))
+    check("改修30/evidence_role: 半角空白の違いでもfiler_self",
+          role("株式会社商船三井", "株式会社 商船三井")[0], "filer_self")
+    check("改修30/evidence_role: 全角英字と半角英字の違いでもfiler_self",
+          role("株式会社True Data", "株式会社Ｔｒｕｅ　Ｄａｔａ")[0], "filer_self")
+    check("改修30/evidence_role: 空白以外が違う名前はmentioned",
+          role("株式会社商船三井", "株式会社　商船三井テクノ")[0], "mentioned")
+    check("改修30/evidence_role: 法人格だけが違う名前はmentioned",
+          role("商船三井", "株式会社　商船三井")[0], "mentioned")
+
+    # --- 3-2: 英語の日付のゼロ埋め ---
+    def found(text, year, month, day):
+        return ve.date_found_in_text(text, ve.published_at_candidates(year, month, day))
+
+    check("改修30/日付: 「Last Update: October 07, 2026」で2026-10-07が見つかる",
+          found("Last Update: October 07, 2026", 2026, 10, 7), True)
+    check("改修30/日付: 「October 7, 2026」も今までどおり見つかる", found("October 7, 2026", 2026, 10, 7), True)
+    check("改修30/日付: 「October 17, 2026」で2026-10-07は見つからない", found("October 17, 2026", 2026, 10, 7), False)
+    check("改修30/日付: 「October 07, 2026」で2026-10-17は見つからない", found("October 07, 2026", 2026, 10, 17), False)
+    check("改修30/日付: 「October 017, 2026」の一部に2026-10-07は当たらない",
+          found("October 017, 2026", 2026, 10, 7), False)
+    check("改修30/日付: 略記のゼロ埋め(Oct. 07, 2026・Oct 07, 2026・Sept. 07, 2026・Sep 07, 2026)も見つかる",
+          (found("Oct. 07, 2026", 2026, 10, 7), found("Oct 07, 2026", 2026, 10, 7),
+           found("Sept. 07, 2026", 2026, 9, 7), found("Sep 07, 2026", 2026, 9, 7)),
+          (True, True, True, True))
+    check("改修30/日付: 日が10以上の候補は今までと同じ(重複なし)",
+          ve.published_at_candidates(2026, 10, 17), [
+              "2026-10-17", "2026/10/17", "2026/10/17", "2026年10月17日", "令和8年10月17日", "10月17日",
+              "October 17, 2026", "Oct. 17, 2026", "Oct 17, 2026"])
+    check("改修30/日付: 日が1〜9の候補は英語がゼロ埋めの分だけ増える(日本語・数字の6通りは同じ)",
+          len(ve.published_at_candidates(2026, 10, 7)), 6 + 3 + 3)
+
+
 def test_check_ticker_fields():
     """検査13(ticker/ticker_sourceの確認)の正例・負例。証券コードは実在しない9999/9998。
 
@@ -10025,6 +10102,9 @@ def main():
     # 別の日に一致しないための規則のテスト。
     test_date_found_in_text()
     test_published_date_only_required()
+
+    # 改修30: 提出者名の比較で空白・全角半角を無視する／英語の日付のゼロ埋め。
+    test_kaishu30_filer_name_and_date_zero_pad()
 
     # 改修27-2(第5回): 検査11を削除にする(S5)・照合名の段階・より長い別の社名の一部(Q6)・
     # 辞書の読み込み場所のテスト。
