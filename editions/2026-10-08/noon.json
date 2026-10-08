@@ -1,0 +1,1361 @@
+{
+ "schema_version": 2,
+ "edition_id": "2026-10-08-noon",
+ "date": "2026-10-08",
+ "slot": "noon",
+ "generated_at": "2026-10-08T13:10:09.696882+09:00",
+ "market_open": true,
+ "baseline": {
+  "date": "2026-10-08",
+  "price_type": "observed"
+ },
+ "sources": [
+  {
+   "source_id": "SRC-EDINET-LIST",
+   "url": "https://api.edinet-fsa.go.jp/api/v2/documents.json?date=2026-10-08&type=2",
+   "publisher": "金融庁",
+   "publisher_type": "company_disclosure",
+   "title": "EDINET 書類一覧（2026年10月8日）",
+   "published_at": "2026-10-08",
+   "fetched_at": "2026-10-08T13:01:20+09:00",
+   "fetch_method": "urllib",
+   "content_sha256": "0f40a239dc2ff9c1390485a4d88c20350b1cd5031ea2e2071c532edf5ea6d6bf",
+   "usage": "quotable",
+   "attribution": "出典：EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/）、PDL1.0（https://www.digital.go.jp/resources/open_data/public_data_license_v1.0）",
+   "processing_note": "EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/）をもとに本サイト作成",
+   "published_date_only": true,
+   "view_url": "https://disclosure2.edinet-fsa.go.jp/"
+  },
+  {
+   "source_id": "SRC-EDINET-LIST-PREV",
+   "url": "https://api.edinet-fsa.go.jp/api/v2/documents.json?date=2026-10-07&type=2",
+   "publisher": "金融庁",
+   "publisher_type": "company_disclosure",
+   "title": "EDINET 書類一覧（2026年10月7日）",
+   "published_at": "2026-10-07",
+   "fetched_at": "2026-10-08T13:01:27+09:00",
+   "fetch_method": "urllib",
+   "content_sha256": "f61e87917ea743f99807f6d7857e9f7472a232d956462eef8edcae5c9b763236",
+   "usage": "quotable",
+   "attribution": "出典：EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/）、PDL1.0（https://www.digital.go.jp/resources/open_data/public_data_license_v1.0）",
+   "processing_note": "EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/）をもとに本サイト作成",
+   "published_date_only": true,
+   "view_url": "https://disclosure2.edinet-fsa.go.jp/"
+  },
+  {
+   "source_id": "SRC-001",
+   "url": "https://disclosure2.edinet-fsa.go.jp/api/v2/documents/S100Z6ZZ?type=1",
+   "publisher": "株式会社　商船三井",
+   "publisher_type": "company_disclosure",
+   "title": "発行登録追補書類（株券､社債券等）（株式会社　商船三井）",
+   "published_at": "2026-10-08T11:20:00+09:00",
+   "fetched_at": "2026-10-08T13:01:51+09:00",
+   "fetch_method": "urllib",
+   "content_sha256": "4e79b3755920067e7e02cea371ca9972b30daba452514737ac940d6350787f8c",
+   "usage": "quotable",
+   "attribution": "出典：EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z6ZZ）、PDL1.0（https://www.digital.go.jp/resources/open_data/public_data_license_v1.0）",
+   "processing_note": "EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z6ZZ）をもとに本サイト作成",
+   "published_date_only": false,
+   "view_url": "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z6ZZ"
+  },
+  {
+   "source_id": "SRC-002",
+   "url": "https://disclosure2.edinet-fsa.go.jp/api/v2/documents/S100Z6W4?type=1",
+   "publisher": "株式会社横浜フィナンシャルグループ",
+   "publisher_type": "company_disclosure",
+   "title": "発行登録追補書類（株券､社債券等）（株式会社横浜フィナンシャルグループ）",
+   "published_at": "2026-10-08T10:56:00+09:00",
+   "fetched_at": "2026-10-08T13:01:57+09:00",
+   "fetch_method": "urllib",
+   "content_sha256": "a1a41d32a8930dff93f555ff0c21ad4ed0a847daf252f3de8e5e65432c3607ee",
+   "usage": "quotable",
+   "attribution": "出典：EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z6W4）、PDL1.0（https://www.digital.go.jp/resources/open_data/public_data_license_v1.0）",
+   "processing_note": "EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z6W4）をもとに本サイト作成",
+   "published_date_only": false,
+   "view_url": "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z6W4"
+  },
+  {
+   "source_id": "SRC-003",
+   "url": "https://disclosure2.edinet-fsa.go.jp/api/v2/documents/S100Z62H?type=1",
+   "publisher": "株式会社ジャックス",
+   "publisher_type": "company_disclosure",
+   "title": "発行登録追補書類（株券､社債券等）（株式会社ジャックス）",
+   "published_at": "2026-10-08T10:43:00+09:00",
+   "fetched_at": "2026-10-08T13:02:03+09:00",
+   "fetch_method": "urllib",
+   "content_sha256": "6b661890f8f5f7587d69cdd9b786a7ec246f2b37e267247adfb970a840ddb51e",
+   "usage": "quotable",
+   "attribution": "出典：EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z62H）、PDL1.0（https://www.digital.go.jp/resources/open_data/public_data_license_v1.0）",
+   "processing_note": "EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z62H）をもとに本サイト作成",
+   "published_date_only": false,
+   "view_url": "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z62H"
+  },
+  {
+   "source_id": "SRC-004",
+   "url": "https://disclosure2.edinet-fsa.go.jp/api/v2/documents/S100Z6OE?type=1",
+   "publisher": "株式会社奥村組",
+   "publisher_type": "company_disclosure",
+   "title": "発行登録追補書類（株券､社債券等）（株式会社奥村組）",
+   "published_at": "2026-10-08T10:08:00+09:00",
+   "fetched_at": "2026-10-08T13:02:09+09:00",
+   "fetch_method": "urllib",
+   "content_sha256": "5c167ae84b5c42356db4360f124c854e891319789ce47e6dd139674736025844",
+   "usage": "quotable",
+   "attribution": "出典：EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z6OE）、PDL1.0（https://www.digital.go.jp/resources/open_data/public_data_license_v1.0）",
+   "processing_note": "EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z6OE）をもとに本サイト作成",
+   "published_date_only": false,
+   "view_url": "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z6OE"
+  },
+  {
+   "source_id": "SRC-008",
+   "url": "https://disclosure2.edinet-fsa.go.jp/api/v2/documents/S100Z6XI?type=1",
+   "publisher": "ＮＩＰＰＯＮ　ＥＸＰＲＥＳＳホールディングス株式会社",
+   "publisher_type": "company_disclosure",
+   "title": "訂正臨時報告書（ＮＩＰＰＯＮ　ＥＸＰＲＥＳＳホールディングス株式会社）",
+   "published_at": "2026-10-07T16:51:00+09:00",
+   "fetched_at": "2026-10-08T13:02:32+09:00",
+   "fetch_method": "urllib",
+   "content_sha256": "2e278c169964b12158fed851ccf08a2ea760e182f588af132448f40d1ad0a526",
+   "usage": "quotable",
+   "attribution": "出典：EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z6XI）、PDL1.0（https://www.digital.go.jp/resources/open_data/public_data_license_v1.0）",
+   "processing_note": "EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z6XI）をもとに本サイト作成",
+   "published_date_only": false,
+   "view_url": "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z6XI"
+  },
+  {
+   "source_id": "SRC-009",
+   "url": "https://www.mof.go.jp/policy/international_policy/reference/balance_of_payments/preliminary/pg202608.htm",
+   "publisher": "財務省",
+   "publisher_type": "government_statistics",
+   "title": "令和8年8月中 国際収支状況（速報）の概要",
+   "published_at": "2026-10-08",
+   "fetched_at": "2026-10-08T13:05:09+09:00",
+   "fetch_method": "urllib",
+   "content_sha256": "82f3599df54d2b691f72a0991520e322a09f1a5d8c63c0a91462e3397fe32e31",
+   "usage": "quotable",
+   "attribution": "出典：財務省「令和8年8月中 国際収支状況（速報）の概要」（https://www.mof.go.jp/policy/international_policy/reference/balance_of_payments/preliminary/pg202608.htm）",
+   "processing_note": "財務省「令和8年8月中 国際収支状況（速報）の概要」（https://www.mof.go.jp/policy/international_policy/reference/balance_of_payments/preliminary/pg202608.htm）をもとに本サイト作成",
+   "published_date_only": true,
+   "view_url": null
+  },
+  {
+   "source_id": "SRC-011",
+   "url": "https://www.federalreserve.gov/monetarypolicy/fomcminutes20260916.htm",
+   "publisher": "Board of Governors of the Federal Reserve System",
+   "publisher_type": "central_bank",
+   "title": "Minutes of the Federal Open Market Committee September 15–16, 2026",
+   "published_at": "2026-10-07",
+   "fetched_at": "2026-10-08T13:06:17+09:00",
+   "fetch_method": "urllib",
+   "content_sha256": "7820e9c695bb74ea4de545b2e8ebeafc041ae82325bbb97ca66dbb39328455c2",
+   "usage": "quotable",
+   "attribution": "出典：Board of Governors of the Federal Reserve System「Minutes of the Federal Open Market Committee September 15–16, 2026」（https://www.federalreserve.gov/monetarypolicy/fomcminutes20260916.htm）",
+   "processing_note": "Board of Governors of the Federal Reserve System「Minutes of the Federal Open Market Committee September 15–16, 2026」（https://www.federalreserve.gov/monetarypolicy/fomcminutes20260916.htm）をもとに本サイト作成",
+   "published_date_only": true,
+   "view_url": null
+  }
+ ],
+ "sections": [
+  {
+   "section_id": "big",
+   "title": "大きな出来事",
+   "articles": [
+    {
+     "article_id": "ART-2026-10-08-001",
+     "event_id": "EVT-2026-10-08-001",
+     "headline": "8月の経常収支は黒字が広がる一方、貿易収支は赤字に（国際収支の速報）",
+     "lines": [
+      {
+       "line_id": "L-001-01",
+       "text": "財務省が10月8日に公表した8月の国際収支（速報）によると、経常収支の黒字は前年同月より4,339億円拡大した。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 4339,
+         "unit": "億円",
+         "label": "経常収支の前年同月からの増加額"
+        }
+       ],
+       "source_ref": "SRC-009",
+       "excerpt": "経常収支 4兆0,620億円 ＋4,339億円 (黒字幅拡大)",
+       "attribution": "出典：財務省「令和8年8月中 国際収支状況（速報）の概要」（https://www.mof.go.jp/policy/international_policy/reference/balance_of_payments/preliminary/pg202608.htm）",
+       "processing_note": "財務省「令和8年8月中 国際収支状況（速報）の概要」（https://www.mof.go.jp/policy/international_policy/reference/balance_of_payments/preliminary/pg202608.htm）をもとに本サイト作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-001-02",
+       "text": "経常収支は、日本と外国との間のモノ・サービスの売り買いや、投資の収益などのお金の出入りをまとめた数字である。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "source_ref": null,
+       "excerpt": null,
+       "attribution": null,
+       "processing_note": null,
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-001-03",
+       "text": "黒字が広がった主な理由は、海外への投資から得た利子や配当などを表す第一次所得収支で、黒字は前年同月より9,105億円増えた。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 9105,
+         "unit": "億円",
+         "label": "第一次所得収支の前年同月からの増加額"
+        }
+       ],
+       "source_ref": "SRC-009",
+       "excerpt": "第一次所得収支 5兆1,332億円 ＋9,105億円 (黒字幅拡大)",
+       "attribution": "出典：財務省「令和8年8月中 国際収支状況（速報）の概要」（https://www.mof.go.jp/policy/international_policy/reference/balance_of_payments/preliminary/pg202608.htm）",
+       "processing_note": "財務省「令和8年8月中 国際収支状況（速報）の概要」（https://www.mof.go.jp/policy/international_policy/reference/balance_of_payments/preliminary/pg202608.htm）をもとに本サイト作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-001-04",
+       "text": "一方、輸出から輸入を引いた貿易収支は6,877億円の赤字で、前年同月から8,015億円悪化し、赤字に転じた。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": -6877,
+         "unit": "億円",
+         "label": "貿易収支"
+        },
+        {
+         "value": -8015,
+         "unit": "億円",
+         "label": "貿易収支の前年同月からの変化"
+        }
+       ],
+       "source_ref": "SRC-009",
+       "excerpt": "貿易収支 ▲6,877億円 ▲8,015億円 (赤字転化)",
+       "attribution": "出典：財務省「令和8年8月中 国際収支状況（速報）の概要」（https://www.mof.go.jp/policy/international_policy/reference/balance_of_payments/preliminary/pg202608.htm）",
+       "processing_note": "財務省「令和8年8月中 国際収支状況（速報）の概要」（https://www.mof.go.jp/policy/international_policy/reference/balance_of_payments/preliminary/pg202608.htm）をもとに本サイト作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-001-05",
+       "text": "輸出額は前年同月比で16.9%増えた。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 16.9,
+         "unit": "%",
+         "label": "輸出額の前年同月比"
+        }
+       ],
+       "source_ref": "SRC-009",
+       "excerpt": "輸出 9兆8,623億円 ＋1兆4,230億円 (＋16.9％増加)",
+       "attribution": "出典：財務省「令和8年8月中 国際収支状況（速報）の概要」（https://www.mof.go.jp/policy/international_policy/reference/balance_of_payments/preliminary/pg202608.htm）",
+       "processing_note": "財務省「令和8年8月中 国際収支状況（速報）の概要」（https://www.mof.go.jp/policy/international_policy/reference/balance_of_payments/preliminary/pg202608.htm）をもとに本サイト作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-001-06",
+       "text": "輸入額は前年同月比で26.7%増え、輸出額の伸びを上回った。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 26.7,
+         "unit": "%",
+         "label": "輸入額の前年同月比"
+        }
+       ],
+       "source_ref": "SRC-009",
+       "excerpt": "輸入 10兆5,500億円 ＋2兆2,245億円 (＋26.7％増加)",
+       "attribution": "出典：財務省「令和8年8月中 国際収支状況（速報）の概要」（https://www.mof.go.jp/policy/international_policy/reference/balance_of_payments/preliminary/pg202608.htm）",
+       "processing_note": "財務省「令和8年8月中 国際収支状況（速報）の概要」（https://www.mof.go.jp/policy/international_policy/reference/balance_of_payments/preliminary/pg202608.htm）をもとに本サイト作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-001-07",
+       "text": "参考として載っている8月の貿易統計では、原粗油の輸入額が前年同月比58.7%増えた一方、数量の伸びは3.6%だった。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 58.7,
+         "unit": "%",
+         "label": "原粗油の輸入額の前年同月比"
+        },
+        {
+         "value": 3.6,
+         "unit": "%",
+         "label": "原粗油の輸入数量の前年同月比"
+        }
+       ],
+       "source_ref": "SRC-009",
+       "excerpt": "原粗油（同＋4,402億円［＋58.7％、数量：＋3.6％］）",
+       "attribution": "出典：財務省「令和8年8月中 国際収支状況（速報）の概要」（https://www.mof.go.jp/policy/international_policy/reference/balance_of_payments/preliminary/pg202608.htm）",
+       "processing_note": "財務省「令和8年8月中 国際収支状況（速報）の概要」（https://www.mof.go.jp/policy/international_policy/reference/balance_of_payments/preliminary/pg202608.htm）をもとに本サイト作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-001-08",
+       "text": "同じ資料によると、8月の原油価格は1バレル101.67ドルで、前年同月比40.9%高かった。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 101.67,
+         "unit": "米ドル/バレル",
+         "label": "原油価格（ドルベース）"
+        },
+        {
+         "value": 40.9,
+         "unit": "%",
+         "label": "原油価格の前年同月比"
+        }
+       ],
+       "source_ref": "SRC-009",
+       "excerpt": "ドルベース：101.67米ドル／バレル（前年同月比＋40.9％）",
+       "attribution": "出典：財務省「令和8年8月中 国際収支状況（速報）の概要」（https://www.mof.go.jp/policy/international_policy/reference/balance_of_payments/preliminary/pg202608.htm）",
+       "processing_note": "財務省「令和8年8月中 国際収支状況（速報）の概要」（https://www.mof.go.jp/policy/international_policy/reference/balance_of_payments/preliminary/pg202608.htm）をもとに本サイト作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-001-09",
+       "text": "為替相場は1ドル158.74円で、前年同月より7.5%の円安だった。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 158.74,
+         "unit": "円/米ドル",
+         "label": "8月の為替相場"
+        },
+        {
+         "value": 7.5,
+         "unit": "%",
+         "label": "前年同月比の円安の幅"
+        }
+       ],
+       "source_ref": "SRC-009",
+       "excerpt": "158.74円／米ドル（前年同月：147.67円／米ドル、前年同月比7.5％の円安）",
+       "attribution": "出典：財務省「令和8年8月中 国際収支状況（速報）の概要」（https://www.mof.go.jp/policy/international_policy/reference/balance_of_payments/preliminary/pg202608.htm）",
+       "processing_note": "財務省「令和8年8月中 国際収支状況（速報）の概要」（https://www.mof.go.jp/policy/international_policy/reference/balance_of_payments/preliminary/pg202608.htm）をもとに本サイト作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-001-10",
+       "text": "8月の訪日外国人旅行者数は309万8,900人で、前年同月比9.6%減った。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 3098900,
+         "unit": "人",
+         "label": "訪日外国人旅行者数（8月）"
+        },
+        {
+         "value": -9.6,
+         "unit": "%",
+         "label": "訪日外国人旅行者数の前年同月比"
+        }
+       ],
+       "source_ref": "SRC-009",
+       "excerpt": "訪日外国人旅行者数（8月）：3,098,900人（前年同月比▲9.6％）",
+       "attribution": "出典：財務省「令和8年8月中 国際収支状況（速報）の概要」（https://www.mof.go.jp/policy/international_policy/reference/balance_of_payments/preliminary/pg202608.htm）",
+       "processing_note": "財務省「令和8年8月中 国際収支状況（速報）の概要」（https://www.mof.go.jp/policy/international_policy/reference/balance_of_payments/preliminary/pg202608.htm）をもとに本サイト作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-001-11",
+       "text": "輸入額は、買う量が同じでも、外国での値段が上がったり円安が進んだりすると、円で数えた金額が大きくなる。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "source_ref": null,
+       "excerpt": null,
+       "attribution": null,
+       "processing_note": null,
+       "mark": "explainer",
+       "mark_reason": null
+      }
+     ],
+     "inferences": [
+      {
+       "inference_id": "INF-2026-10-08-001-1",
+       "text": "原油の輸入額が数量よりも大きく伸びている状態が続けば、原油を仕入れて燃料をつくる石油製品の業種や、燃料を多く使う電力・ガス、運輸の業種で、仕入れの費用が膨らむ可能性がある。",
+       "falsifier": "9月分の貿易統計で、原粗油の輸入額の伸びが数量の伸びと同じ程度まで縮めば、この見方は成り立たない。",
+       "check_metric": "財務省 貿易統計 9月分の原粗油の輸入額と数量の前年同月比",
+       "check_by": "2026-10-30"
+      },
+      {
+       "inference_id": "INF-2026-10-08-001-2",
+       "text": "訪日外国人旅行者の減少が続けば、旅行者の買い物や宿泊に頼る小売・ホテルなどの業種で、売上の伸びが鈍る可能性がある。",
+       "falsifier": "9月の訪日外国人旅行者数が前年同月を上回れば、この見方は成り立たない。",
+       "check_metric": "財務省 国際収支状況（速報）9月分に載る訪日外国人旅行者数",
+       "check_by": "2026-11-10"
+      }
+     ],
+     "followup": {
+      "is_followup": false,
+      "first_seen": null,
+      "first_seen_edition_id": null,
+      "has_new_source": null
+     }
+    }
+   ]
+  },
+  {
+   "section_id": "change",
+   "title": "新しい変化",
+   "articles": [
+    {
+     "article_id": "ART-2026-10-08-002",
+     "event_id": "EVT-2026-10-08-002",
+     "headline": "海運・分割払い・銀行の会社が社債の条件を決める（法定書類から）",
+     "lines": [
+      {
+       "line_id": "L-002-01",
+       "text": "社債は、会社が投資家からお金を借りるときに発行する証書で、決めた利率で利息を払い、期限に元本を返す。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "source_ref": null,
+       "excerpt": null,
+       "attribution": null,
+       "processing_note": null,
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-02",
+       "text": "海運会社の株式会社商船三井は10月8日に発行登録追補書類を出し、第32回無担保社債（5年債）の利率を年2.857%とした。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 2.857,
+         "unit": "%",
+         "label": "第32回社債の利率"
+        }
+       ],
+       "source_ref": "SRC-001",
+       "excerpt": "利率（％） 年2.857％",
+       "attribution": "出典：EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z6ZZ）、PDL1.0（https://www.digital.go.jp/resources/open_data/public_data_license_v1.0）",
+       "processing_note": "EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z6ZZ）をもとに本サイト作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-03",
+       "text": "この5年債の発行価額の総額は91億円（9,100百万円）である。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 9100,
+         "unit": "百万円",
+         "label": "第32回社債の発行価額の総額"
+        }
+       ],
+       "source_ref": "SRC-001",
+       "excerpt": "発行価額の総額（円） 金9,100百万円",
+       "attribution": "出典：EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z6ZZ）、PDL1.0（https://www.digital.go.jp/resources/open_data/public_data_license_v1.0）",
+       "processing_note": "EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z6ZZ）をもとに本サイト作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-04",
+       "text": "同時に出す第33回無担保社債（10年債）の利率は年3.681%である。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 3.681,
+         "unit": "%",
+         "label": "第33回社債の利率"
+        }
+       ],
+       "source_ref": "SRC-001",
+       "excerpt": "利率（％） 年3.681％",
+       "attribution": "出典：EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z6ZZ）、PDL1.0（https://www.digital.go.jp/resources/open_data/public_data_license_v1.0）",
+       "processing_note": "EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z6ZZ）をもとに本サイト作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-05",
+       "text": "10年債の発行価額の総額は129億円（12,900百万円）である。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 12900,
+         "unit": "百万円",
+         "label": "第33回社債の発行価額の総額"
+        }
+       ],
+       "source_ref": "SRC-001",
+       "excerpt": "発行価額の総額（円） 金12,900百万円",
+       "attribution": "出典：EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z6ZZ）、PDL1.0（https://www.digital.go.jp/resources/open_data/public_data_license_v1.0）",
+       "processing_note": "EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z6ZZ）をもとに本サイト作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-06",
+       "text": "同社は、手取りの約218億円（21,889百万円）を、全額、LNG（液化天然ガス）を運ぶ船への設備投資に充てる予定と書いている。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 21889,
+         "unit": "百万円",
+         "label": "差引手取概算額"
+        }
+       ],
+       "source_ref": "SRC-001",
+       "excerpt": "上記の差引手取概算額21,889百万円は、全額を2027年３月末までにＬＮＧ運搬船に関する設備投資資金に充当する予定であります。",
+       "attribution": "出典：EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z6ZZ）、PDL1.0（https://www.digital.go.jp/resources/open_data/public_data_license_v1.0）",
+       "processing_note": "EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z6ZZ）をもとに本サイト作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-07",
+       "text": "クレジットカードや分割払いの会社の株式会社ジャックスは、第44回無担保社債（3年債）の利率を年2.624%とした。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 2.624,
+         "unit": "%",
+         "label": "第44回社債の利率"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "利率(％) 年2.624％",
+       "attribution": "出典：EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z62H）、PDL1.0（https://www.digital.go.jp/resources/open_data/public_data_license_v1.0）",
+       "processing_note": "EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z62H）をもとに本サイト作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-08",
+       "text": "同社の第45回無担保社債（5年債）の利率は年3.067%である。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 3.067,
+         "unit": "%",
+         "label": "第45回社債の利率"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "利率(％) 年3.067％",
+       "attribution": "出典：EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z62H）、PDL1.0（https://www.digital.go.jp/resources/open_data/public_data_license_v1.0）",
+       "processing_note": "EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z62H）をもとに本サイト作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-09",
+       "text": "同社は、手取りの約199億円（19,905百万円）を、全額、分割払いなどの立て替え（信用購入あっせん）の資金に充てる予定と書いている。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 19905,
+         "unit": "百万円",
+         "label": "手取概算額"
+        }
+       ],
+       "source_ref": "SRC-003",
+       "excerpt": "上記の手取概算額19,905百万円は、全額を2026年10月末までに信用購入あっせん実行資金に充当する予定であります。",
+       "attribution": "出典：EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z62H）、PDL1.0（https://www.digital.go.jp/resources/open_data/public_data_license_v1.0）",
+       "processing_note": "EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z62H）をもとに本サイト作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-10",
+       "text": "銀行の持株会社の株式会社横浜フィナンシャルグループも、劣後特約付きの社債200億円（20,000百万円）を発行する書類を出した。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 20000,
+         "unit": "百万円",
+         "label": "第11回社債の発行価額の総額"
+        }
+       ],
+       "source_ref": "SRC-002",
+       "excerpt": "発行価額の総額（円） 金20,000百万円",
+       "attribution": "出典：EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z6W4）、PDL1.0（https://www.digital.go.jp/resources/open_data/public_data_license_v1.0）",
+       "processing_note": "EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z6W4）をもとに本サイト作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-11",
+       "text": "同社は、手取りの約199億円（19,895百万円）を、全額、子会社の横浜銀行への劣後貸付金に充てる予定と書いている。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 19895,
+         "unit": "百万円",
+         "label": "差引手取概算額"
+        }
+       ],
+       "source_ref": "SRC-002",
+       "excerpt": "上記差引手取概算額19,895百万円は、2026年10月末までに、全額を当社の100％子会社である株式会社横浜銀行への劣後貸付金に充当する予定です。",
+       "attribution": "出典：EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z6W4）、PDL1.0（https://www.digital.go.jp/resources/open_data/public_data_license_v1.0）",
+       "processing_note": "EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z6W4）をもとに本サイト作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-002-12",
+       "text": "劣後特約付きの社債は、会社が経営に行き詰まったときに、ほかの借金より後回しに返される社債で、そのぶん利率が高めに付けられることが多い。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "source_ref": null,
+       "excerpt": null,
+       "attribution": null,
+       "processing_note": null,
+       "mark": "explainer",
+       "mark_reason": null
+      }
+     ],
+     "inferences": [
+      {
+       "inference_id": "INF-2026-10-08-002-1",
+       "text": "同じ日に出た社債でも、返す期限が長いほど利率が高く付いており、長い期間の金利の水準が上がっている状態が、海運や分割払いの業種の借入の費用に効いている可能性がある。",
+       "falsifier": "今後1か月に同じ業種で出る同じ年限の社債の利率が、今回より大きく下がれば、この見方は成り立たない。",
+       "check_metric": "EDINETに出る発行登録追補書類の利率（海運業・その他金融業の5年債・10年債）",
+       "check_by": "2026-11-09"
+      }
+     ],
+     "followup": {
+      "is_followup": false,
+      "first_seen": null,
+      "first_seen_edition_id": null,
+      "has_new_source": null
+     }
+    },
+    {
+     "article_id": "ART-2026-10-08-003",
+     "event_id": "EVT-2026-10-08-003",
+     "headline": "建設会社が、下請けへの支払いを現金に変えるための社債を出す（法定書類から）",
+     "lines": [
+      {
+       "line_id": "L-003-01",
+       "text": "建設会社の株式会社奥村組は10月8日、第1回無担保社債を「ソーシャルボンド」として出す書類を出し、発行価額の総額を150億円（15,000百万円）とした。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 15000,
+         "unit": "百万円",
+         "label": "第1回社債の発行価額の総額"
+        }
+       ],
+       "source_ref": "SRC-004",
+       "excerpt": "発行価額の総額(円) 金15,000百万円",
+       "attribution": "出典：EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z6OE）、PDL1.0（https://www.digital.go.jp/resources/open_data/public_data_license_v1.0）",
+       "processing_note": "EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z6OE）をもとに本サイト作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-02",
+       "text": "ソーシャルボンドは、集めたお金の使い道を、社会の課題の解決に役立つ事業に限って出す社債である。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "source_ref": null,
+       "excerpt": null,
+       "attribution": null,
+       "processing_note": null,
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-03",
+       "text": "この社債（3年債）の利率は年2.704%である。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 2.704,
+         "unit": "%",
+         "label": "第1回社債の利率"
+        }
+       ],
+       "source_ref": "SRC-004",
+       "excerpt": "利率(％) 年2.704％",
+       "attribution": "出典：EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z6OE）、PDL1.0（https://www.digital.go.jp/resources/open_data/public_data_license_v1.0）",
+       "processing_note": "EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z6OE）をもとに本サイト作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-04",
+       "text": "同社は、手取りの約149億円（14,936百万円）を、協力会社への工事代金の支払いを手形から全額現金払いに変えることで増える運転資金に充てる予定と書いている。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 14936,
+         "unit": "百万円",
+         "label": "差引手取概算額"
+        }
+       ],
+       "source_ref": "SRC-004",
+       "excerpt": "上記の差引手取概算額14,936百万円は、当社が策定したソーシャルファイナンス・フレームワークにおける適格プロジェクト",
+       "attribution": "出典：EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z6OE）、PDL1.0（https://www.digital.go.jp/resources/open_data/public_data_license_v1.0）",
+       "processing_note": "EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z6OE）をもとに本サイト作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-05",
+       "text": "書類によると、建設業法では手形期間60日以内の手形払いが認められている。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 60,
+         "unit": "日",
+         "label": "手形期間（建設業法で認められる上限）"
+        }
+       ],
+       "source_ref": "SRC-004",
+       "excerpt": "建設業法においては手形期間が60日以内の手形払が認められている中",
+       "attribution": "出典：EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z6OE）、PDL1.0（https://www.digital.go.jp/resources/open_data/public_data_license_v1.0）",
+       "processing_note": "EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z6OE）をもとに本サイト作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-06",
+       "text": "手形払いは、代金を後日に払う約束の証書で支払うやり方で、受け取った側はその日まで現金を受け取れない。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "source_ref": null,
+       "excerpt": null,
+       "attribution": null,
+       "processing_note": null,
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-003-07",
+       "text": "同社は、この社債で日本格付研究所から「A－」の信用格付を2026年10月8日付で得たと書いている。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 8,
+         "unit": "日",
+         "label": "日付（格付の取得日）"
+        }
+       ],
+       "source_ref": "SRC-004",
+       "excerpt": "本社債について、当社は株式会社日本格付研究所（以下「JCR」という。）からＡ－の信用格付を2026年10月８日付で取得している。",
+       "attribution": "出典：EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z6OE）、PDL1.0（https://www.digital.go.jp/resources/open_data/public_data_license_v1.0）",
+       "processing_note": "EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z6OE）をもとに本サイト作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      }
+     ],
+     "inferences": [
+      {
+       "inference_id": "INF-2026-10-08-003-1",
+       "text": "大手の建設会社が下請けへの支払いを現金に変える動きが広がれば、資金繰りに余裕ができる中小の工事会社がある一方、元請け側では手元の資金が早く出ていく可能性がある。",
+       "falsifier": "今後3か月の間に、手形払いの廃止を理由に社債や借入れでお金を集める建設会社の書類がほかに出なければ、この動きは広がっていないとみる。",
+       "check_metric": "EDINETの発行登録追補書類・臨時報告書のうち、建設業の会社が手形払いの廃止を資金の使い道に挙げたものの件数",
+       "check_by": "2027-01-08"
+      }
+     ],
+     "followup": {
+      "is_followup": false,
+      "first_seen": null,
+      "first_seen_edition_id": null,
+      "has_new_source": null
+     }
+    }
+   ]
+  },
+  {
+   "section_id": "ripple",
+   "title": "波及を追う",
+   "articles": [
+    {
+     "article_id": "ART-2026-10-08-004",
+     "event_id": "EVT-2026-10-08-004",
+     "headline": "物流大手、カナダの物流会社を子会社に（訂正の法定書類から）",
+     "lines": [
+      {
+       "line_id": "L-004-01",
+       "text": "物流大手のNIPPON EXPRESSホールディングス株式会社が10月7日に出した臨時報告書の訂正報告書によると、同社は2026年4月17日の取締役会で、連結子会社を通じてカナダの物流会社Metro Supply Chain Groupの全株式を取得し、子会社にすることを決めていた。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 17,
+         "unit": "日",
+         "label": "日付（取締役会の決定日）"
+        }
+       ],
+       "source_ref": "SRC-008",
+       "excerpt": "当社は、2026年4月17日開催の取締役会において、当社の連結子会社がMetro Supply Chain Groupの全株式を取得し、同社を連結子会社とすることを決定いたしました。",
+       "attribution": "出典：EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z6XI）、PDL1.0（https://www.digital.go.jp/resources/open_data/public_data_license_v1.0）",
+       "processing_note": "EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z6XI）をもとに本サイト作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-03",
+       "text": "3PL（サードパーティ・ロジスティクス）は、ほかの会社の荷物の保管や配送などの物流を、まとめて引き受ける仕事である。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "source_ref": null,
+       "excerpt": null,
+       "attribution": null,
+       "processing_note": null,
+       "mark": "explainer",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-04",
+       "text": "取得は、企業価値18億カナダドル（1,800百万カナダドル、書類の換算で2,070億円）を前提に予定していると書かれている。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 1800,
+         "unit": "百万カナダドル",
+         "label": "企業価値"
+        },
+        {
+         "value": 207000,
+         "unit": "百万円",
+         "label": "企業価値の円換算"
+        }
+       ],
+       "source_ref": "SRC-008",
+       "excerpt": "企業価値1,800百万カナダドル（207,000百万円*）での取得を予定しております",
+       "attribution": "出典：EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z6XI）、PDL1.0（https://www.digital.go.jp/resources/open_data/public_data_license_v1.0）",
+       "processing_note": "EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z6XI）をもとに本サイト作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-05",
+       "text": "このほか、対象会社の業績が決めた条件を満たせば、最大4億カナダドル（400百万カナダドル）を追加で払う取り決めがある。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 400,
+         "unit": "百万カナダドル",
+         "label": "アーンアウトの上限"
+        }
+       ],
+       "source_ref": "SRC-008",
+       "excerpt": "この他、アーンアウトとして最大400百万カナダドル（46,000百万円*）が",
+       "attribution": "出典：EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z6XI）、PDL1.0（https://www.digital.go.jp/resources/open_data/public_data_license_v1.0）",
+       "processing_note": "EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z6XI）をもとに本サイト作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-06",
+       "text": "対象会社の2025年9月期の連結売上高は、書類の換算で1,583億円余り（158,377百万円）だった。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 158377,
+         "unit": "百万円",
+         "label": "対象会社の2025年9月期の連結売上高（円換算）"
+        }
+       ],
+       "source_ref": "SRC-008",
+       "excerpt": "売上高（連結） 873,260千カナダドル（100,425百万円*） 1,153,023千カナダドル（132,598百万円*） 1,377,189千カナダドル（158,377百万円*）",
+       "attribution": "出典：EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z6XI）、PDL1.0（https://www.digital.go.jp/resources/open_data/public_data_license_v1.0）",
+       "processing_note": "EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z6XI）をもとに本サイト作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-004-07",
+       "text": "異動後、同社は子会社を通じて対象会社の議決権の100%を持つ。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 100,
+         "unit": "%",
+         "label": "異動後の議決権の割合"
+        }
+       ],
+       "source_ref": "SRC-008",
+       "excerpt": "異動後 100％（うち間接所有分100％）",
+       "attribution": "出典：EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z6XI）、PDL1.0（https://www.digital.go.jp/resources/open_data/public_data_license_v1.0）",
+       "processing_note": "EDINET閲覧（提出）サイト（https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Z6XI）をもとに本サイト作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      }
+     ],
+     "inferences": [
+      {
+       "inference_id": "INF-2026-10-08-004-1",
+       "text": "日本の物流の業種が海外の物流会社を買う動きは、円安の時期には円で数えた買収の金額を大きくするため、買い手の借入れや社債の発行の増加につながる可能性がある。",
+       "falsifier": "今後3か月に、陸運業・倉庫業の会社がEDINETに出す発行登録追補書類の件数が、前年同期より増えなければ、この見方は成り立たない。",
+       "check_metric": "EDINETの発行登録追補書類のうち、陸運業・倉庫・運輸関連業の会社が出したものの件数",
+       "check_by": "2027-01-08"
+      }
+     ],
+     "followup": {
+      "is_followup": false,
+      "first_seen": null,
+      "first_seen_edition_id": null,
+      "has_new_source": null
+     }
+    }
+   ]
+  },
+  {
+   "section_id": "deep",
+   "title": "深掘り",
+   "articles": [
+    {
+     "article_id": "ART-2026-10-08-005",
+     "event_id": "EVT-2026-10-08-005",
+     "headline": "米国の利上げを決めた9月の会合の議事要旨が公表される",
+     "lines": [
+      {
+       "line_id": "L-005-02",
+       "text": "米国の中央銀行にあたるFRBが10月7日（日本時間8日）に公表した、9月15〜16日の連邦公開市場委員会（FOMC）の議事要旨によると、次の会合は10月27〜28日に開かれる。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 27,
+         "unit": "日",
+         "label": "日付（次回会合の初日）"
+        },
+        {
+         "value": 28,
+         "unit": "日",
+         "label": "日付（次回会合の2日目）"
+        }
+       ],
+       "source_ref": "SRC-011",
+       "excerpt": "the next meeting of the Committee would be held on Tuesday–Wednesday, October 27–28, 2026",
+       "attribution": "出典：Board of Governors of the Federal Reserve System「Minutes of the Federal Open Market Committee September 15–16, 2026」（https://www.federalreserve.gov/monetarypolicy/fomcminutes20260916.htm）",
+       "processing_note": "Board of Governors of the Federal Reserve System「Minutes of the Federal Open Market Committee September 15–16, 2026」（https://www.federalreserve.gov/monetarypolicy/fomcminutes20260916.htm）をもとに本サイト作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-005-03",
+       "text": "会合では、参加者全員が政策金利の誘導目標を0.25%上げて3.75〜4%にすることを支持した。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 4,
+         "unit": "%",
+         "label": "引き上げ後の誘導目標の上限"
+        }
+       ],
+       "source_ref": "SRC-011",
+       "excerpt": "all participants supported raising the target range for the federal funds rate 1/4 percentage point to 3-3/4 to 4 percent",
+       "attribution": "出典：Board of Governors of the Federal Reserve System「Minutes of the Federal Open Market Committee September 15–16, 2026」（https://www.federalreserve.gov/monetarypolicy/fomcminutes20260916.htm）",
+       "processing_note": "Board of Governors of the Federal Reserve System「Minutes of the Federal Open Market Committee September 15–16, 2026」（https://www.federalreserve.gov/monetarypolicy/fomcminutes20260916.htm）をもとに本サイト作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-005-04",
+       "text": "声明は12対0で承認された。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 12,
+         "unit": "票",
+         "label": "件数（声明に賛成した票）"
+        }
+       ],
+       "source_ref": "SRC-011",
+       "excerpt": "approved the following statement for release by a 12–0 vote",
+       "attribution": "出典：Board of Governors of the Federal Reserve System「Minutes of the Federal Open Market Committee September 15–16, 2026」（https://www.federalreserve.gov/monetarypolicy/fomcminutes20260916.htm）",
+       "processing_note": "Board of Governors of the Federal Reserve System「Minutes of the Federal Open Market Committee September 15–16, 2026」（https://www.federalreserve.gov/monetarypolicy/fomcminutes20260916.htm）をもとに本サイト作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-005-05",
+       "text": "一部の参加者は、いくつかの分析の方法によると、物価の基調的な上昇率が目標の2%を上回っており、ここ数か月は横ばいだったと述べた。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 2,
+         "unit": "%",
+         "label": "FOMCの物価目標"
+        }
+       ],
+       "source_ref": "SRC-011",
+       "excerpt": "underlying inflation appeared to be above the Committee's 2 percent objective and to have moved sideways in recent months",
+       "attribution": "出典：Board of Governors of the Federal Reserve System「Minutes of the Federal Open Market Committee September 15–16, 2026」（https://www.federalreserve.gov/monetarypolicy/fomcminutes20260916.htm）",
+       "processing_note": "Board of Governors of the Federal Reserve System「Minutes of the Federal Open Market Committee September 15–16, 2026」（https://www.federalreserve.gov/monetarypolicy/fomcminutes20260916.htm）をもとに本サイト作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-005-06",
+       "text": "一部の参加者は、物価上昇率が5年以上にわたり2%を上回ってきたことから、高い物価上昇が人々の物価の見通しに影響し始めるおそれがあると懸念を示した。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 2,
+         "unit": "%",
+         "label": "物価上昇率の基準"
+        }
+       ],
+       "source_ref": "SRC-011",
+       "excerpt": "after more than five years of inflation above 2 percent, elevated inflation rates could begin to affect inflation expectations",
+       "attribution": "出典：Board of Governors of the Federal Reserve System「Minutes of the Federal Open Market Committee September 15–16, 2026」（https://www.federalreserve.gov/monetarypolicy/fomcminutes20260916.htm）",
+       "processing_note": "Board of Governors of the Federal Reserve System「Minutes of the Federal Open Market Committee September 15–16, 2026」（https://www.federalreserve.gov/monetarypolicy/fomcminutes20260916.htm）をもとに本サイト作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-005-07",
+       "text": "会合には18人の参加者が経済見通しを出した。",
+       "claimed_mark": "source_number_match",
+       "numbers": [
+        {
+         "value": 18,
+         "unit": "人",
+         "label": "件数（見通しを出した参加者）"
+        }
+       ],
+       "source_ref": "SRC-011",
+       "excerpt": "In conjunction with this FOMC meeting, 18 participants submitted projections",
+       "attribution": "出典：Board of Governors of the Federal Reserve System「Minutes of the Federal Open Market Committee September 15–16, 2026」（https://www.federalreserve.gov/monetarypolicy/fomcminutes20260916.htm）",
+       "processing_note": "Board of Governors of the Federal Reserve System「Minutes of the Federal Open Market Committee September 15–16, 2026」（https://www.federalreserve.gov/monetarypolicy/fomcminutes20260916.htm）をもとに本サイト作成",
+       "mark": "source_number_match",
+       "mark_reason": null
+      },
+      {
+       "line_id": "L-005-08",
+       "text": "中央銀行が政策金利を上げると、企業や個人がお金を借りるときの金利も上がりやすく、借入れを控える動きにつながりやすい。",
+       "claimed_mark": "explainer",
+       "numbers": [],
+       "source_ref": null,
+       "excerpt": null,
+       "attribution": null,
+       "processing_note": null,
+       "mark": "explainer",
+       "mark_reason": null
+      }
+     ],
+     "inferences": [
+      {
+       "inference_id": "INF-2026-10-08-005-1",
+       "text": "米国の政策金利がさらに上がれば、日米の金利差が広がる方向に働き、円安を通じて、日本の輸出の業種の円での売上を押し上げ、輸入に頼る業種の費用を押し上げる可能性がある。",
+       "falsifier": "10月27〜28日のFOMCで政策金利が据え置かれ、そのあと1か月で円相場が1ドル150円より円高になれば、この見方は成り立たない。",
+       "check_metric": "FRBの10月の会合の声明と、財務省 国際収支状況（速報）に載る月平均の円相場",
+       "check_by": "2026-12-08"
+      }
+     ],
+     "followup": {
+      "is_followup": false,
+      "first_seen": null,
+      "first_seen_edition_id": null,
+      "has_new_source": null
+     }
+    }
+   ]
+  }
+ ],
+ "baseline_late": false,
+ "verification": {
+  "script_version": "2.0.0",
+  "run_at": "2026-10-08T13:10:09.696882+09:00",
+  "first_run": {
+   "run_at": "2026-10-08T13:10:09.696882+09:00",
+   "baseline_late": false,
+   "market_open_reported": null,
+   "source_policy_overwritten": 9,
+   "generated_at_reported": null,
+   "generated_at_parsed": false,
+   "generated_at_drift_minutes": null,
+   "hypotheses_generated_at_reported": null,
+   "hypotheses_generated_at_parsed": false,
+   "hypotheses_generated_at_drift_minutes": null
+  },
+  "lines_total": 43,
+  "passed": 35,
+  "unverified": 0,
+  "reported_unverified": 0,
+  "explainer": 8,
+  "recommendation_stop_hits": 0,
+  "recommendation_stop_removed": 0,
+  "recommendation_warn_hits": 0,
+  "recommendation_warnings": [],
+  "stale_source_hits": 0,
+  "stale_source_hits_by_kind": {
+   "timed": 0,
+   "date_only": 0
+  },
+  "unknown_published_at_hits": 0,
+  "stale_check_skipped": 0,
+  "inference_dropped": 0,
+  "inference_company_name_removed": {
+   "count": 0,
+   "removed": []
+  },
+  "inference_company_name_check_skipped": false,
+  "hypothesis_violations": 2,
+  "unverified_reasons": {},
+  "ticker_crosscheck": "applied",
+  "edinet_doclist_partial": [],
+  "edinet_published_at_overwritten": 7,
+  "edinet_other_url_hits": 0,
+  "edinet_doc_files": {
+   "SRC-001": {
+    "files": [
+     "XBRL/PublicDoc/0101010_honbun_jpcrp120000-rep-001_E04236-000_2026-10-08_01_2026-10-08_ixbrl.htm",
+     "XBRL/PublicDoc/0000000_header_jpcrp120000-rep-001_E04236-000_2026-10-08_01_2026-10-08_ixbrl.htm"
+    ],
+    "fallback": false
+   },
+   "SRC-002": {
+    "files": [
+     "XBRL/PublicDoc/0100000_honbun_jpcrp120000-rep-001_E32022-000_2026-10-08_01_2026-10-08_ixbrl.htm",
+     "XBRL/PublicDoc/0200000_honbun_jpcrp120000-rep-001_E32022-000_2026-10-08_01_2026-10-08_ixbrl.htm",
+     "XBRL/PublicDoc/0300000_honbun_jpcrp120000-rep-001_E32022-000_2026-10-08_01_2026-10-08_ixbrl.htm",
+     "XBRL/PublicDoc/0400000_honbun_jpcrp120000-rep-001_E32022-000_2026-10-08_01_2026-10-08_ixbrl.htm",
+     "XBRL/PublicDoc/0000000_header_jpcrp120000-rep-001_E32022-000_2026-10-08_01_2026-10-08_ixbrl.htm"
+    ],
+    "fallback": false
+   },
+   "SRC-003": {
+    "files": [
+     "XBRL/PublicDoc/0100000_honbun_jpcrp120000-rep-001_E04768-000_2026-10-08_01_2026-10-08_ixbrl.htm",
+     "XBRL/PublicDoc/0200000_honbun_jpcrp120000-rep-001_E04768-000_2026-10-08_01_2026-10-08_ixbrl.htm",
+     "XBRL/PublicDoc/0300000_honbun_jpcrp120000-rep-001_E04768-000_2026-10-08_01_2026-10-08_ixbrl.htm",
+     "XBRL/PublicDoc/0400000_honbun_jpcrp120000-rep-001_E04768-000_2026-10-08_01_2026-10-08_ixbrl.htm",
+     "XBRL/PublicDoc/0000000_header_jpcrp120000-rep-001_E04768-000_2026-10-08_01_2026-10-08_ixbrl.htm"
+    ],
+    "fallback": false
+   },
+   "SRC-004": {
+    "files": [
+     "XBRL/PublicDoc/0100000_honbun_jpcrp120000-rep-001_E00083-000_2026-10-08_01_2026-10-08_ixbrl.htm",
+     "XBRL/PublicDoc/0200000_honbun_jpcrp120000-rep-001_E00083-000_2026-10-08_01_2026-10-08_ixbrl.htm",
+     "XBRL/PublicDoc/0300000_honbun_jpcrp120000-rep-001_E00083-000_2026-10-08_01_2026-10-08_ixbrl.htm",
+     "XBRL/PublicDoc/0400000_honbun_jpcrp120000-rep-001_E00083-000_2026-10-08_01_2026-10-08_ixbrl.htm",
+     "XBRL/PublicDoc/0000000_header_jpcrp120000-rep-001_E00083-000_2026-10-08_01_2026-10-08_ixbrl.htm"
+    ],
+    "fallback": false
+   },
+   "SRC-008": {
+    "files": [
+     "XBRL/PublicDoc/0101010_honbun_jpcrp050300-esr-001_E36706-000_2026-04-17_03_2026-10-07_ixbrl.htm",
+     "PublicDoc/0000000_header.htm"
+    ],
+    "fallback": false
+   }
+  },
+  "edinet_view_url_count": 7,
+  "attribution_overwritten": 44,
+  "attribution_generation_skipped": 0,
+  "baseline_late": false,
+  "slot_expected": "noon",
+  "slot_mismatch": false,
+  "source_usage_invalid_hits": 0,
+  "source_policy_applied": true,
+  "source_policy_overwritten": 9,
+  "source_policy_unlisted_domains": [],
+  "market_open_source": "calendar",
+  "market_open_overwritten": true,
+  "market_open_reported": null,
+  "codelist_unavailable": false,
+  "baseline_date_check_skipped": 0,
+  "evidence_filer_name_overridden": 4,
+  "evidence_doc_type_overridden": 4,
+  "impact_kind_overridden": 0,
+  "impact_kind_source_counts": {
+   "edinet_doctype_unmapped": 4
+  },
+  "impact_kind_undetermined_by_doc_type": {
+   "100": 3,
+   "190": 1
+  },
+  "edinet_url_unparsed": 0,
+  "edinet_doclist_unavailable": false,
+  "horizon_overridden": 4,
+  "deadline_uncomputable": 0,
+  "horizon_recount_mismatch": 0,
+  "horizon_recount_skipped": 0,
+  "tob_side_subject_code_missing": 0,
+  "check11_removed": [],
+  "name_match_stage": {
+   "raw": 3,
+   "nfkc": 0,
+   "match_name": 1
+  },
+  "check11_longer_name_check_skipped": 0,
+  "check37_removed": [],
+  "field_type_invalid_removed": [],
+  "industry_pick_field_type_invalid_removed": [],
+  "published_date_not_found": {
+   "count": 1,
+   "source_ids": [
+    "SRC-011"
+   ],
+   "reasons": {
+    "SRC-011": "not_in_body"
+   },
+   "dropped_line_ids": []
+  },
+  "published_at_unverified_hits": 0,
+  "published_at_unverified_sources": [],
+  "sources_published_at_null": {
+   "count": 0,
+   "source_ids": []
+  },
+  "number_coverage": {
+   "text_number_tokens": 98,
+   "numbers_declared": 42,
+   "gap": 56,
+   "by_mark": {
+    "source_number_match": {
+     "text_number_tokens": 97,
+     "numbers_declared": 42
+    },
+    "explainer": {
+     "text_number_tokens": 1,
+     "numbers_declared": 0
+    }
+   }
+  },
+  "rerun_detected": false,
+  "date_only_number_lines": {
+   "count": 5,
+   "line_ids": [
+    "L-003-07",
+    "L-004-01",
+    "L-005-02",
+    "L-005-04",
+    "L-005-07"
+   ]
+  },
+  "self_declared_unverified": {
+   "count": 0,
+   "line_ids": []
+  },
+  "banned_word_hits": [],
+  "speculative_word_counts": {
+   "relation_text": {
+    "恩恵": 0,
+    "見込まれる": 0,
+    "意識される": 0,
+    "なりやすい": 0
+   },
+   "impact_reason": {
+    "恩恵": 0,
+    "見込まれる": 0,
+    "意識される": 0,
+    "なりやすい": 0
+   }
+  },
+  "change_verified_lines_by_section": {
+   "big": 9,
+   "change": 15,
+   "ripple": 5,
+   "deep": 6
+  },
+  "recent_headlines_failed": false,
+  "published_date_only_sources": {
+   "count": 4,
+   "source_ids": [
+    "SRC-EDINET-LIST",
+    "SRC-EDINET-LIST-PREV",
+    "SRC-009",
+    "SRC-011"
+   ]
+  },
+  "empty_title_or_url_refs": {
+   "count": 0,
+   "line_ids": []
+  },
+  "reported_without_source": {
+   "count": 0,
+   "line_ids": []
+  },
+  "excerpt_spans_lines": {
+   "count": 0,
+   "line_ids": []
+  },
+  "excerpt_line_check_skipped": {
+   "count": 0,
+   "source_ids": []
+  },
+  "source_body_check": {
+   "machine_saved": {
+    "count": 2,
+    "source_ids": [
+     "SRC-009",
+     "SRC-011"
+    ]
+   },
+   "not_machine_saved": {
+    "count": 0,
+    "source_ids": []
+   },
+   "reconvert_mismatch": {
+    "count": 0,
+    "source_ids": [],
+    "details": []
+   },
+   "reconvert_skipped": {
+    "count": 0,
+    "source_ids": []
+   }
+  },
+  "reported_relation_text_mismatch": {
+   "count": 0,
+   "hypothesis_ids": []
+  },
+  "recent_editions_index_unavailable": false,
+  "recent_editions_unreadable": [],
+  "cross_edition_duplicates": {
+   "count": 0,
+   "duplicates": []
+  },
+  "followup_counts": {
+   "followup": 0,
+   "not_followup": 5
+  },
+  "followup_without_new_source": {
+   "count": 0,
+   "article_ids": []
+  },
+  "url_normalized_matches": {
+   "count": 0,
+   "matches": []
+  },
+  "followup_headline_mismatch": {
+   "count": 0,
+   "articles": []
+  },
+  "industry_picks_discarded": 0,
+  "industry_picks_total": 1,
+  "industry_examples_total": 2,
+  "industry_example_violations": {
+   "total": 0,
+   "reasons": {}
+  },
+  "ai_written_examples_discarded": 0,
+  "slot_violations": {
+   "total": 0,
+   "reasons": {}
+  },
+  "short_name_match_count": {
+   "count": 0,
+   "names": []
+  },
+  "allowed_industries_count": 30,
+  "legacy_substring_rule_dropped": {
+   "count": 0,
+   "names": []
+  },
+  "generic_name_dropped": {
+   "count": 0,
+   "names": []
+  }
+ }
+}
