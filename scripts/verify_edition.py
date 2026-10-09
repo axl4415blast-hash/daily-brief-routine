@@ -2300,6 +2300,264 @@ def compute_change_verified_lines_by_section(edition):
     return counts
 
 
+# ---------------------------------------------------------------------------
+# 改修31第3回: 記録だけ足すもの(会社も行も消さない。行の印・会社・終了コードは変えない)。
+#   3-1 upper_trading_between / 3-2 unregistered_numbers / 3-3 short_excerpts /
+#   3-4 reported_name_in_snippet / 3-5 relation_text_role_mismatch /
+#   3-6 industries_shown(仮説ファイルの最上位)・industry_picks_not_shown
+# ---------------------------------------------------------------------------
+
+# 東証の売買立会の時間(前場9:00〜11:30・後場12:30〜15:30。2024年11月5日から後場の終わりが15:30。
+# JPXの公表で確認。半日だけの取引日・システム障害の日はcalendar/からは分からない)。
+TRADING_SESSIONS = (((9, 0), (11, 30)), ((12, 30), (15, 30)))
+
+
+def trading_minutes_between(start_dt, end_dt, business_days):
+    """start_dtからend_dtまでの間の、営業日(business_days。'YYYY-MM-DD'の一覧)の取引時間(TRADING_SESSIONS)の
+    分数。日本時間で数える。end_dtがstart_dt以前なら0。"""
+    start, end = start_dt.astimezone(JST), end_dt.astimezone(JST)
+    if end <= start:
+        return 0
+    business = set(business_days)
+    total = 0
+    day = start.date()
+    while day <= end.date():
+        if day.isoformat() in business:
+            for (h1, m1), (h2, m2) in TRADING_SESSIONS:
+                open_dt = dt.datetime(day.year, day.month, day.day, h1, m1, tzinfo=JST)
+                close_dt = dt.datetime(day.year, day.month, day.day, h2, m2, tzinfo=JST)
+                lo, hi = max(open_dt, start), min(close_dt, end)
+                if hi > lo:
+                    total += int((hi - lo).total_seconds() // 60)
+        day += dt.timedelta(days=1)
+    return total
+
+
+def compute_upper_trading_between(hyps, sources_by_id, edition, business_days, run_at_dt):
+    """改修31第3回(3-1): 上段の会社ごとに、根拠の書類の提出から株価の基準時点までに、取引時間が何分はさまったかを
+    記録する(記録だけ。会社は消さない)。基準時点は、朝号・夕方号が会社のbaseline_dateの9:00、昼号が照合の実行時刻
+    (読者が株価を見るのはこれより後なので、取引時間は最小の値になる)。
+    reason(計算できなかった理由。計算できたらnull): submitted_at_missing(出典が無い・published_atが無い)・
+    submitted_at_not_timed(日付だけで時刻が無い)・baseline_unknown(基準時点が分からない)・
+    submitted_after_baseline(提出が基準時点より後)・business_days_unknown(営業日カレンダーが期間をカバーしない)。
+    戻り値: [{"hypothesis_id", "company_name", "submitted_at", "baseline_point", "trading_minutes", "reason"}]。"""
+    records = []
+    slot = edition.get("slot")
+    for hyp in hyps:
+        source = sources_by_id.get(hyp.get("evidence_source_ref"))
+        published_at = source.get("published_at") if isinstance(source, dict) else None
+        submitted = None if is_date_only_string(published_at) else parse_datetime_assume_jst(published_at)
+        baseline = None
+        if slot == "noon":
+            baseline = run_at_dt
+        elif slot in ("morning", "evening") and is_date_only_string(hyp.get("baseline_date")):
+            baseline = dt.datetime.fromisoformat(hyp["baseline_date"] + "T09:00:00+09:00")
+        record = {
+            "hypothesis_id": hyp.get("hypothesis_id"), "company_name": hyp.get("company_name"),
+            "submitted_at": submitted.isoformat() if submitted else None,
+            "baseline_point": baseline.astimezone(JST).isoformat() if baseline else None,
+            "trading_minutes": None, "reason": None,
+        }
+        if submitted is None:
+            record["reason"] = "submitted_at_not_timed" if is_date_only_string(published_at) else "submitted_at_missing"
+        elif baseline is None:
+            record["reason"] = "baseline_unknown"
+        elif baseline <= submitted:
+            record["reason"] = "submitted_after_baseline"
+        elif (not business_days or business_days[0] > submitted.astimezone(JST).date().isoformat()
+              or business_days[-1] < baseline.astimezone(JST).date().isoformat()):
+            record["reason"] = "business_days_unknown"
+        else:
+            record["trading_minutes"] = trading_minutes_between(submitted, baseline, business_days)
+        records.append(record)
+    return records
+
+
+# 日付・時刻の数字(年・月・日・時・分の直前の数字)は照合の対象にしないため、未登録の数に数えない。
+_DATE_TIME_UNIT_CHARS = "年月日時分"
+
+
+def compute_unregistered_numbers(edition):
+    """改修31第3回(3-2): 確定した印がsource_number_matchの行について、textの数字(compute_number_coverage()と同じ
+    数え方)のうち、numbersに登録した値(値として比べる。1.0と1は同じ)に無いものを数える(記録だけ)。
+    年・月・日・時・分の直前の数字は数えず、数えなかった分をexcluded_date_time_tokensに残す。
+    同じ数字が本文に2回あって登録が1つなら、残りの1回を未登録とする(登録した値を1回ずつ使う)。
+    戻り値: {"lines_with_unregistered", "total_unregistered", "excluded_date_time_tokens",
+             "lines": [{"line_id", "values"}]}(linesは未登録が1つ以上ある行だけ)。"""
+    lines_out = []
+    total = 0
+    excluded = 0
+    for _s, _a, line in iter_lines(edition):
+        if line.get("mark") != "source_number_match":
+            continue
+        text = normalize_text(line.get("text") or "")
+        registered = [_to_decimal(v) for v in excerpt_log_number_values(line)]
+        values = []
+        for match in NUMBER_COVERAGE_TOKEN_RE.finditer(text):
+            following = text[match.end():match.end() + 1]
+            if following and following in _DATE_TIME_UNIT_CHARS:
+                excluded += 1
+                continue
+            try:
+                token_value = decimal.Decimal(match.group().replace(",", ""))
+            except decimal.InvalidOperation:
+                values.append(match.group())
+                continue
+            for i, reg in enumerate(registered):
+                if reg is not None and reg == token_value:
+                    del registered[i]
+                    break
+            else:
+                values.append(match.group())
+        if values:
+            lines_out.append({"line_id": line.get("line_id"), "values": values})
+            total += len(values)
+    return {
+        "lines_with_unregistered": len(lines_out), "total_unregistered": total,
+        "excluded_date_time_tokens": excluded, "lines": lines_out,
+    }
+
+
+SHORT_EXCERPT_THRESHOLD = 3
+
+
+def count_excerpt_letters(excerpt):
+    """抜き出しの、数字・記号・空白を除いた文字(ひらがな・カタカナ・漢字・英字など。Unicodeの文字の種類が
+    Lで始まるもの)の数。normalize_text()でそろえてから数える。"""
+    return sum(1 for ch in normalize_text(excerpt or "") if unicodedata.category(ch).startswith("L"))
+
+
+def compute_short_excerpts(edition):
+    """改修31第3回(3-3): 確定した印がsource_number_matchの行のexcerptのうち、数字・記号・空白を除いた文字が
+    SHORT_EXCERPT_THRESHOLD(3)文字以下のものを記録する(記録だけ。見出しの無い数字だけの抜き出しを見つけるため)。
+    戻り値: {"threshold", "count", "zero_letter_count", "lines": [{"line_id", "letters"}]}。"""
+    lines_out = []
+    for _s, _a, line in iter_lines(edition):
+        excerpt = line.get("excerpt")
+        if line.get("mark") != "source_number_match" or not isinstance(excerpt, str):
+            continue
+        letters = count_excerpt_letters(excerpt)
+        if letters <= SHORT_EXCERPT_THRESHOLD:
+            lines_out.append({"line_id": line.get("line_id"), "letters": letters})
+    return {
+        "threshold": SHORT_EXCERPT_THRESHOLD, "count": len(lines_out),
+        "zero_letter_count": sum(1 for x in lines_out if x["letters"] == 0), "lines": lines_out,
+    }
+
+
+def compute_reported_name_in_snippet(hyps, sources_by_id, cache_dir):
+    """改修31第3回(3-4): 報道由来(evidence_gradeがreported)の上段の会社について、根拠の出典の本文
+    ({cache_dir}/{source_id}.txt)に会社の名前があるかを、検査11と同じ方法(find_company_name_stage())で調べる
+    (記録だけ。長い社名の一部かどうかの判定は行わない)。
+    result: found(stageに見つかった段階)・not_found・body_missing(出典が無い・本文のファイルが無い)・
+    body_unreadable(文字コードで読めない)。
+    戻り値: [{"hypothesis_id", "company_name", "source_ref", "result", "stage"}]。"""
+    records = []
+    generic_words = pick_industry_companies.load_generic_words()
+    for hyp in hyps:
+        if hyp.get("evidence_grade") != "reported":
+            continue
+        ref = hyp.get("evidence_source_ref")
+        source = sources_by_id.get(ref) if isinstance(ref, str) else None
+        record = {"hypothesis_id": hyp.get("hypothesis_id"), "company_name": hyp.get("company_name"),
+                  "source_ref": ref, "result": "body_missing", "stage": None}
+        cache_path = Path(cache_dir) / f"{ref}.txt" if source is not None else None
+        if cache_path is not None and cache_path.is_file():
+            body_text = read_source_body_for_checks(cache_path, source)
+            if body_text is None:
+                record["result"] = "body_unreadable"
+            else:
+                stage, _only_in_longer = find_company_name_stage(
+                    hyp.get("company_name"), body_text, None, generic_words,
+                )
+                record["result"], record["stage"] = ("found", stage) if stage else ("not_found", None)
+        records.append(record)
+    return records
+
+
+# 改修31第3回(3-5): relation_textの言葉と、機械が決めた立場(evidence_role・tob_side)の対応。
+# 「対象者」だけでは判定しない(公開買付の書類は、買付側から見て対象会社を「対象者」と呼ぶため)。
+RELATION_ROLE_WORDS = (
+    ("自ら提出", "evidence_role", "filer_self"),
+    ("買付者", "tob_side", "bidder"),
+    ("公開買付けの対象", "tob_side", "target"),
+    ("公開買付の対象", "tob_side", "target"),
+)
+
+
+def compute_relation_text_role_mismatch(hyps):
+    """改修31第3回(3-5): relation_textにある言葉と、機械が決めたevidence_role・tob_sideが合わない上段の会社を
+    記録する(記録だけ。会社は消さない)。戻り値: [{"hypothesis_id", "company_name", "word", "evidence_role",
+    "tob_side"}](1つの会社が複数の言葉に当たれば、言葉ごとに1件)。"""
+    records = []
+    for hyp in hyps:
+        relation_text = unicodedata.normalize("NFKC", hyp.get("relation_text") or "")
+        for word, field, expected in RELATION_ROLE_WORDS:
+            if word in relation_text and hyp.get(field) != expected:
+                records.append({
+                    "hypothesis_id": hyp.get("hypothesis_id"), "company_name": hyp.get("company_name"),
+                    "word": word, "evidence_role": hyp.get("evidence_role"), "tob_side": hyp.get("tob_side"),
+                })
+    return records
+
+
+def compute_industries_shown(hypotheses_doc, edition, codelist_rows, skip_reason=None):
+    """改修31第3回(3-6): 画面で「関係しそうな業種」として業種名だけを出す業種の一覧を作る(会社の枠が尽きて
+    会社が出なかった業種も入る)。入れるのは、次をすべて満たす業種の指定(industry_picks)だけ:
+      ・記事が紙面にある ・同じ記事の3つ目以降の指定ではない(pick_industry_companiesと同じく1記事2つまで)
+      ・33業種の許可リスト(build_allowed_industries()。check_lower_industry()と同じ判定)にある
+      ・industry_line_idsが空でなく、すべてその記事の行で、確定した印が事実系(check_lower_line_mark()と同じ判定)
+      ・同じ記事・同じ業種で、先に入ったものがない
+    業種名は、コードリストの表記(空白・全角半角のゆれを直したもの)で書く。
+    skip_reason: 企業欄を出さない号は"market_closed"か"baseline_late"(一覧は空)。
+    戻り値: (入れた業種[{"article_id","industry"}], 入れなかった指定[{"article_id","industry","reason"}], 状態)。
+    状態: ok・market_closed・baseline_late・codelist_unavailable(許可リストが作れない日。一覧は空)。"""
+    picks = [p for p in hypotheses_doc.get("industry_picks") or [] if isinstance(p, dict)]
+    shown, not_shown = [], []
+
+    def reject(pick, reason):
+        not_shown.append({"article_id": pick.get("article_id"), "industry": pick.get("industry"), "reason": reason})
+
+    if skip_reason is not None or codelist_rows is None:
+        status = skip_reason or "codelist_unavailable"
+        for pick in picks:
+            reject(pick, status)
+        return shown, not_shown, status
+
+    allowed = {edinet_codelist._normalize_industry_name(name): name for name in build_allowed_industries(codelist_rows)}
+    articles = pick_industry_companies.index_articles(edition)
+    line_marks = {line.get("line_id"): line.get("mark") for _s, _a, line in iter_lines(edition)}
+    picks_seen_per_article = {}
+    shown_keys = set()
+    for pick in picks:
+        article_id = pick.get("article_id")
+        article = articles.get(article_id) if isinstance(article_id, str) else None
+        if article is None:
+            reject(pick, "article_not_found")
+            continue
+        picks_seen_per_article[article_id] = picks_seen_per_article.get(article_id, 0) + 1
+        if picks_seen_per_article[article_id] > 2:
+            reject(pick, "over_two_per_article")
+            continue
+        industry = allowed.get(edinet_codelist._normalize_industry_name(pick.get("industry")))
+        if industry is None:
+            reject(pick, "industry_not_allowed")
+            continue
+        line_ids = pick.get("industry_line_ids") or []
+        if not line_ids:
+            reject(pick, "industry_line_ids_empty")
+        elif any(lid not in article["line_ids"] for lid in line_ids):
+            reject(pick, "industry_line_ids_not_in_article")
+        elif check_lower_line_mark({"line_ids": line_ids}, line_marks):
+            reject(pick, "industry_line_ids_not_fact")
+        elif (article_id, industry) in shown_keys:
+            reject(pick, "duplicate_in_article")
+        else:
+            shown_keys.add((article_id, industry))
+            shown.append({"article_id": article_id, "industry": industry})
+    return shown, not_shown, "ok"
+
+
 RECENT_HEADLINES_FILENAME = "RECENT-HEADLINES.json"
 
 
@@ -4558,7 +4816,8 @@ def print_report(edition_path, stats, stop_hits, watch_hits, dropped_inferences,
                   published_date_not_found=None, inference_company_names=None,
                   inference_company_name_check_skipped=False, source_body_check=None,
                   excerpt_spans_lines=None, excerpt_line_check_skipped=None,
-                  published_timed_date_not_found=None, excerpt_check_log=None):
+                  published_timed_date_not_found=None, excerpt_check_log=None,
+                  upper_trading_between=None):
     print("=" * 60)
     print(f"照合結果: {edition_path}")
     print("=" * 60)
@@ -4634,6 +4893,11 @@ def print_report(edition_path, stats, stop_hits, watch_hits, dropped_inferences,
         f"(そのため新しい変化の枠から落とした行: {len(timed_not_found['dropped_line_ids'])}行)"
     )
     print(f"出典の日時が読み取れず判定できなかった行の件数: {stale_skipped}")
+    # 改修31第3回(3-1): 提出から株価の基準時点までに取引時間があった上段の会社(記録だけ)。
+    if upper_trading_between is not None:
+        with_trading = sum(1 for x in upper_trading_between if x["trading_minutes"])
+        not_computed = sum(1 for x in upper_trading_between if x["reason"] is not None)
+        print(f"提出から基準時点までに取引があった会社 {with_trading}社／計算できなかった会社 {not_computed}社")
     # 改修31第2回(3-4): 抜き出しの事前確認(check_excerpts.py)の実行記録のまとめ(記録だけ)。
     if excerpt_check_log is not None:
         log = excerpt_check_log
@@ -5155,6 +5419,12 @@ def run_verification(edition_file, hypotheses_file, cache_dir_arg, calendar_dir_
         reported_relation_text_mismatch = {"count": 0, "hypothesis_ids": []}
         # 改修27-2第9回: --hypotheses未指定でもキーがそろうよう、既定値(0件)にしておく。
         cross_edition_duplicates = {"count": 0, "duplicates": []}
+        # 改修31第3回: 記録だけ足すもの(上段・業種の分)。--hypotheses未指定でもキーがそろうよう、既定値にしておく。
+        upper_trading_between = []
+        reported_name_in_snippet = []
+        relation_text_role_mismatch = []
+        industry_picks_not_shown = []
+        industries_shown_status = "no_hypotheses_file"
         if hypotheses_file:
             try:
                 hypotheses_doc = load_json(hypotheses_file)
@@ -5274,6 +5544,23 @@ def run_verification(edition_file, hypotheses_file, cache_dir_arg, calendar_dir_
                 recent_loaded,
             )
 
+            # 改修31第3回(3-1・3-4・3-5・3-6): 記録だけ。すべての検査と枠の配分の後に残った上段の会社と、
+            # 照合を通った業種を対象にする(会社・行の印は変えない)。
+            survivors = hypotheses_doc["hypotheses"]
+            survivor_sources = {s.get("source_id"): s for s in edition.get("sources", [])}
+            upper_trading_between = compute_upper_trading_between(
+                survivors, survivor_sources, edition, business_days, run_at_dt,
+            )
+            reported_name_in_snippet = compute_reported_name_in_snippet(survivors, survivor_sources, cache_dir_arg)
+            relation_text_role_mismatch = compute_relation_text_role_mismatch(survivors)
+            skip_reason = None
+            if skip_companies:
+                skip_reason = "market_closed" if edition["market_open"] is False else "baseline_late"
+            industries_shown, industry_picks_not_shown, industries_shown_status = compute_industries_shown(
+                hypotheses_doc, edition, codelist_rows, skip_reason,
+            )
+            hypotheses_doc["industries_shown"] = industries_shown
+
         # 修正2: first_runが無ければ今回の値で作る。あれば中身を一切書き換えず、
         # そのまま引き継ぐ(2回目以降の照合でAIの初回申告が消えないように)。
         if existing_first_run is not None:
@@ -5291,6 +5578,9 @@ def run_verification(edition_file, hypotheses_file, cache_dir_arg, calendar_dir_
         # 改修27-1(4-12): change_verified_lines_by_sectionも、最終的に号に残っている
         # 行(停止語・出典の鮮度の検査が終わった後)で数える。
         change_verified_lines_by_section = compute_change_verified_lines_by_section(edition)
+        # 改修31第3回(3-2・3-3): 最終的に号に残っている行の印で数える(記録だけ)。
+        unregistered_numbers = compute_unregistered_numbers(edition)
+        short_excerpts = compute_short_excerpts(edition)
 
         edition["verification"] = {
             "script_version": "2.0.0",
@@ -5440,6 +5730,22 @@ def run_verification(edition_file, hypotheses_file, cache_dir_arg, calendar_dir_
             # (記録専用。実行回数・1回目の確認から消えた行・印が変わった行・外れた数字・最後の確認の後に
             # 紙面が書き換えられたか。印・会社・終了コードは変えない)。
             "excerpt_check_log": excerpt_check_log,
+            # 改修31第3回: 記録だけ足すもの(会社も行も消さない。印・会社・終了コードは変えない)。
+            # 3-1 上段の会社ごとの、書類の提出から株価の基準時点までにはさまった取引時間(分)。
+            "upper_trading_between": upper_trading_between,
+            # 3-2 確定した印がsource_number_matchの行の、textにあってnumbersに登録していない数字
+            # (年・月・日・時・分の直前の数字は除く)。
+            "unregistered_numbers": unregistered_numbers,
+            # 3-3 数字・記号・空白を除いた文字が3文字以下の抜き出し。
+            "short_excerpts": short_excerpts,
+            # 3-4 報道由来(reported)の上段の会社の名前が、根拠の出典の本文にあるか。
+            "reported_name_in_snippet": reported_name_in_snippet,
+            # 3-5 relation_textの言葉(自ら提出・買付者・公開買付けの対象)と、機械が決めた立場の食い違い。
+            "relation_text_role_mismatch": relation_text_role_mismatch,
+            # 3-6 画面に「関係しそうな業種」として出す業種の一覧(仮説ファイルのindustries_shown)に入れなかった
+            # 業種の指定と理由、一覧の状態(ok・market_closed・baseline_late・codelist_unavailable)。
+            "industry_picks_not_shown": industry_picks_not_shown,
+            "industries_shown_status": industries_shown_status,
             # 改修28第2回: EDINET以外のquotableの出典で本文ファイルがあるものを、機械で保存されたもの
             # (machine_saved)・記録ファイルが無いもの(not_machine_saved)・食い違ったもの
             # (reconvert_mismatch、detailsに食い違った項目)・道具が無くて確かめられなかったもの
@@ -5498,6 +5804,7 @@ def run_verification(edition_file, hypotheses_file, cache_dir_arg, calendar_dir_
             excerpt_line_check_skipped=excerpt_line_check_skipped,
             published_timed_date_not_found=published_timed_date_not_found,
             excerpt_check_log=excerpt_check_log,
+            upper_trading_between=upper_trading_between,
         )
         return 0
 

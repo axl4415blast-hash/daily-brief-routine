@@ -10840,6 +10840,339 @@ def test_kaishu31_excerpt_check_log_summary():
           (base_result.returncode, "unreadable", base_marks, base_hyps))
 
 
+# ---------------------------------------------------------------------------
+# 改修31第3回: 記録だけ足すもの(3-1〜3-5)と、照合を通った業種の一覧(3-6)のテスト。
+# ---------------------------------------------------------------------------
+
+def test_kaishu31_trading_between():
+    """改修31第3回(3-1): 書類の提出から株価の基準時点までにはさまった取引時間(分)。東証の売買立会は
+    前場9:00〜11:30・後場12:30〜15:30。営業日はcalendar/の営業日。"""
+    bd = ve.load_business_days(str(CALENDAR_DIR))
+    jst = ve.JST
+
+    def one(slot, published_at, baseline_date="2026-10-08", run_at="2026-10-08T13:05:00+09:00"):
+        hyp = {"hypothesis_id": "H", "company_name": "テスト物産", "evidence_source_ref": "S", "baseline_date": baseline_date}
+        sources = {"S": {"source_id": "S", "published_at": published_at}}
+        records = ve.compute_upper_trading_between([hyp], sources, {"slot": slot}, bd, dt.datetime.fromisoformat(run_at))
+        return records[0]
+
+    r = one("morning", "2026-10-07T10:24:00+09:00")
+    check("改修31/取引時間/朝号: 前日10:24に提出→基準は10/8の9:00。前日の取引は10:24〜11:30(66分)と12:30〜15:30(180分)で246分",
+          (r["trading_minutes"], r["reason"], r["submitted_at"], r["baseline_point"]),
+          (246, None, "2026-10-07T10:24:00+09:00", "2026-10-08T09:00:00+09:00"))
+    check("改修31/取引時間/朝号: 前日16:00(後場の終わりより後)に提出→0分",
+          one("morning", "2026-10-07T16:00:00+09:00")["trading_minutes"], 0)
+    check("改修31/取引時間/朝号: 前日の昼休み(12:00)に提出→12:30〜15:30の180分だけ",
+          one("morning", "2026-10-07T12:00:00+09:00")["trading_minutes"], 180)
+    check("改修31/取引時間/夕方号: 金曜15:40に提出し、基準は次の営業日の月曜9:00→週末をはさむが取引は0分",
+          one("evening", "2026-10-02T15:40:00+09:00", baseline_date="2026-10-05")["trading_minutes"], 0)
+    check("改修31/取引時間/夕方号: 木曜15:00に提出し、基準は月曜9:00→木曜の15:00〜15:30(30分)と金曜の330分で360分",
+          one("evening", "2026-10-01T15:00:00+09:00", baseline_date="2026-10-05")["trading_minutes"], 360)
+    check("改修31/取引時間/休日をはさむ: 金曜9/18の15:00に提出し、基準は9/24の9:00→9/21〜9/23は休場日(calendarで確認)で、"
+          "9/18の30分だけ",
+          ([d in bd for d in ("2026-09-21", "2026-09-22", "2026-09-23")],
+           one("morning", "2026-09-18T15:00:00+09:00", baseline_date="2026-09-24")["trading_minutes"]),
+          ([False, False, False], 30))
+    r = one("noon", "2026-10-08T10:00:00+09:00", run_at="2026-10-08T13:05:00+09:00")
+    check("改修31/取引時間/昼号: 当日10:00に提出→基準は照合の実行時刻13:05。10:00〜11:30(90分)と12:30〜13:05(35分)で125分",
+          (r["trading_minutes"], r["baseline_point"]), (125, "2026-10-08T13:05:00+09:00"))
+    check("改修31/取引時間/昼号: 昼休み(12:00)に提出し、実行時刻が12:10→0分",
+          one("noon", "2026-10-08T12:00:00+09:00", run_at="2026-10-08T12:10:00+09:00")["trading_minutes"], 0)
+    check("改修31/取引時間/時差付きの時刻も日本時間に直して数える(-04:00の2026-10-07T21:24は日本時間の10/8 10:24→基準9:00の前でreasonが付く)",
+          one("morning", "2026-10-07T21:24:00-04:00", baseline_date="2026-10-08")["reason"], "submitted_after_baseline")
+
+    check("改修31/取引時間/提出時刻が無い出典・出典が無い会社は、reasonを付けてnull",
+          (one("morning", None)["reason"], one("morning", None)["trading_minutes"],
+           ve.compute_upper_trading_between([{"hypothesis_id": "H", "evidence_source_ref": "NONE", "baseline_date": "2026-10-08"}],
+                                            {}, {"slot": "morning"}, bd, dt.datetime.now(jst))[0]["reason"]),
+          ("submitted_at_missing", None, "submitted_at_missing"))
+    check("改修31/取引時間/日付だけの出典はsubmitted_at_not_timed",
+          one("morning", "2026-10-07")["reason"], "submitted_at_not_timed")
+    check("改修31/取引時間/提出が基準時点より後ならsubmitted_after_baseline・基準時点が分からなければbaseline_unknown",
+          (one("morning", "2026-10-08T10:00:00+09:00")["reason"], one("morning", "2026-10-07T10:00:00+09:00", baseline_date=None)["reason"],
+           one("other", "2026-10-07T10:00:00+09:00")["reason"]),
+          ("submitted_after_baseline", "baseline_unknown", "baseline_unknown"))
+    check("改修31/取引時間/営業日のカレンダーが期間をカバーしなければbusiness_days_unknown(取引時間を数えない)",
+          (ve.compute_upper_trading_between(
+              [{"hypothesis_id": "H", "evidence_source_ref": "S", "baseline_date": "2026-10-08"}],
+              {"S": {"published_at": "2026-10-07T10:00:00+09:00"}}, {"slot": "morning"}, ["2026-10-07"], dt.datetime.now(jst))[0]["reason"],),
+          ("business_days_unknown",))
+
+
+def test_kaishu31_unregistered_numbers():
+    """改修31第3回(3-2): 確定した印がsource_number_matchの行の、textにあってnumbersに登録していない数字。
+    年・月・日・時・分の直前の数字は数えず、その数を別に残す。"""
+    def line(line_id, text, values, mark="source_number_match"):
+        return {"line_id": line_id, "text": text, "mark": mark, "numbers": [{"value": v} for v in values]}
+
+    edition = {"sections": [{"section_id": "big", "articles": [{"article_id": "A", "lines": [
+        line("L-1", "2026年10月8日に3,000億円", [3000]),
+        line("L-2", "売上高は3,000億円、営業利益は250億円", [3000]),
+        line("L-3", "金利は1.25%に上がった", ["1.250"]),
+        line("L-4", "前年比12%増、前々年比12%増", [12]),
+        line("L-5", "報道では5月に24%", [24], mark="reported_unverified"),
+        line("L-6", "解説には100という数字", [], mark="explainer"),
+        line("L-7", "午後3時15分に1.0倍", [1]),
+    ]}]}]}
+    result = ve.compute_unregistered_numbers(edition)
+    check("改修31/未登録の数字/①日付・時刻の数字(年・月・日・時・分の直前)は数えない。数えなかった数は別に残す"
+          "(L-1:2026・10・8の3個、L-7:3・15の2個で5個)",
+          result["excluded_date_time_tokens"], 5)
+    check("改修31/未登録の数字/②登録していない数字が1つあれば1件(L-2の250)。登録が小数の文字でも値で比べる(L-3の1.25と\"1.250\")。"
+          "1.0と1は同じ値(L-7)。同じ数字が2回あって登録が1つなら、残りの1回が未登録(L-4の2回目の12)",
+          result["lines"], [{"line_id": "L-2", "values": ["250"]}, {"line_id": "L-4", "values": ["12"]}])
+    check("改修31/未登録の数字/件数のまとめ。印がsource_number_matchでない行(報道・解説)は対象外",
+          (result["lines_with_unregistered"], result["total_unregistered"]), (2, 2))
+    check("改修31/未登録の数字/行が無ければ空の記録",
+          ve.compute_unregistered_numbers({"sections": []}),
+          {"lines_with_unregistered": 0, "total_unregistered": 0, "excluded_date_time_tokens": 0, "lines": []})
+
+
+def test_kaishu31_short_excerpts():
+    """改修31第3回(3-3): 数字・記号・空白を除いた文字が3文字以下の抜き出し。"""
+    def line(line_id, excerpt, mark="source_number_match"):
+        return {"line_id": line_id, "excerpt": excerpt, "mark": mark}
+
+    edition = {"sections": [{"section_id": "big", "articles": [{"article_id": "A", "lines": [
+        line("L-0", "75,000,000 150,000,000,000"),
+        line("L-3", "売上高 1,234"),
+        line("L-9", "営業利益は前年比 12%増"),
+        line("L-EN", "FY 2026 12 3"),
+        line("L-SKIP", "3.5", mark="unverified"),
+        line("L-NONE", None),
+    ]}]}]}
+    result = ve.compute_short_excerpts(edition)
+    check("改修31/短い抜き出し/数字だけ(0文字)・「売上高 1,234」(3文字)は記録し、「営業利益は前年比 12%増」(9文字)は記録しない。"
+          "英字も文字に数える(FY=2文字で記録)。印がsource_number_matchでない行・excerptの無い行は対象外",
+          result, {"threshold": 3, "count": 3, "zero_letter_count": 1,
+                   "lines": [{"line_id": "L-0", "letters": 0}, {"line_id": "L-3", "letters": 3}, {"line_id": "L-EN", "letters": 2}]})
+    check("改修31/短い抜き出し/文字の数え方: 全角の英数字・記号をそろえてから数える",
+          (ve.count_excerpt_letters("１２３"), ve.count_excerpt_letters("ＡＢ １"), ve.count_excerpt_letters("▲36銭")), (0, 2, 1))
+
+
+def test_kaishu31_reported_name_in_snippet():
+    """改修31第3回(3-4): 報道由来(reported)の会社の名前が、根拠の出典の本文にあるか。"""
+    with tempfile.TemporaryDirectory() as d:
+        write(d, "S-HIT.txt", "報道によると、テスト物産株式会社が新製品を発表した。")
+        write(d, "S-MISS.txt", "報道によると、別の会社が新製品を発表した。")
+        (Path(d) / "S-BAD.txt").write_bytes(b"\xff\xff\x80\x81")
+        sources = {sid: {"source_id": sid, "url": "https://www.example-news.test/" + sid} for sid in ("S-HIT", "S-MISS", "S-NOFILE", "S-BAD")}
+
+        def hyp(hid, ref, grade="reported"):
+            return {"hypothesis_id": hid, "company_name": "テスト物産株式会社", "evidence_grade": grade, "evidence_source_ref": ref}
+
+        records = ve.compute_reported_name_in_snippet(
+            [hyp("H-hit", "S-HIT"), hyp("H-miss", "S-MISS"), hyp("H-nofile", "S-NOFILE"), hyp("H-bad", "S-BAD"),
+             hyp("H-noref", None), hyp("H-primary", "S-MISS", grade="primary")], sources, d)
+    check("改修31/報道の会社の名前/本文に名前がある(found。見つかった段階も)・無い(not_found)・本文のファイルが無い(body_missing)・"
+          "読めない(body_unreadable)・出典が空(body_missing)。reported以外(primary)は対象外",
+          [(r["hypothesis_id"], r["result"], r["stage"]) for r in records],
+          [("H-hit", "found", "raw"), ("H-miss", "not_found", None), ("H-nofile", "body_missing", None),
+           ("H-bad", "body_unreadable", None), ("H-noref", "body_missing", None)])
+
+
+def test_kaishu31_relation_text_role_mismatch():
+    """改修31第3回(3-5): relation_textの言葉と、機械が決めたevidence_role・tob_sideの食い違い。"""
+    def hyp(hid, text, role="filer_self", side=None):
+        return {"hypothesis_id": hid, "company_name": f"社{hid}", "relation_text": text, "evidence_role": role, "tob_side": side}
+
+    f = ve.compute_relation_text_role_mismatch
+    check("改修31/立場の食い違い/「自ら提出」: filer_selfでなければ記録、filer_selfなら記録しない",
+          [(r["hypothesis_id"], r["word"], r["evidence_role"]) for r in f([
+              hyp("A1", "臨時報告書を自ら提出した会社", role="mentioned"), hyp("A2", "臨時報告書を自ら提出した会社", role="filer_self")])],
+          [("A1", "自ら提出", "mentioned")])
+    check("改修31/立場の食い違い/「買付者」: bidderでなければ記録(tob_sideがnullでも)、bidderなら記録しない",
+          [(r["hypothesis_id"], r["word"], r["tob_side"]) for r in f([
+              hyp("B1", "公開買付けの買付者という立場", side="target"), hyp("B2", "買付者という立場", side=None),
+              hyp("B3", "買付者という立場", side="bidder")])],
+          [("B1", "買付者", "target"), ("B2", "買付者", None)])
+    check("改修31/立場の食い違い/「公開買付けの対象」「公開買付の対象」: targetでなければ記録、targetなら記録しない",
+          [(r["hypothesis_id"], r["word"]) for r in f([
+              hyp("C1", "公開買付けの対象となっている", side="bidder"), hyp("C2", "公開買付の対象となっている", side=None),
+              hyp("C3", "公開買付けの対象となっている", side="target")])],
+          [("C1", "公開買付けの対象"), ("C2", "公開買付の対象")])
+    check("改修31/立場の食い違い/「対象者」だけでは判定しない(「対象者株式を公開買付けにより取得」は買付側の説明)",
+          f([hyp("D1", "対象者株式を公開買付けにより取得し、完全子会社化しようとする立場にある。", role="filer_self", side="bidder")]), [])
+    check("改修31/立場の食い違い/全角のゆれはNFKCでそろえて探す。言葉の無い会社は記録しない",
+          (len(f([hyp("E1", "自ら提出", role="mentioned")])), f([hyp("E2", "株式を取得する立場にある", role="mentioned")])), (1, []))
+
+
+def _k33_codelist_rows(industries):
+    """3-6のテスト用: 業種ごとの架空の上場会社を1社ずつ持つコードリストの行。"""
+    return [{
+        ec.COL_EDINET_CODE: f"E8{i:04d}", ec.COL_FILER_NAME: f"テスト{name}会社", ec.COL_INDUSTRY: name,
+        ec.COL_LISTED: "上場", ec.COL_CAPITAL: "1000", ec.COL_TICKER_RAW: f"{9000 + i}0",
+    } for i, name in enumerate(industries, start=1)]
+
+
+def test_kaishu31_industries_shown():
+    """改修31第3回(3-6): 画面に「関係しそうな業種」として業種名だけを出す、照合を通った業種の一覧。会社の枠が尽きて会社が
+    出なかった業種も入る。入れなかった指定は理由付きで記録する。"""
+    rows = _k33_codelist_rows(["銀行業", "建設業", "電気機器", "サービス業", "外国法人・組合"])
+
+    def article(article_id, *lines):
+        return {"article_id": article_id, "headline": "見出し", "lines": [
+            {"line_id": lid, "text": "本文", "mark": mark} for lid, mark in lines]}
+
+    edition = {"sections": [{"section_id": "big", "articles": [
+        article("A-1", ("L-1", "source_number_match"), ("L-2", "reported_unverified"), ("L-3", "explainer")),
+        article("A-2", ("L-8", "unverified"), ("L-9", "source_number_match")),
+        article("A-3", ("L-10", "source_number_match")),
+        article("A-4", ("L-11", "explainer"), ("L-12", "unverified")),
+        article("A-5", ("L-20", "source_number_match")),
+    ]}]}
+
+    def pick(article_id, industry, line_ids):
+        return {"article_id": article_id, "industry": industry, "industry_line_ids": line_ids}
+
+    doc = {"industry_picks": [
+        pick("A-1", "銀行業", ["L-1"]),            # 入る
+        pick("A-1", "建設業", ["L-2"]),            # 入る(報道の行も事実系)
+        pick("A-1", "電気機器", ["L-1"]),          # 同じ記事の3つ目
+        pick("A-2", "サービス業", ["L-9"]),        # 許可リストに無い(対象外の業種)
+        pick("A-2", "外国法人・組合", ["L-9"]),    # 許可リストに無い
+        pick("A-3", "存在しない業種", ["L-10"]),   # 許可リストに無い
+        pick("A-3", "電気機器", []),               # 行IDが空
+        pick("A-9", "銀行業", ["L-1"]),            # 記事が無い
+        pick("A-4", "建設業", ["L-11"]),           # 解説の行だけ
+        pick("A-4", "建設業", ["L-12"]),           # 未確認の行だけ
+    ]}
+    shown, not_shown, status = ve.compute_industries_shown(doc, edition, rows)
+    check("改修31/業種の一覧/入るのは、記事がある・許可リストにある・根拠の行が事実系の指定(会社の枠が尽きたかどうかは見ない)",
+          (status, shown), ("ok", [{"article_id": "A-1", "industry": "銀行業"}, {"article_id": "A-1", "industry": "建設業"}]))
+    check("改修31/業種の一覧/入れなかった指定は、理由付きで記録される(順番は指定の順)。許可リストに無い=対象外の業種・外国法人・"
+          "コードリストに無い名前、行IDが空、記事が無い、解説・未確認の行だけ、同じ記事の3つ目",
+          [(x["article_id"], x["industry"], x["reason"]) for x in not_shown],
+          [("A-1", "電気機器", "over_two_per_article"), ("A-2", "サービス業", "industry_not_allowed"),
+           ("A-2", "外国法人・組合", "industry_not_allowed"), ("A-3", "存在しない業種", "industry_not_allowed"),
+           ("A-3", "電気機器", "industry_line_ids_empty"), ("A-9", "銀行業", "article_not_found"),
+           ("A-4", "建設業", "industry_line_ids_not_fact"), ("A-4", "建設業", "industry_line_ids_not_fact")])
+
+    doc2 = {"industry_picks": [
+        pick("A-2", "建設業", ["L-8"]),             # 未確認の行だけ
+        pick("A-2", "　銀行業 ", ["L-9"]),           # 空白のゆれ→コードリストの表記で入る
+        pick("A-1", "銀行業", ["L-9"]),             # 別の記事(A-2)の行
+        pick("A-1", "銀行業", ["L-1"]),             # 1つ目が入らなかったので、2つ目が入る
+        pick("A-1", "銀行業", ["L-2"]),             # 同じ記事の3つ目
+        pick("A-5", "銀行業", ["L-20"]),            # 入る
+        pick("A-5", "銀行業", ["L-20"]),            # 同じ記事・同じ業種の2つ目
+    ]}
+    shown2, not_shown2, _ = ve.compute_industries_shown(doc2, edition, rows)
+    check("改修31/業種の一覧/空白・全角のゆれはコードリストの表記にそろえて入る。別の記事の行だけを根拠にした指定・未確認の行だけの指定は入らない。"
+          "同じ記事・同じ業種は1つだけ。1つ目が入らなかったときは2つ目が入る",
+          ([(x["article_id"], x["industry"]) for x in shown2], [(x["article_id"], x["reason"]) for x in not_shown2]),
+          ([("A-2", "銀行業"), ("A-1", "銀行業"), ("A-5", "銀行業")],
+           [("A-2", "industry_line_ids_not_fact"), ("A-1", "industry_line_ids_not_in_article"),
+            ("A-1", "over_two_per_article"), ("A-5", "duplicate_in_article")]))
+
+    for skip in ("market_closed", "baseline_late"):
+        shown3, not_shown3, status3 = ve.compute_industries_shown(doc, edition, rows, skip)
+        check(f"改修31/業種の一覧/{skip}の号は空の配列で、すべての指定が理由{skip}で記録される",
+              (shown3, status3, {x["reason"] for x in not_shown3}, len(not_shown3)), ([], skip, {skip}, len(doc["industry_picks"])))
+    shown4, not_shown4, status4 = ve.compute_industries_shown(doc, edition, None)
+    check("改修31/業種の一覧/コードリストが読めない日は空の配列で、状態codelist_unavailableを記録する",
+          (shown4, status4, {x["reason"] for x in not_shown4}), ([], "codelist_unavailable", {"codelist_unavailable"}))
+    check("改修31/業種の一覧/業種の指定が無い・形が違う指定は無視する(止まらない)",
+          (ve.compute_industries_shown({}, edition, rows), ve.compute_industries_shown({"industry_picks": ["文字", None]}, edition, rows)),
+          (([], [], "ok"), ([], [], "ok")))
+    check("改修31/業種の一覧/画面に出す業種名は、会社が出たかどうかと無関係(会社の枠が尽きた指定も入る)。industry_picksそのものは書き換えない",
+          (len(doc["industry_picks"]), doc["industry_picks"][0]), (10, pick("A-1", "銀行業", ["L-1"])))
+
+
+def _k33_canary_run(patches=(), hyp_edit=None, closed=False):
+    """見本の号を照合全体に通す。patchesは(モジュール, 名前, 差し替える値)のリスト(記録を作る関数を外して、記録の
+    有る無しで結果が同じかを比べるため)。戻り値: (結果, verification, 行の印と理由, 残った上段の会社, 仮説ファイル全体)。"""
+    with tempfile.TemporaryDirectory() as d:
+        work_dir = Path(d)
+        edition_path, hyp_path, cache_dir, today_str, prev_str = _rebuild_canary_as_today(work_dir)
+        calendar_dir = _write_temp_calendar(work_dir, dt.datetime.strptime(prev_str, "%Y-%m-%d").date() - dt.timedelta(days=3), 60)
+        if closed:
+            # 号の日(今日)を休場日にする: 営業日の一覧から今日を除く
+            for cal_path in Path(calendar_dir).glob("*.json"):
+                cal = json.loads(cal_path.read_text(encoding="utf-8"))
+                cal["business_days"] = [x for x in cal["business_days"] if x != today_str]
+                cal_path.write_text(json.dumps(cal), encoding="utf-8")
+        if hyp_edit is not None:
+            hyp_doc = json.loads(hyp_path.read_text(encoding="utf-8"))
+            hyp_edit(hyp_doc)
+            hyp_path.write_text(json.dumps(hyp_doc, ensure_ascii=False), encoding="utf-8")
+        import contextlib as _ctx
+        with _ctx.ExitStack() as stack:
+            for module, name, value in patches:
+                stack.enter_context(_kaishu28_patch(module, name, value))
+            with _patched_codelist(_fake_codelist_rows(CANARY_CODELIST_ENTRIES)):
+                result = _run_verify(work_dir, edition_path, hyp_path, cache_dir, calendar_dir)
+        after = json.loads(edition_path.read_text(encoding="utf-8"))
+        hyp_after = json.loads(hyp_path.read_text(encoding="utf-8"))
+        marks = {l["line_id"]: (l.get("mark"), l.get("mark_reason")) for _s, _a, l in ve.iter_lines(after)}
+        return result, after.get("verification") or {}, marks, hyp_after["hypotheses"], hyp_after
+
+
+ROUND3_RECORD_KEYS = (
+    "upper_trading_between", "unregistered_numbers", "short_excerpts", "reported_name_in_snippet",
+    "relation_text_role_mismatch", "industry_picks_not_shown", "industries_shown_status",
+)
+
+
+def test_kaishu31_round3_records_change_nothing():
+    """改修31第3回: 記録を作る処理を外した照合と、外さない照合で、行の印・残る会社・終了コードが同じ。記録は
+    verificationと仮説ファイルに書かれる。"""
+    stubs = [
+        (ve, "compute_upper_trading_between", lambda *a, **k: []),
+        (ve, "compute_unregistered_numbers", lambda e: {"lines_with_unregistered": 0, "total_unregistered": 0, "excluded_date_time_tokens": 0, "lines": []}),
+        (ve, "compute_short_excerpts", lambda e: {"threshold": 3, "count": 0, "zero_letter_count": 0, "lines": []}),
+        (ve, "compute_reported_name_in_snippet", lambda *a, **k: []),
+        (ve, "compute_relation_text_role_mismatch", lambda h: []),
+        (ve, "compute_industries_shown", lambda d, e, c, s=None: ([], [], "stub")),
+    ]
+
+    def picks(doc):
+        doc["industry_picks"] = [
+            {"article_id": "A-2", "industry": "電気機器", "event_id": None, "industry_line_ids": ["L-07"]},
+            {"article_id": "A-2", "industry": "存在しない業種", "event_id": None, "industry_line_ids": ["L-07"]},
+        ]
+
+    with_result, with_v, with_marks, with_hyps, with_doc = _k33_canary_run(hyp_edit=picks)
+    without_result, without_v, without_marks, without_hyps, without_doc = _k33_canary_run(stubs, hyp_edit=picks)
+    check("改修31/第3回の記録/④記録を作る処理を外しても、終了コード・行の印と理由・残る上段の会社(中身も)・下段の会社は同じ",
+          (with_result.returncode, with_marks, with_hyps, with_doc.get("industry_examples")),
+          (without_result.returncode, without_marks, without_hyps, without_doc.get("industry_examples")))
+    check("改修31/第3回の記録/記録以外のverificationの値(件数・理由・会社の削除など)も同じ",
+          {k: v for k, v in with_v.items() if k not in ROUND3_RECORD_KEYS and k != "run_at"},
+          {k: v for k, v in without_v.items() if k not in ROUND3_RECORD_KEYS and k != "run_at"})
+    check("改修31/第3回の記録/verificationに記録のキーが書かれる(外した照合では空・stubの値)",
+          (all(k in with_v for k in ROUND3_RECORD_KEYS), without_v["upper_trading_between"], without_v["industries_shown_status"]),
+          (True, [], "stub"))
+    check("改修31/第3回の記録/3-1: 見本の号の上段5社それぞれに記録が書かれる。見本の提出時刻は号の日の17:00で、基準時点(号の日の9:00)より"
+          "後のため、H-3(前日17:00に提出)以外は計算できない理由submitted_after_baselineが付く",
+          [(r["hypothesis_id"], r["trading_minutes"], r["reason"]) for r in with_v["upper_trading_between"]],
+          [("H-1", None, "submitted_after_baseline"), ("H-2", None, "submitted_after_baseline"), ("H-3", 0, None),
+           ("H-4", None, "submitted_after_baseline"), ("H-5", None, "submitted_after_baseline")])
+    check("改修31/第3回の記録/3-2・3-3: 見本の号は、数字の一致する行に未登録の数字も短い抜き出しも無いので、どちらも0件",
+          (with_v["unregistered_numbers"], with_v["short_excerpts"]),
+          ({"lines_with_unregistered": 0, "total_unregistered": 0, "excluded_date_time_tokens": 0, "lines": []},
+           {"threshold": 3, "count": 0, "zero_letter_count": 0, "lines": []}))
+    check("改修31/第3回の記録/3-4・3-5: 見本の号のreportedの上段4社(H-1〜H-4)の社名は、本文のあるEDINETの書類(C01〜C04)にそのまま書かれている。"
+          "relation_textと立場の食い違いは0件",
+          ([(r["hypothesis_id"], r["result"], r["stage"]) for r in with_v["reported_name_in_snippet"]], with_v["relation_text_role_mismatch"]),
+          ([("H-1", "found", "raw"), ("H-2", "found", "raw"), ("H-3", "found", "raw"), ("H-4", "found", "raw")], []))
+    check("改修31/第3回の記録/3-6: 仮説ファイルにindustries_shownが書かれ、許可リストに無い指定は理由付きでverificationに記録される。"
+          "AIが書いたindustry_picksは書き換えない",
+          (with_doc["industries_shown"], with_v["industries_shown_status"], with_v["industry_picks_not_shown"],
+           [p["industry"] for p in with_doc["industry_picks"]]),
+          ([{"article_id": "A-2", "industry": "電気機器"}], "ok",
+           [{"article_id": "A-2", "industry": "存在しない業種", "reason": "industry_not_allowed"}], ["電気機器", "存在しない業種"]))
+    check("改修31/第3回の記録/要約表示に「提出から基準時点までに取引があった会社 n社／計算できなかった会社 n社」の1行が出る",
+          "提出から基準時点までに取引があった会社 0社／計算できなかった会社 4社" in with_result.stdout, True)
+
+    # 休場日の号: industries_shownは空で、状態にmarket_closedが記録される
+    from_closed = _k33_canary_run(hyp_edit=picks, closed=True)
+    check("改修31/第3回の記録/3-6: 休場日の号は、industries_shownが空の配列で、状態がmarket_closed・すべての指定が理由付きで記録される",
+          (from_closed[4]["industries_shown"], from_closed[1]["industries_shown_status"],
+           {x["reason"] for x in from_closed[1]["industry_picks_not_shown"]}),
+          ([], "market_closed", {"market_closed"}))
+
+
 def main():
     test_read_source_text()
     test_check_evidence_source_ref()
@@ -11071,6 +11404,13 @@ def main():
     test_kaishu31_show_lines()
     test_kaishu31_missing_line_refs()
     test_kaishu31_excerpt_check_log_summary()
+    test_kaishu31_trading_between()
+    test_kaishu31_unregistered_numbers()
+    test_kaishu31_short_excerpts()
+    test_kaishu31_reported_name_in_snippet()
+    test_kaishu31_relation_text_role_mismatch()
+    test_kaishu31_industries_shown()
+    test_kaishu31_round3_records_change_nothing()
 
     total = len(results)
     passed = sum(1 for _, ok, _, _ in results if ok)
