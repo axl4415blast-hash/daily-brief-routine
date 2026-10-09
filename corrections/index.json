@@ -1,0 +1,57 @@
+{
+ "note": "運営側(人)が書く印の訂正の記録。号のファイルの中のcorrectionsは照合が取り除くため、こちらに置く。紙面を作るAIは書かない。",
+ "editions": {
+  "2026-09-20-evening": [
+   {
+    "corrected_at": "2026-10-01T23:29:13+09:00",
+    "kind": "mark_downgrade",
+    "line_ids": [
+     "L-002-01",
+     "L-002-02",
+     "L-002-03",
+     "L-002-04",
+     "L-002-05",
+     "L-003-01",
+     "L-003-02",
+     "L-003-03",
+     "L-003-04",
+     "L-003-05"
+    ],
+    "mark_before": "source_number_match",
+    "mark_after": "unverified",
+    "mark_reason": "excerpt_not_found",
+    "reason": "一次資料(SRC-005)の本文をもう一度作り直したところ、これらの行の抜き出しが見つからなかった。",
+    "method": {
+     "tool": "scripts/save_source.py",
+     "source_id": "SRC-005",
+     "source_url": "https://www.customs.go.jp/toukei/shinbun/trade-st/2026/2026084.pdf",
+     "converter": "pdftotext",
+     "converter_version": "24.02.0",
+     "converter_args": "-layout -enc UTF-8",
+     "raw_sha256": "92fdd01f5c128ff16fb1a30977eea002ae76264a201b692eb23335a1d418b02c",
+     "text_sha256": "3733e62cc92b2c334aa93be459ee48b7ac73bddc38c3308b935a1172c3012e7f",
+     "text_chars": 32762,
+     "checked_at": "2026-10-01T23:28:05+09:00",
+     "excerpts_found": "SRC-005を出典とする10行のうち0行(同じ号のFRBの出典の6行は、すべて見つかった)",
+     "note": "紙面のsourcesに書かれたcontent_sha256(AIが書いた本文ファイルのハッシュ)は変えていない。"
+    },
+    "verification_changes": {
+     "passed": {
+      "before": 16,
+      "after": 6
+     },
+     "unverified": {
+      "before": 0,
+      "after": 10
+     },
+     "unverified_reasons": {
+      "before": {},
+      "after": {
+       "excerpt_not_found": 10
+      }
+     }
+    }
+   }
+  ]
+ }
+}

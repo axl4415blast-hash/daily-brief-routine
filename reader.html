@@ -547,6 +547,24 @@
     padding-left:10px;
     border-left:2px solid var(--border);
   }
+  /* 改修31第4回の見本: ?preview=1 のときだけ出る1行(第5回で消す) */
+  .preview-banner{
+    background:#fff3cd;
+    color:#5c4400;
+    border-bottom:1px solid #d9b84a;
+    padding:6px 16px;
+    font-size:13px;
+    font-weight:700;
+    text-align:center;
+  }
+  .industry-no-company{
+    font-size:12px;
+    line-height:1.7;
+    color:var(--muted);
+    margin:0 0 14px;
+    padding-left:10px;
+    border-left:2px solid var(--border);
+  }
   .industry-company{
     padding-left:10px;
     border-left:2px solid var(--border);
@@ -696,7 +714,8 @@
   <details class="mark-note">
     <summary>印についての説明</summary>
     <div class="mark-note-body">
-      <p>「出典に同じ数字あり」は、その数字が出典に存在することの確認です。文章の解釈が正しいことの確認ではありません。</p>
+      <p>下線のある数字は、出典に同じ数字があることを機械で確かめたものです。文章の解釈が正しいことの確認ではありません。</p>
+      <p>「報道あり・一次資料未確認」の行の数字には下線を引いていません（報道の断片の数字は、機械で確かめていないためです）。</p>
       <p>「未検証」は、誤りという意味ではありません。機械での確認ができなかった、という意味です。</p>
     </div>
   </details>
@@ -778,6 +797,25 @@
 
   var indexData = null;
   var currentKey = null;
+  var correctionsData = null;   // corrections/index.json の中身(読めなかったときはnullのまま。init()で読む)
+
+  // ---------- 改修31第4回の見本 ----------
+  // ?preview=1 のときだけ、editions/index.json の代わりに preview/editions/index.json を読み(見本の号の
+  // edition_path・hypotheses_path は preview/ の中を指す)、画面の一番上に「見本の表示です」の1行を出す。
+  // 第5回で、この節・下の init() の「改修31第4回の見本」の印の付いた行・CSSの .preview-banner・preview/ を消す。
+  var PREVIEW_MODE = (function(){
+    try{ return new URLSearchParams(window.location.search).get("preview") === "1"; }catch(e){ return false; }
+  })();
+  var EDITIONS_INDEX_PATH = PREVIEW_MODE ? "preview/editions/index.json" : "editions/index.json";
+
+  function applyPreviewBanner(){
+    if(!PREVIEW_MODE) return;
+    var banner = document.createElement("div");
+    banner.className = "preview-banner";
+    banner.id = "previewNotice";
+    banner.textContent = "見本の表示です（本番の号ではありません）";
+    document.body.insertBefore(banner, document.body.firstChild);
+  }
 
   // ---------- 小さなユーティリティ ----------
 
@@ -992,10 +1030,12 @@
     }
   }
 
-  function buildFactTextNode(text, numbers){
+  // 改修31第4回: 下線(num-mark)は、機械が出典で数字を確かめた行(mark が source_number_match)だけに引く。
+  // 報道の行(reported_unverified)の数字は確かめていないので、下線を引かず普通の文字で出す。
+  function buildFactTextNode(text, numbers, mark){
     text = text || "";
     var wrap = el("span", { class: "fact-text" });
-    if(!numbers || numbers.length === 0){
+    if(mark !== "source_number_match" || !numbers || numbers.length === 0){
       wrap.textContent = text;
       return wrap;
     }
@@ -1248,7 +1288,7 @@
 
   function renderFactLine(line, sourcesById){
     var wrap = el("div", { class: "fact-line" });
-    wrap.appendChild(buildFactTextNode(line.text, line.numbers));
+    wrap.appendChild(buildFactTextNode(line.text, line.numbers, line.mark));
 
     var badge = renderSourceBadge(line, sourcesById);
     if(badge) wrap.appendChild(badge);
@@ -1385,8 +1425,8 @@
     excerpt_not_found: "一次資料の本文の中に抜き出しが見つからなかったため"
   };
 
-  function correctionNoticeTexts(ed){
-    var list = ed && Array.isArray(ed.corrections) ? ed.corrections : [];
+  function correctionNoticeTexts(list){
+    list = Array.isArray(list) ? list : [];
     var out = [];
     list.forEach(function(c){
       if(!c || typeof c !== "object" || c.kind !== "mark_downgrade") return;
@@ -1409,10 +1449,36 @@
     box.hidden = true;
   }
 
-  function renderCorrectionNotice(ed){
+  // 改修31第4回: 運営側(人)の訂正は、号のファイルの中ではなく corrections/index.json に置く
+  // (号の中の corrections は、照合が毎回取り除くため。紙面を作るAIが偽の訂正を書けないようにするため)。
+  // 画面は号のファイルの ed.corrections を読まない。読み込みに失敗したときは、その旨を1行だけ出す。
+  var CORRECTIONS_LOAD_ERROR_TEXT = "訂正の記録を読み込めませんでした。";
+
+  async function loadCorrections(){
+    try{
+      var data = await fetchJson("corrections/index.json?t=" + Date.now());
+      if(!data || typeof data !== "object" || Array.isArray(data) ||
+         !data.editions || typeof data.editions !== "object" || Array.isArray(data.editions)){
+        throw new Error("形が正しくありません。");
+      }
+      return data;
+    }catch(e){
+      return null;
+    }
+  }
+
+  function renderCorrectionNotice(editionId){
     var box = document.getElementById("correctionNotice");
     clear(box);
-    var texts = correctionNoticeTexts(ed);
+    var texts;
+    if(correctionsData === null){
+      texts = [CORRECTIONS_LOAD_ERROR_TEXT];
+    }else{
+      var has = Object.prototype.hasOwnProperty.call(correctionsData.editions, editionId);
+      var list = has ? correctionsData.editions[editionId] : null;
+      // この号の項目があるのに配列でないときは、形が壊れているので読み込み失敗と同じに扱う。
+      texts = (has && !Array.isArray(list)) ? [CORRECTIONS_LOAD_ERROR_TEXT] : correctionNoticeTexts(list);
+    }
     if(texts.length === 0){ box.hidden = true; return; }
     var inner = el("div", { class: "notice-box correction-box" });
     texts.forEach(function(t){ inner.appendChild(el("p", { text: t })); });
@@ -1659,7 +1725,43 @@
       console.warn("companies: article_id が号内の記事と一致しませんでした（上段 " + idx.unmatchedTop + " 件、下段 " + idx.unmatchedBottom + " 件）");
     }
 
+    applyIndustriesShown(idx, hy, articleIds);
+
     return idx;
+  }
+
+  // 改修31第4回: 仮説ファイルに industries_shown(照合を通った業種の一覧。[{article_id, industry}])が
+  // 配列としてある号だけ、記事ごとの下段の業種を、その一覧の順にする。会社の枠が尽きて会社が出なかった業種も、
+  // 業種名だけは出す(その業種の会社は空の配列になる)。キーが無い号は何もしない(今までと同じ画面)。
+  // industry_examples にあって industries_shown に無い業種(本来は起きない)は、会社を隠さず最後に残す。
+  function applyIndustriesShown(idx, hy, articleIds){
+    if(!hy || !Array.isArray(hy.industries_shown)) return;
+    var shownByArticle = {};
+    var shownOrder = [];
+    hy.industries_shown.forEach(function(item){
+      if(!item || typeof item.article_id !== "string" || typeof item.industry !== "string") return;
+      if(!articleIds[item.article_id]) return;
+      if(!shownByArticle[item.article_id]){ shownByArticle[item.article_id] = []; shownOrder.push(item.article_id); }
+      if(shownByArticle[item.article_id].indexOf(item.industry) === -1) shownByArticle[item.article_id].push(item.industry);
+    });
+    var extraExamples = 0;
+    shownOrder.forEach(function(articleId){
+      var group = idx.bottom[articleId] || { order: [], byIndustry: {} };
+      var newOrder = [];
+      shownByArticle[articleId].forEach(function(industry){
+        newOrder.push(industry);
+        if(!group.byIndustry[industry]) group.byIndustry[industry] = [];
+      });
+      group.order.forEach(function(industry){
+        if(newOrder.indexOf(industry) === -1){ newOrder.push(industry); extraExamples += group.byIndustry[industry].length; }
+      });
+      group.order = newOrder;
+      idx.bottom[articleId] = group;
+    });
+    // industries_shown に記事ごと1つも無いのに industry_examples だけがある記事は、そのまま(今までどおり)残る。
+    if(extraExamples > 0){
+      console.warn("companies: industries_shown に無い業種の会社を " + extraExamples + " 社、最後に出しました");
+    }
   }
 
   function renderHoldingNote(item){
@@ -1778,12 +1880,23 @@
     return wrap;
   }
 
+  var NO_COMPANY_TEXT = "この号では会社の例の枠が足りず、この業種の会社は出していません。";
+
   function renderBottomTier(group){
     var box = el("div", { class: "companies-tier" });
-    box.appendChild(el("p", { class: "companies-heading", text: "この記事が関係しそうな業種の上場企業の例" }));
-    box.appendChild(el("p", { class: "companies-note", text:
-      "この業種に属する上場企業の例です。この記事とこの会社の関係を確認したものではありません。同じ業種でも反応は分かれます。"
-    }));
+    // 改修31第4回: 記事に下段の会社が1社も無く、業種だけのとき(industries_shownがある号)は、見出しと注記を業種だけの文にする。
+    var hasCompany = group.order.some(function(industry){ return group.byIndustry[industry].length > 0; });
+    if(hasCompany){
+      box.appendChild(el("p", { class: "companies-heading", text: "この記事が関係しそうな業種の上場企業の例" }));
+      box.appendChild(el("p", { class: "companies-note", text:
+        "この業種に属する上場企業の例です。この記事とこの会社の関係を確認したものではありません。同じ業種でも反応は分かれます。"
+      }));
+    }else{
+      box.appendChild(el("p", { class: "companies-heading", text: "この記事が関係しそうな業種" }));
+      box.appendChild(el("p", { class: "companies-note", text:
+        "AIが記事の内容から選んだ業種です。この業種の会社に影響が出ることを確かめたものではありません。同じ業種でも反応は分かれます。"
+      }));
+    }
 
     var attributions = [];
     var seen = {};
@@ -1791,6 +1904,9 @@
     group.order.forEach(function(industry){
       var industryBox = el("div", { class: "industry-group" });
       industryBox.appendChild(el("h4", { class: "industry-name", text: industry }));
+      if(group.byIndustry[industry].length === 0){
+        industryBox.appendChild(el("p", { class: "industry-no-company", text: NO_COMPANY_TEXT }));
+      }
       group.byIndustry[industry].forEach(function(ex){
         industryBox.appendChild(renderIndustryCompany(ex));
         var att = ex.attribution || "";
@@ -1940,7 +2056,7 @@
     }
 
     if(edResult){
-      renderCorrectionNotice(edResult);
+      renderCorrectionNotice(entry.edition_id);
       renderContent(edResult, hyResult);
       renderSources(edResult.sources || []);
       renderFooter(edResult);
@@ -1952,13 +2068,16 @@
   // ---------- 起動 ----------
 
   async function init(){
+    applyPreviewBanner();   // 改修31第4回の見本
     try{
-      indexData = await fetchJson("editions/index.json?t=" + Date.now());
+      indexData = await fetchJson(EDITIONS_INDEX_PATH + "?t=" + Date.now());   // 改修31第4回の見本(通常は editions/index.json)
       hideFatalError();
     }catch(e){
-      showFatalError("editions/index.json", e);
+      showFatalError(EDITIONS_INDEX_PATH, e);   // 改修31第4回の見本
       return;
     }
+
+    correctionsData = await loadCorrections();   // 運営側の訂正(corrections/index.json)を1回だけ読む
 
     if(!indexData.editions || indexData.editions.length === 0){
       renderDateBar();
