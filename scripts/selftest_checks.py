@@ -9853,7 +9853,12 @@ def test_kaishu29_check_excerpts():
               "合計 7行: ok 1、spans_lines 1、excerpt_not_found 1、number_missing 1、skipped 3" in out, True)
         check("改修29/check_excerpts/本文を丸ごと出さない(調べた行に要らない本文の行は表示しない)",
               "金融政策は" in out, False)
-        check("改修29/check_excerpts/ファイルを1つも書き換えない(紙面・出典とも同じ中身・同じ数)", after == before, True)
+        # 改修31第2回: 実行記録(キャッシュのCHECK-EXCERPTS-*.jsonl)が1つ増えるのは正しい動き。それ以外は変わらない。
+        new_files = sorted(p.name for p in set(after) - set(before))
+        check("改修29/check_excerpts/紙面・出典のファイルを1つも書き換えない(同じ中身・同じ数)。増えるのは実行記録1つだけ"
+              "(改修31第2回で、増えてよいものを実行記録だけにした)",
+              ({p: b for p, b in after.items() if p in before} == before, new_files),
+              (True, ["CHECK-EXCERPTS-2026-10-05-morning.jsonl"]))
 
         ok_path = _k29_edition_file(d, lines[:1], sources_by_id, name="edition_ok.json")
         result = _k29_run_check_excerpts(ok_path, cache)
@@ -10532,12 +10537,307 @@ def test_kaishu31_check_excerpts_new_statuses():
               (result.returncode, "合計 3行: ok 1、spans_lines 0、excerpt_not_found 0、number_missing 0、skipped 0、"
                                   "body_check_failed 1、reported_source_not_snippet 1" in out),
               (1, True))
-        check("改修31/check_excerpts/ファイルを1つも書き換えない", after == before, True)
+        check("改修31/check_excerpts/紙面・出典のファイルを1つも書き換えない(増えるのは実行記録だけ。改修31第2回で変更)",
+              ({p: b for p, b in after.items() if p in before} == before, sorted(p.name for p in set(after) - set(before))),
+              (True, ["CHECK-EXCERPTS-2026-10-05-morning.jsonl"]))
 
         ok_path = _k29_edition_file(d, [lines[0], lines[3]], sources_by_id, name="edition_ok.json")
         result = _k29_run_check_excerpts(ok_path, cache)
         check("改修31/check_excerpts/ok と検索断片の報道の行だけなら終了コード0",
               (result.returncode, "合計 1行: ok 1、" in result.stdout), (0, True))
+
+
+# ---------------------------------------------------------------------------
+# 改修31第2回: 事前確認の実行記録・「1行」を見せるコマンド・紙面に無い行IDの表示・照合の実行記録のまとめ。
+# ---------------------------------------------------------------------------
+
+def _k32_run(args):
+    script = Path(__file__).resolve().parent / "check_excerpts.py"
+    return subprocess.run([sys.executable, str(script), *map(str, args)], capture_output=True, text=True, timeout=120)
+
+
+def _k32_setup(d, edition_id="2026-10-05-morning"):
+    """実行記録のテスト用の紙面(解説1行・数字の一致1行・1行に収まらない1行)と出典の本文を一時フォルダに作る。
+    戻り値: (紙面のパス, キャッシュのパス)。"""
+    d = Path(d)
+    cache = d / "cache"
+    cache.mkdir()
+    sources_by_id = _k29_cache(cache)
+    lines = [
+        _k29_line("L-OK", "SRC-P", "製造業 22 17 24", [24, 17]),
+        dict(_k29_line("L-EXP", None, None, []), claimed_mark="explainer", numbers=[]),
+        _k29_line("L-SPAN", "SRC-P", "変化幅 製造業 22 17 24", [22]),
+    ]
+    path = _k29_edition_file(d, lines, sources_by_id)
+    doc = json.loads(path.read_text(encoding="utf-8"))
+    doc["edition_id"] = edition_id
+    path.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+    return path, cache
+
+
+def test_kaishu31_excerpt_run_log():
+    """改修31第2回(3-1): check_excerpts.pyは実行のたびに、キャッシュのCHECK-EXCERPTS-{edition_id}.jsonlに1回分を
+    1行書き足す(上書きしない)。edition_idが形に合わないときは書かない。紙面は書き換えない。"""
+    with tempfile.TemporaryDirectory() as d:
+        edition_path, cache = _k32_setup(d)
+        log_path = cache / "CHECK-EXCERPTS-2026-10-05-morning.jsonl"
+        edition_before = edition_path.read_bytes()
+        r1 = _k32_run(["--edition", edition_path, "--cache-dir", cache])
+        first_text = log_path.read_text(encoding="utf-8")
+        r2 = _k32_run(["--edition", edition_path, "--cache-dir", cache])
+        records = [json.loads(x) for x in log_path.read_text(encoding="utf-8").splitlines()]
+        check("改修31第2/実行記録/①2回実行すると記録が2行になり、1行目は書き換わらない(上書きしない)",
+              (len(records), log_path.read_text(encoding="utf-8").startswith(first_text)), (2, True))
+        check("改修31第2/実行記録/表示の最後に「この号のn回目」が出る",
+              ("実行記録：この号の1回目" in r1.stdout, "実行記録：この号の2回目" in r2.stdout), (True, True))
+        rec = records[0]
+        check("改修31第2/実行記録/②キーがそろう(号ID・実行時刻・紙面のハッシュ・版・全行・件数・終了コード)",
+              (sorted(rec), rec["edition_id"], rec["run_at"].endswith("+09:00"),
+               rec["edition_sha256"] == hashlib.sha256(edition_before).hexdigest(), rec["exit_code"]),
+              (sorted(["edition_id", "run_at", "edition_sha256", "script_version", "lines", "counts", "missing_line_refs", "exit_code"]),
+               "2026-10-05-morning", True, True, 1))
+        check("改修31第2/実行記録/②紙面のすべての行が入り(調べなかった解説の行のstatusはnull)、申告した印・数字・出典・状態が書かれる",
+              rec["lines"],
+              [{"line_id": "L-OK", "claimed_mark": "source_number_match", "numbers": [24, 17], "source_ref": "SRC-P", "status": "ok"},
+               {"line_id": "L-EXP", "claimed_mark": "explainer", "numbers": [], "source_ref": None, "status": None},
+               {"line_id": "L-SPAN", "claimed_mark": "source_number_match", "numbers": [22], "source_ref": "SRC-P", "status": "spans_lines"}])
+        check("改修31第2/実行記録/②件数は表示の合計と同じ。missing_line_refsは--hypothesesが無ければnull",
+              (rec["counts"]["ok"], rec["counts"]["spans_lines"], sum(rec["counts"].values()), rec["missing_line_refs"]),
+              (1, 1, 2, None))
+        check("改修31第2/実行記録/④紙面のファイルは1バイトも変わらない。終了コードは今までどおり(spans_linesがあるので1)",
+              (edition_path.read_bytes() == edition_before, r1.returncode, r2.returncode), (True, 1, 1))
+
+        # 直前の行が改行で終わっていなくても、前の内容を壊さず別の行に書き足す
+        log_path.write_text('{"壊れた行', encoding="utf-8")
+        _k32_run(["--edition", edition_path, "--cache-dir", cache])
+        text = log_path.read_text(encoding="utf-8")
+        check("改修31第2/実行記録/改行で終わらない壊れた行があっても、それを残したまま新しい行を別の行に書き足す",
+              (text.startswith('{"壊れた行\n'), len(text.splitlines())), (True, 2))
+
+    # edition_idが形に合わないときは記録を書かない(終了コードは変わらない)
+    with tempfile.TemporaryDirectory() as d:
+        edition_path, cache = _k32_setup(d, edition_id="../ひどい名前")
+        r = _k32_run(["--edition", edition_path, "--cache-dir", cache])
+        sources_only = sorted(p.name for p in cache.iterdir() if p.name.startswith("CHECK-EXCERPTS"))
+        check("改修31第2/実行記録/③edition_idが{日付}-{時間帯}の形でなければ記録を書かず、その旨を表示し、終了コードは変わらない",
+              (sources_only, "記録は書きません" in r.stdout, r.returncode), ([], True, 1))
+        check("改修31第2/実行記録/③形に合わないedition_idでは、記録のファイル名を作らない(パスの文字が混ざらない)",
+              (ve.excerpt_log_path(cache, "../ひどい名前"), ve.excerpt_log_path(cache, None), ve.excerpt_log_path(cache, 5),
+               ve.excerpt_log_path(cache, "2026-10-05-night")), (None, None, None, None))
+        check("改修31第2/実行記録/形に合うedition_id(朝・昼・夕方)ではファイル名ができる",
+              [ve.excerpt_log_path("c", f"2026-10-05-{s}").name for s in ("morning", "noon", "evening")],
+              [f"CHECK-EXCERPTS-2026-10-05-{s}.jsonl" for s in ("morning", "noon", "evening")])
+
+
+def test_kaishu31_show_lines():
+    """改修31第2回(3-2): --show-lines SRC-xxx は、機械の「1行」を1始まりの番号付きで表示する。"""
+    with tempfile.TemporaryDirectory() as d:
+        edition_path, cache = _k32_setup(d)
+        span = _k32_run(["--edition", edition_path, "--cache-dir", cache]).stdout
+        shown = _k32_run(["--edition", edition_path, "--cache-dir", cache, "--show-lines", "SRC-P"])
+        logs_after = sorted(p.name for p in cache.iterdir() if p.name.startswith("CHECK-EXCERPTS"))
+        span_numbers = dict(re.findall(r"本文の(\d+)行目: (.+)", span))
+        show_numbers = dict(re.findall(r"本文の(\d+)行目: (.+)", shown.stdout))
+        check("改修31第2/1行の表示/①番号が、spans_linesの「本文のn行目」の表示と同じ行を指す(同じ番号なら同じ文)",
+              (bool(span_numbers), all(show_numbers.get(n) == text for n, text in span_numbers.items())), (True, True))
+        check("改修31第2/1行の表示/①番号は1始まり(1行目は見出しの行、2行目は数字の行)",
+              ("本文の1行目: 最近  先行き  最近  変化幅" in shown.stdout, "本文の2行目: 製造業  22  17  24" in shown.stdout), (True, True))
+        check("改修31第2/1行の表示/正常に表示したときは終了コード0", shown.returncode, 0)
+        check("改修31第2/1行の表示/④抜き出しの確認も実行記録もしない(記録のファイルは1回目の確認の分の1つだけ)",
+              (logs_after, len((cache / "CHECK-EXCERPTS-2026-10-05-morning.jsonl").read_text(encoding="utf-8").splitlines()), "ok" in shown.stdout.split("\n")[0]),
+              (["CHECK-EXCERPTS-2026-10-05-morning.jsonl"], 1, False))
+
+        grep = _k32_run(["--edition", edition_path, "--cache-dir", cache, "--show-lines", "SRC-P", "--grep", "製造業２２"])
+        check("改修31第2/1行の表示/②--grepは、照合と同じそろえ方(全角・半角・空白の違いを吸収)で探し、その行だけを表示する",
+              ("本文の2行目: 製造業  22  17  24" in grep.stdout, "本文の1行目" in grep.stdout, "を含む行: 1行" in grep.stdout), (True, False, True))
+
+        # 区切れない出典(SRC-H: 元のHTMLの区切りをつなげ直すと本文と一致しない)
+        bad = _k32_run(["--edition", edition_path, "--cache-dir", cache, "--show-lines", "SRC-H"])
+        check("改修31第2/1行の表示/③区切れない出典は、理由(今のSKIP_REASON_TEXTの言葉)を表示して終了コード1",
+              (bad.returncode, "本文を1行に区切れない(区切りをつなげ直すと本文と一致しない)" in bad.stdout), (1, True))
+        none = _k32_run(["--edition", edition_path, "--cache-dir", cache, "--show-lines", "SRC-NONE"])
+        check("改修31第2/1行の表示/紙面に無い出典IDは終了コード1", none.returncode, 1)
+
+        # 200行を超える本文: 先頭200行まで表示し、残りの行数を知らせる
+        long_body = "".join(f"第{i}行 データ\n" for i in range(1, 251)).encode("utf-8")
+        write(cache, "SRC-LONG.txt", long_body)
+        doc = json.loads(edition_path.read_text(encoding="utf-8"))
+        doc["sources"].append(_k29_source("SRC-LONG", "https://www.boj.or.jp/long.pdf", long_body))
+        edition_path.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+        long_out = _k32_run(["--edition", edition_path, "--cache-dir", cache, "--show-lines", "SRC-LONG"]).stdout
+        long_grep = _k32_run(["--edition", edition_path, "--cache-dir", cache, "--show-lines", "SRC-LONG", "--grep", "第２４９行"]).stdout
+        check("改修31第2/1行の表示/--grepが無いときは先頭200行まで表示し、残りの行数と--grepの案内を出す",
+              ("本文の200行目: 第200行 データ" in long_out, "本文の201行目" in long_out, "残り50行。--grep で絞ってください" in long_out),
+              (True, False, True))
+        check("改修31第2/1行の表示/--grepなら200行より後の行も表示する", "本文の249行目: 第249行 データ" in long_grep, True)
+
+
+def test_kaishu31_missing_line_refs():
+    """改修31第2回(3-3): --hypotheses を渡すと、紙面に無い行IDを指している上段の会社・業種の指定を表示し、
+    1件でもあれば終了コード1にする。"""
+    with tempfile.TemporaryDirectory() as d:
+        edition_path, cache = _k32_setup(d)
+        doc = json.loads(edition_path.read_text(encoding="utf-8"))
+        doc["sections"][0]["articles"][0]["lines"] = doc["sections"][0]["articles"][0]["lines"][:1]   # L-OKだけ(すべてok)
+        edition_path.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+        hyp_ok = Path(d) / "hyp_ok.json"
+        hyp_ok.write_text(json.dumps({"hypotheses": [{"hypothesis_id": "H-1", "company_name": "テスト物産", "line_ids": ["L-OK"]}],
+                                      "industry_picks": [{"article_id": "A", "industry": "銀行業", "industry_line_ids": ["L-OK"]}]},
+                                     ensure_ascii=False), encoding="utf-8")
+        hyp_ng = Path(d) / "hyp_ng.json"
+        hyp_ng.write_text(json.dumps({"hypotheses": [
+            {"hypothesis_id": "H-1", "company_name": "テスト物産", "line_ids": ["L-OK", "L-GONE"]},
+            {"hypothesis_id": "H-2", "company_name": "正常会社", "line_ids": ["L-OK"]}],
+            "industry_picks": [{"article_id": "A", "industry": "銀行業", "industry_line_ids": ["L-OK", "L-X1", "L-X2"]},
+                               {"article_id": "A", "industry": "建設業", "industry_line_ids": ["L-OK"]}]}, ensure_ascii=False), encoding="utf-8")
+        hyp_before = hyp_ng.read_bytes()
+
+        plain = _k32_run(["--edition", edition_path, "--cache-dir", cache])
+        none_found = _k32_run(["--edition", edition_path, "--cache-dir", cache, "--hypotheses", hyp_ok])
+        found = _k32_run(["--edition", edition_path, "--cache-dir", cache, "--hypotheses", hyp_ng])
+        records = [json.loads(x) for x in (cache / "CHECK-EXCERPTS-2026-10-05-morning.jsonl").read_text(encoding="utf-8").splitlines()]
+        check("改修31第2/紙面に無い行ID/③--hypothesesを省略したら今までどおり(表示も増えず、抜き出しがすべてokなら終了コード0)",
+              (plain.returncode, "紙面に無い行ID" in plain.stdout, records[0]["missing_line_refs"]), (0, False, None))
+        check("改修31第2/紙面に無い行ID/②無ければ件数0を表示し、終了コードは抜き出しの結果どおり(0)",
+              (none_found.returncode, "紙面に無い行IDを指している会社 0件・業種 0件" in none_found.stdout,
+               records[1]["missing_line_refs"]), (0, True, {"hypotheses": [], "industry_picks": []}))
+        check("改修31第2/紙面に無い行ID/①上段の会社・業種それぞれ、無い行IDが表示され、終了コード1(抜き出しはすべてokでも)",
+              (found.returncode, "上段の会社 H-1(テスト物産): 紙面に無い行ID L-GONE" in found.stdout,
+               "業種の指定 A(銀行業): 紙面に無い行ID L-X1, L-X2" in found.stdout,
+               "H-2" in found.stdout, "建設業" in found.stdout,
+               "紙面に無い行IDを指している会社 1件・業種 1件" in found.stdout),
+              (1, True, True, False, False, True))
+        check("改修31第2/紙面に無い行ID/①直し方(消した行のIDを外す。残りの行IDは振り直さない)を見出しに書く",
+              "残りの行IDは振り直さない" in found.stdout, True)
+        check("改修31第2/紙面に無い行ID/実行記録にも書かれ、仮説ファイルは書き換えない",
+              (records[2]["missing_line_refs"], records[2]["exit_code"], hyp_ng.read_bytes() == hyp_before),
+              ({"hypotheses": [{"hypothesis_id": "H-1", "company_name": "テスト物産", "line_ids": ["L-GONE"]}],
+                "industry_picks": [{"article_id": "A", "industry": "銀行業", "line_ids": ["L-X1", "L-X2"]}]}, 1, True))
+
+
+def _k32_rec(edition_id, lines, sha="a" * 64, run_at="2026-10-05T07:00:00+09:00", counts=None, exit_code=0):
+    return {"edition_id": edition_id, "run_at": run_at, "edition_sha256": sha, "script_version": "t", "lines": lines,
+            "counts": counts if counts is not None else {"ok": 1}, "missing_line_refs": None, "exit_code": exit_code}
+
+
+def _k32_l(line_id, mark="source_number_match", numbers=(), ref="S-1", status="ok"):
+    return {"line_id": line_id, "claimed_mark": mark, "numbers": list(numbers), "source_ref": ref, "status": status}
+
+
+def test_kaishu31_excerpt_check_log_summary():
+    """改修31第2回(3-4): 照合は実行記録を読んで、verification.excerpt_check_logに実行回数・1回目から消えた行・
+    印が変わった行・外れた数字などを書く。記録だけで、印・会社・終了コードは変えない。"""
+    eid = "2026-10-05-morning"
+    edition = {"edition_id": eid, "sections": [{"section_id": "big", "articles": [{"article_id": "A", "lines": [
+        {"line_id": "L-A", "claimed_mark": "source_number_match", "numbers": [{"value": 24}], "source_ref": "S-1"},
+        {"line_id": "L-C", "claimed_mark": "explainer", "numbers": [], "source_ref": None},
+        {"line_id": "L-D", "claimed_mark": "source_number_match", "numbers": [{"value": 1}, {"value": 7}], "source_ref": "S-1"},
+        {"line_id": "L-NEW", "claimed_mark": "explainer", "numbers": [], "source_ref": None},
+    ]}]}]}
+    first = _k32_rec(eid, [
+        _k32_l("L-A", numbers=[24, 17]),                   # 17が外れた
+        _k32_l("L-B", numbers=[5]),                       # 行ごと消えた
+        _k32_l("L-C", mark="source_number_match", numbers=[3], status="ok"),   # 印が変わった(numbersも空に: 行は残るので数字の外れにも数える)
+        _k32_l("L-D", numbers=["1.0", 7.0]),              # 文字の"1.0"と1、7.0と7は同じ値(外れた数字にしない。文字や小数点の違いで別物にしない)
+    ], sha="1" * 64, run_at="2026-10-05T06:00:00+09:00")
+    last = _k32_rec(eid, [_k32_l("L-A", numbers=[24])], sha="2" * 64, run_at="2026-10-05T06:30:00+09:00",
+                    counts={"ok": 4, "spans_lines": 0}, exit_code=1)
+
+    def log_in(d, *rows):
+        path = Path(d) / f"CHECK-EXCERPTS-{eid}.jsonl"
+        path.write_text("".join((r if isinstance(r, str) else json.dumps(r, ensure_ascii=False)) + "\n" for r in rows), encoding="utf-8")
+
+    with tempfile.TemporaryDirectory() as d:
+        r = ve.compute_excerpt_check_log(d, edition, "2" * 64)
+        check("改修31第2/実行記録のまとめ/①記録のファイルが無ければmissing(回数0・比べ方の欄はnull)",
+              (r["status"], r["run_count"], r["first_run_at"], r["edited_after_last_check"], r["removed_line_ids"], r["numbers_removed"]),
+              ("missing", 0, None, None, None, None))
+        log_in(d, first, last)
+        r = ve.compute_excerpt_check_log(d, edition, "2" * 64)
+        check("改修31第2/実行記録のまとめ/回数・最初と最後の実行時刻・最後の件数と終了コード",
+              (r["status"], r["run_count"], r["first_run_at"], r["last_run_at"], r["last_counts"], r["last_exit_code"]),
+              ("ok", 2, "2026-10-05T06:00:00+09:00", "2026-10-05T06:30:00+09:00", {"ok": 4, "spans_lines": 0}, 1))
+        check("改修31第2/実行記録のまとめ/②1回目から、行が消えた・行が増えた・印が変わった",
+              (r["removed_line_ids"], r["added_line_ids"], r["changed_marks"]),
+              (["L-B"], ["L-NEW"], [{"line_id": "L-C", "from": "source_number_match", "to": "explainer"}]))
+        check("改修31第2/実行記録のまとめ/②数字が外れた行を記録する(1.0と1は同じ値として比べる。消えた行・印が変わった行の数字は"
+              "それぞれ別の欄なので、残っている行で外れたものだけ)",
+              r["numbers_removed"], [{"line_id": "L-A", "values": [17]}, {"line_id": "L-C", "values": [3]}])
+        check("改修31第2/実行記録のまとめ/③最後の実行の後に紙面が書き換えられていなければ偽、書き換えられていれば真",
+              (r["edited_after_last_check"], ve.compute_excerpt_check_log(d, edition, "9" * 64)["edited_after_last_check"]), (False, True))
+
+        log_in(d, "壊れた{行", last)
+        r = ve.compute_excerpt_check_log(d, edition, "2" * 64)
+        check("改修31第2/実行記録のまとめ/①読めない行があればunreadable。読める行は集計に使い、problemsに数を書く",
+              (r["status"], r["run_count"], r["problems"]), ("unreadable", 1, {"unreadable_lines": 1, "other_edition_lines": 0}))
+        log_in(d, "[1, 2]", json.dumps({"edition_id": eid}), last)
+        check("改修31第2/実行記録のまとめ/①JSONでも形が違う行(辞書でない・キー不足)は読めない行に数える",
+              ve.compute_excerpt_check_log(d, edition, "2" * 64)["problems"]["unreadable_lines"], 2)
+        other = _k32_rec("2026-10-04-evening", [_k32_l("L-Z")])
+        log_in(d, other, last)
+        r = ve.compute_excerpt_check_log(d, edition, "2" * 64)
+        check("改修31第2/実行記録のまとめ/①別の号の行があればother_edition。別の号の行は集計に使わない",
+              (r["status"], r["run_count"], r["problems"], r["removed_line_ids"]),
+              ("other_edition", 1, {"unreadable_lines": 0, "other_edition_lines": 1}, []))
+        log_in(d, other)
+        r = ve.compute_excerpt_check_log(d, edition, "2" * 64)
+        check("改修31第2/実行記録のまとめ/別の号の行しか無ければother_editionで回数0(比べ方の欄はnull)",
+              (r["status"], r["run_count"], r["removed_line_ids"]), ("other_edition", 0, None))
+        (Path(d) / f"CHECK-EXCERPTS-{eid}.jsonl").write_bytes(b"\xff\xfe\x00")
+        check("改修31第2/実行記録のまとめ/文字として読めないファイルはunreadable",
+              ve.compute_excerpt_check_log(d, edition, "2" * 64)["status"], "unreadable")
+        bad_id = dict(edition, edition_id="../x")
+        check("改修31第2/実行記録のまとめ/edition_idが形に合わなければ記録を読まずmissing",
+              ve.compute_excerpt_check_log(d, bad_id, "2" * 64)["status"], "missing")
+
+    # 照合全体: 記録が有っても無くても、行の印・会社・終了コードは同じ。記録は要約に書かれる。
+    def run_canary(rows):
+        with tempfile.TemporaryDirectory() as dd:
+            work_dir = Path(dd)
+            edition_path, hyp_path, cache_dir, today_str, prev_str = _rebuild_canary_as_today(work_dir)
+            calendar_dir = _write_temp_calendar(work_dir, dt.datetime.strptime(prev_str, "%Y-%m-%d").date() - dt.timedelta(days=3), 60)
+            actual_sha = hashlib.sha256(edition_path.read_bytes()).hexdigest()
+            snapshot = ve.excerpt_log_line_snapshot(json.loads(edition_path.read_text(encoding="utf-8")))
+            if rows is not None:
+                records = rows(f"{today_str}-evening", snapshot, actual_sha)
+                (cache_dir / f"CHECK-EXCERPTS-{today_str}-evening.jsonl").write_text(
+                    "".join(json.dumps(x, ensure_ascii=False) + "\n" for x in records), encoding="utf-8")
+            with _patched_codelist(_fake_codelist_rows(CANARY_CODELIST_ENTRIES)):
+                result = _run_verify(work_dir, edition_path, hyp_path, cache_dir, calendar_dir)
+            after = json.loads(edition_path.read_text(encoding="utf-8"))
+            hyps = json.loads(hyp_path.read_text(encoding="utf-8"))["hypotheses"]
+            marks = {l["line_id"]: (l.get("mark"), l.get("mark_reason")) for _s, _a, l in ve.iter_lines(after)}
+            return result, after.get("verification") or {}, marks, [h["hypothesis_id"] for h in hyps]
+
+    def make_rows(eid_, snapshot, sha):
+        old = [dict(x, status="ok") for x in snapshot]
+        old.append(_k32_l("L-GONE", numbers=[1]))                                    # 1回目にだけあった行
+        for x in old:
+            if x["line_id"] == "L-01":
+                x["numbers"] = x["numbers"] + [999]                                  # 1回目にだけあった数字
+            if x["line_id"] == "L-02":
+                x["claimed_mark"] = "explainer"                                      # 印が変わった行
+        return [_k32_rec(eid_, old, sha="0" * 64), _k32_rec(eid_, [dict(x, status="ok") for x in snapshot], sha=sha, exit_code=0)]
+
+    base_result, base_v, base_marks, base_hyps = run_canary(None)
+    log_result, log_v, log_marks, log_hyps = run_canary(make_rows)
+    summary = log_v.get("excerpt_check_log") or {}
+    check("改修31第2/実行記録のまとめ/統合: 記録が無い号ではstatusがmissing",
+          (base_result.returncode, (base_v.get("excerpt_check_log") or {}).get("status")), (0, "missing"))
+    check("改修31第2/実行記録のまとめ/統合②: 1回目から消えた行・増えた行・印が変わった行・外れた数字が、verificationに記録される",
+          (summary.get("status"), summary.get("run_count"), summary.get("removed_line_ids"), summary.get("added_line_ids"),
+           summary.get("changed_marks"), summary.get("numbers_removed"), summary.get("edited_after_last_check")),
+          ("ok", 2, ["L-GONE"], [], [{"line_id": "L-02", "from": "explainer", "to": "reported_unverified"}],
+           [{"line_id": "L-01", "values": [999]}], False))
+    check("改修31第2/実行記録のまとめ/統合④: 記録が有っても無くても、終了コード・行の印と理由・残る会社は同じ",
+          (log_result.returncode, log_marks, log_hyps), (base_result.returncode, base_marks, base_hyps))
+    check("改修31第2/実行記録のまとめ/統合: 要約表示に実行回数などの1行が出る",
+          "抜き出しの事前確認の実行記録: 2回(状態: ok。1回目から消えた行 1・印が変わった行 1・外れた数字 1件。"
+          "最後の確認の後に紙面が書き換えられた: いいえ)" in log_result.stdout, True)
+    broken_result, broken_v, broken_marks, broken_hyps = run_canary(lambda e, s, h: [{"edition_id": e}])
+    check("改修31第2/実行記録のまとめ/統合④: 記録が壊れていても号は止まらず、終了コード・印・会社は同じ",
+          (broken_result.returncode, broken_v["excerpt_check_log"]["status"], broken_marks, broken_hyps),
+          (base_result.returncode, "unreadable", base_marks, base_hyps))
 
 
 def main():
@@ -10767,6 +11067,10 @@ def main():
     test_kaishu31_remove_corrections_and_deprecated_keys()
     test_kaishu31_relation_text_company_digits()
     test_kaishu31_check_excerpts_new_statuses()
+    test_kaishu31_excerpt_run_log()
+    test_kaishu31_show_lines()
+    test_kaishu31_missing_line_refs()
+    test_kaishu31_excerpt_check_log_summary()
 
     total = len(results)
     passed = sum(1 for _, ok, _, _ in results if ok)

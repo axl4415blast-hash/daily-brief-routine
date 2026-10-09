@@ -2324,6 +2324,168 @@ def check_recent_headlines_status(cache_dir, edition_date, edition_slot):
     return False
 
 
+# ---------------------------------------------------------------------------
+# 改修31第2回: check_excerpts.py の実行記録(キャッシュの CHECK-EXCERPTS-{edition_id}.jsonl)を読んで
+# まとめる。記録だけで、行の印・会社・終了コードは変えない。紙面を作るAIは記録を消したり書き換えたり
+# できるので、記録が無い・壊れているときも、そのことを status に書いて続ける(号は止めない)。
+# ---------------------------------------------------------------------------
+
+EXCERPT_LOG_FILENAME_TMPL = "CHECK-EXCERPTS-{edition_id}.jsonl"
+EXCERPT_LOG_EDITION_ID_RE = re.compile(r"^\d{4}-\d{2}-\d{2}-(?:morning|noon|evening)$")
+EXCERPT_LOG_SCRIPT_VERSION = "excerpt-log-1"
+
+
+def excerpt_log_path(cache_dir, edition_id):
+    """実行記録のファイルの場所。edition_idが{日付}-{morning|noon|evening}の形でなければNone
+    (ファイル名にそのまま使うため、形に合わない値では記録を書かない・読まない)。"""
+    if not isinstance(edition_id, str) or not EXCERPT_LOG_EDITION_ID_RE.match(edition_id):
+        return None
+    return Path(cache_dir) / EXCERPT_LOG_FILENAME_TMPL.format(edition_id=edition_id)
+
+
+def excerpt_log_number_values(line):
+    """行のnumbersから値だけを取り出したリスト(numbersがリストでなければ空)。"""
+    numbers = line.get("numbers") if isinstance(line, dict) else None
+    if not isinstance(numbers, list):
+        return []
+    return [n.get("value") if isinstance(n, dict) else n for n in numbers]
+
+
+def excerpt_log_line_snapshot(edition):
+    """紙面のすべての行の {line_id, claimed_mark, numbers(値だけ), source_ref}(実行記録の元)。"""
+    return [
+        {
+            "line_id": line.get("line_id"), "claimed_mark": line.get("claimed_mark"),
+            "numbers": excerpt_log_number_values(line), "source_ref": line.get("source_ref"),
+        }
+        for _s, _a, line in iter_lines(edition)
+    ]
+
+
+def _excerpt_log_values_equal(a, b):
+    """数字の値の比べ方。数として読めるものは値で比べる(1.0と1を別物にしない)。"""
+    da, db = _to_decimal(a), _to_decimal(b)
+    try:
+        if da is not None and db is not None:
+            return da == db
+    except decimal.InvalidOperation:
+        pass
+    return a == b
+
+
+def _excerpt_log_record_ok(rec):
+    """実行記録の1行の形が使えるか(AIが書き換えうるファイルなので、形を確かめてから使う)。"""
+    return (
+        isinstance(rec, dict) and isinstance(rec.get("edition_id"), str) and isinstance(rec.get("run_at"), str)
+        and isinstance(rec.get("edition_sha256"), str) and isinstance(rec.get("lines"), list)
+        and all(isinstance(l, dict) and isinstance(l.get("line_id"), str) for l in rec["lines"])
+        and isinstance(rec.get("counts"), dict) and isinstance(rec.get("exit_code"), int)
+        and not isinstance(rec.get("exit_code"), bool)
+    )
+
+
+def read_excerpt_log(cache_dir, edition_id):
+    """実行記録を読む。戻り値: {"exists": ファイルがあるか, "records": この号の使える記録(書いた順),
+    "unreadable_lines": 読めない行(JSONでない・形が違う)の数, "other_edition_lines": 別の号の行の数}。"""
+    result = {"exists": False, "records": [], "unreadable_lines": 0, "other_edition_lines": 0}
+    path = excerpt_log_path(cache_dir, edition_id)
+    if path is None or not path.is_file():
+        return result
+    result["exists"] = True
+    try:
+        text = path.read_bytes().decode("utf-8")
+    except (OSError, UnicodeDecodeError):
+        result["unreadable_lines"] = 1
+        return result
+    for raw in text.splitlines():
+        if not raw.strip():
+            continue
+        try:
+            rec = json.loads(raw)
+        except json.JSONDecodeError:
+            result["unreadable_lines"] += 1
+            continue
+        if not _excerpt_log_record_ok(rec):
+            result["unreadable_lines"] += 1
+        elif rec["edition_id"] != edition_id:
+            result["other_edition_lines"] += 1
+        else:
+            result["records"].append(rec)
+    return result
+
+
+def compute_excerpt_check_log(cache_dir, edition, edition_sha256):
+    """改修31第2回(3-4): check_excerpts.pyの実行記録をまとめて、verification.excerpt_check_logに書く値を作る
+    (記録だけ。印・会社・終了コードは変えない)。editionは、照合が書き換える前の紙面(読んだ直後)。
+    edition_sha256は、照合が読んだ紙面ファイルのバイト列のハッシュ。
+    status: ok(この号の記録が1回以上ある)／missing(ファイルが無い・この号の記録も問題のある行も無い)／
+    unreadable(読めない行がある)／other_edition(別の号の行がある)。読める行は、問題があっても集計に使い、
+    problemsに読めない行・別の号の行の数を書く。記録が1つも使えないときは、1回目との比べ方の欄はnull。
+    どんな書き方の記録でも例外で止めない(止めると終了コードが変わるため)。"""
+    try:
+        return _compute_excerpt_check_log(cache_dir, edition, edition_sha256)
+    except Exception as e:   # 記録の形が想定外でも、号は止めない
+        return {"status": "unreadable", "problems": {"error": type(e).__name__}, "run_count": 0,
+                "first_run_at": None, "last_run_at": None, "edited_after_last_check": None,
+                "removed_line_ids": None, "added_line_ids": None, "changed_marks": None, "numbers_removed": None,
+                "last_counts": None, "last_exit_code": None}
+
+
+def _compute_excerpt_check_log(cache_dir, edition, edition_sha256):
+    log = read_excerpt_log(cache_dir, edition.get("edition_id"))
+    records = log["records"]
+    problems = {"unreadable_lines": log["unreadable_lines"], "other_edition_lines": log["other_edition_lines"]}
+    if log["unreadable_lines"]:
+        status = "unreadable"
+    elif log["other_edition_lines"]:
+        status = "other_edition"
+    elif records:
+        status = "ok"
+    else:
+        status = "missing"
+    summary = {
+        "status": status, "problems": problems, "run_count": len(records),
+        "first_run_at": records[0]["run_at"] if records else None,
+        "last_run_at": records[-1]["run_at"] if records else None,
+        "edited_after_last_check": (records[-1]["edition_sha256"] != edition_sha256) if records else None,
+        "removed_line_ids": None, "added_line_ids": None, "changed_marks": None, "numbers_removed": None,
+        "last_counts": records[-1]["counts"] if records else None,
+        "last_exit_code": records[-1]["exit_code"] if records else None,
+    }
+    if not records:
+        return summary
+    now = {}
+    for item in excerpt_log_line_snapshot(edition):
+        now.setdefault(item["line_id"], item)
+    first = {}
+    for item in records[0]["lines"]:
+        first.setdefault(item["line_id"], item)
+    summary["removed_line_ids"] = [lid for lid in first if lid not in now]
+    summary["added_line_ids"] = [lid for lid in now if lid not in first]
+    summary["changed_marks"] = [
+        {"line_id": lid, "from": first[lid].get("claimed_mark"), "to": now[lid]["claimed_mark"]}
+        for lid in first if lid in now and first[lid].get("claimed_mark") != now[lid]["claimed_mark"]
+    ]
+    numbers_removed = []
+    for lid in first:
+        if lid not in now:
+            continue
+        remaining = list(now[lid]["numbers"])
+        gone = []
+        old_values = first[lid].get("numbers")
+        for value in old_values if isinstance(old_values, list) else []:
+            for i, cur in enumerate(remaining):
+                if _excerpt_log_values_equal(value, cur):
+                    del remaining[i]
+                    break
+            else:
+                gone.append(value)
+        if gone:
+            numbers_removed.append({"line_id": lid, "values": gone})
+    summary["numbers_removed"] = numbers_removed
+    return summary
+
+
 def compute_rerun_detected(existing_verification):
     """修正8: この号が既にverification(照合結果)を持っていたか、つまり今回が
     2回目以降の照合かどうかを返す。実行時刻には一切依存しない、号のデータ
@@ -4396,7 +4558,7 @@ def print_report(edition_path, stats, stop_hits, watch_hits, dropped_inferences,
                   published_date_not_found=None, inference_company_names=None,
                   inference_company_name_check_skipped=False, source_body_check=None,
                   excerpt_spans_lines=None, excerpt_line_check_skipped=None,
-                  published_timed_date_not_found=None):
+                  published_timed_date_not_found=None, excerpt_check_log=None):
     print("=" * 60)
     print(f"照合結果: {edition_path}")
     print("=" * 60)
@@ -4472,6 +4634,18 @@ def print_report(edition_path, stats, stop_hits, watch_hits, dropped_inferences,
         f"(そのため新しい変化の枠から落とした行: {len(timed_not_found['dropped_line_ids'])}行)"
     )
     print(f"出典の日時が読み取れず判定できなかった行の件数: {stale_skipped}")
+    # 改修31第2回(3-4): 抜き出しの事前確認(check_excerpts.py)の実行記録のまとめ(記録だけ)。
+    if excerpt_check_log is not None:
+        log = excerpt_check_log
+        if log["run_count"] == 0:
+            print(f"抜き出しの事前確認の実行記録: なし({log['status']})")
+        else:
+            print(
+                f"抜き出しの事前確認の実行記録: {log['run_count']}回(状態: {log['status']}。1回目から消えた行 "
+                f"{len(log['removed_line_ids'])}・印が変わった行 {len(log['changed_marks'])}・外れた数字 "
+                f"{sum(len(x['values']) for x in log['numbers_removed'])}件。最後の確認の後に紙面が書き換えられた: "
+                f"{'はい' if log['edited_after_last_check'] else 'いいえ'})"
+            )
     # 修正5: change枠に関係なく、出典そのものでpublished_atが無いものを数える
     # (行は落とさない。既存のunknown_published_at_hitsとは別の集計)。
     pub_null = sources_published_at_null or {"count": 0, "source_ids": []}
@@ -4719,9 +4893,12 @@ def run_verification(edition_file, hypotheses_file, cache_dir_arg, calendar_dir_
     try:
         edition_path = Path(edition_file)
         try:
-            edition = load_json(edition_path)
-        except (json.JSONDecodeError, OSError) as e:
+            # 改修31第2回: 読んだバイト列のハッシュを、中身を書き換える前に取っておく(実行記録との比べ方に使う)。
+            edition_bytes = edition_path.read_bytes()
+            edition = json.loads(edition_bytes.decode("utf-8"))
+        except (json.JSONDecodeError, OSError, UnicodeDecodeError) as e:
             raise EditionInvalid(f"紙面JSONを読み込めません: {e}")
+        edition_sha256 = hashlib.sha256(edition_bytes).hexdigest()
 
         # 修正D: 号のファイルを読み込んだ直後に、既存のverification/first_runを
         # 覚えておく。first_runは記録としてだけ引き継ぐ(判定には使わない。
@@ -4739,6 +4916,10 @@ def run_verification(edition_file, hypotheses_file, cache_dir_arg, calendar_dir_
         rerun_detected = compute_rerun_detected(existing_verification)
 
         check_b_edition_id(edition, edition_path)
+
+        # 改修31第2回(3-4): check_excerpts.pyの実行記録をまとめる(記録だけ)。紙面の中身を書き換える前の状態と、
+        # 1回目の確認を比べるため、ここ(構造の検査・edition_idの検査の直後)で行う。
+        excerpt_check_log = compute_excerpt_check_log(cache_dir_arg, edition, edition_sha256)
 
         # 改修27-2第8回(S9): AIが書いた紙面の行ID全部と、検査で行を落とすたびに「どの検査で
         # 落ちたか」を控える(検査37が、元から無い行IDと落とされた行IDを区別するため)。
@@ -5255,6 +5436,10 @@ def run_verification(edition_file, hypotheses_file, cache_dir_arg, calendar_dir_
             # (記録専用。印は下げない)。
             "excerpt_spans_lines": excerpt_spans_lines,
             "excerpt_line_check_skipped": excerpt_line_check_skipped,
+            # 改修31第2回(3-4): check_excerpts.pyの実行記録(キャッシュのCHECK-EXCERPTS-{edition_id}.jsonl)のまとめ
+            # (記録専用。実行回数・1回目の確認から消えた行・印が変わった行・外れた数字・最後の確認の後に
+            # 紙面が書き換えられたか。印・会社・終了コードは変えない)。
+            "excerpt_check_log": excerpt_check_log,
             # 改修28第2回: EDINET以外のquotableの出典で本文ファイルがあるものを、機械で保存されたもの
             # (machine_saved)・記録ファイルが無いもの(not_machine_saved)・食い違ったもの
             # (reconvert_mismatch、detailsに食い違った項目)・道具が無くて確かめられなかったもの
@@ -5312,6 +5497,7 @@ def run_verification(edition_file, hypotheses_file, cache_dir_arg, calendar_dir_
             excerpt_spans_lines=excerpt_spans_lines,
             excerpt_line_check_skipped=excerpt_line_check_skipped,
             published_timed_date_not_found=published_timed_date_not_found,
+            excerpt_check_log=excerpt_check_log,
         )
         return 0
 
