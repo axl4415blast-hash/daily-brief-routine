@@ -11,6 +11,15 @@
   excerpt_not_found  抜き出しが出典の本文に見つからない
   number_missing     数字が見つからない(見つからなかった数字を表示する)
   skipped            調べられなかった(本文が無い・ハッシュ不一致・区切れない等。理由も表示する)
+  body_check_failed  改修31第1回: 出典の本文ファイルが機械で保存されたものと確かめられない(記録ファイルが
+                     無い・URLやハッシュが食い違う)。照合ではこの行の印を未確認に下げる。
+                     直し方: scripts/save_source.py で本文を保存し直す
+  reported_source_not_snippet
+                     改修31第1回: claimed_mark が reported_unverified の行で、出典が検索結果の断片
+                     (fetch_method が websearch_snippet、かつ usage が snippet_only)でない。照合ではこの行の
+                     印を未確認に下げる。直し方: 検索結果の断片を出典にするか、報道の印(reported_unverified)をやめる
+
+reported_unverified の行は、出典が検索結果の断片でないものだけを表示する(断片の行は表示しない)。
 
 表示する本文の行は、抜き出しの確認に要る行だけにする(本文を丸ごと出さない)。
 出典の usage・publisher_type は、照合と同じく source_policy.csv の値で決めてから調べる(紙面には書き戻さない)。紙面を作るAIは usage に null を置くため。
@@ -29,7 +38,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import verify_edition as ve
 
 DEFAULT_CACHE_DIR = ".cache/sources"
-STATUSES = ("ok", "spans_lines", "excerpt_not_found", "number_missing", "skipped")
+STATUSES = (
+    "ok", "spans_lines", "excerpt_not_found", "number_missing", "skipped",
+    "body_check_failed", "reported_source_not_snippet",
+)
 # 1行を表示するときの長さの上限(長い段落や表の行は、抜き出しの周りだけを出す)。
 SHOW_CHARS = 120
 # またがった行がこれより多いときは、最初と最後の2行ずつだけを出す。
@@ -48,6 +60,12 @@ SKIP_REASON_TEXT = {
     "source_unreadable": "出典の本文が文字コードの問題で読めない",
     "join_mismatch": "本文を1行に区切れない(区切りをつなげ直すと本文と一致しない)",
     "raw_html_unreadable": "本文を1行に区切れない(元のHTMLが読めない)",
+}
+
+# 改修31第1回: body_check_failedの理由(照合のverify_edition.compute_source_body_downgrades()の理由)。
+BODY_CHECK_REASON_TEXT = {
+    "source_body_not_machine_saved": "本文の記録ファイル(.meta.json)が無い(機械で保存されたものではない)",
+    "source_body_mismatch": "本文の記録ファイル・元のファイル・URL・ハッシュのどれかが食い違う",
 }
 
 
@@ -90,8 +108,10 @@ def _number_values(numbers):
     return ", ".join(str(n.get("value")) for n in numbers)
 
 
-def check_line(line, sources_by_id, cache_dir):
-    """1行を調べる。戻り値: (状態, 表示する詳しい行のリスト)。"""
+def check_line(line, sources_by_id, cache_dir, body_downgrades=None):
+    """1行を調べる。body_downgrades: {source_id: 理由}(照合と同じ、印を下げる出典)。
+    戻り値: (状態, 表示する詳しい行のリスト)。"""
+    body_downgrades = body_downgrades or {}
     source_ref = line.get("source_ref")
     excerpt = line.get("excerpt")
     numbers = line.get("numbers") or []
@@ -102,6 +122,13 @@ def check_line(line, sources_by_id, cache_dir):
     source = sources_by_id[source_ref]
     if source.get("usage") != "quotable":
         return "skipped", [f"理由: {SKIP_REASON_TEXT['not_quotable']}"]
+    if source_ref in body_downgrades:
+        # 改修31第1回: 照合はこの出典を参照する行の印を、抜き出しの結果にかかわらず下げる(skippedには入れない)。
+        reason = body_downgrades[source_ref]
+        return "body_check_failed", [
+            f"理由: {BODY_CHECK_REASON_TEXT.get(reason, reason)}",
+            "(照合ではこの行の印を未確認に下げる。scripts/save_source.py で本文を保存し直す)",
+        ]
     if ve._is_blank(excerpt):
         return "skipped", [f"理由: {SKIP_REASON_TEXT['no_excerpt']}"]
     if not numbers:
@@ -155,18 +182,43 @@ def check_line(line, sources_by_id, cache_dir):
     return "ok", []
 
 
+def check_reported_line(line, sources_by_id):
+    """改修31第1回: claimed_markがreported_unverifiedの行のうち、出典が一覧にあって検索結果の断片でない
+    行だけをreported_source_not_snippetとして返す(照合のverify_line()と同じ条件)。それ以外(断片の行・
+    出典が空・一覧に無い行)は(None, [])を返し、表示しない。"""
+    source_ref = line.get("source_ref")
+    if ve._is_blank(source_ref) or source_ref not in sources_by_id:
+        return None, []
+    source = sources_by_id[source_ref]
+    if ve.is_search_snippet_source(source):
+        return None, []
+    return "reported_source_not_snippet", [
+        f"出典の取得方法(fetch_method): {source.get('fetch_method')}、扱い(usage): {source.get('usage')}",
+        "(照合ではこの行の印を未確認に下げる。検索結果の断片を出典にするか、報道の印をやめる)",
+    ]
+
+
 def run(edition_path, cache_dir, out=sys.stdout):
-    """紙面を読み、source_number_matchの行をすべて調べて表示する。戻り値: 終了コード(0か1)。"""
+    """紙面を読み、source_number_matchの行をすべて調べて表示する(改修31第1回から、出典が検索結果の
+    断片でないreported_unverifiedの行も表示する)。戻り値: 終了コード(0か1)。"""
     edition = ve.load_json(edition_path)
     # 照合(verify_edition.run_verification)と同じ表・同じ関数で usage・publisher_type を決める(メモリの中だけ。紙面は書き換えない)。
     ve.apply_source_policy(edition, Path(ve.__file__).resolve().parent / "source_policy.csv")
     sources_by_id = {s.get("source_id"): s for s in edition.get("sources", []) if isinstance(s, dict)}
     counts = {status: 0 for status in STATUSES}
+    # 改修31第1回: 照合と同じ関数で、本文ファイルの確認で印を下げる出典を決める(ファイルは書き換えない)。
+    body_downgrades = ve.compute_source_body_downgrades(ve.run_check_source_body(edition, cache_dir))
     print(f"抜き出しの事前確認: {edition_path}(出典の本文: {cache_dir})", file=out)
     for _section, _article, line in ve.iter_lines(edition):
-        if line.get("claimed_mark") != "source_number_match":
+        claimed = line.get("claimed_mark")
+        if claimed == "reported_unverified":
+            status, detail = check_reported_line(line, sources_by_id)
+            if status is None:
+                continue
+        elif claimed != "source_number_match":
             continue
-        status, detail = check_line(line, sources_by_id, cache_dir)
+        else:
+            status, detail = check_line(line, sources_by_id, cache_dir, body_downgrades)
         counts[status] += 1
         print(f"{line.get('line_id')}  {status}  ({line.get('source_ref')})", file=out)
         for d in detail:

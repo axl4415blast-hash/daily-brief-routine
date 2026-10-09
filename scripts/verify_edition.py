@@ -32,8 +32,11 @@
 
 ticker_source / links.price_history は検査13(証券コードの確認)で使う。
 改修27-2: direction・evidence_excerptは廃止した項目(新しい号には書かれない。過去の号の
-ファイルには残っているが読まない・書き換えない)。それを読んでいた検査12は廃止し、
+ファイルには残っているが読まない)。それを読んでいた検査12は廃止し、
 検査番号12は欠番のままにする(他の検査の番号はずらさない)。
+改修31第1回(3-6): 照合した号では、上段の仮説からdirection・evidence_excerpt・falsifierを取り除く
+(remove_deprecated_hypothesis_keys。件数をdeprecated_keys_removedに記録)。過去の号は照合し直されない
+(検査24で止まる)ため、そのファイルの値は残る。紙面の推論欄のfalsifierは別物なので消さない。
 evidence_filer_name / evidence_doc_type / evidence_role /
 impact_kind / impact_kind_source / auto_check_target はAIには書かせず、出典URLの書類管理番号
 からEDINET書類一覧を引いてapply_edinet_evidence()が機械で確定する(check_hypothesis()の
@@ -1314,6 +1317,11 @@ def verify_line(line, sources_by_id, cache_dir, line_check=None):
         return verify_excerpt_against_source(source, source_ref, excerpt, numbers, cache_dir, line_check)
 
     if claimed == "reported_unverified":
+        # 改修31第1回(3-3): 「報道で見た・未確認」の印は、出典が検索結果の断片(fetch_methodが
+        # websearch_snippet、かつusageがsnippet_only)のときだけ付ける。それ以外の出典なら
+        # unverified(reported_source_not_snippet)。検査33(出典IDの実在)・検査16(抜き出しの禁止)の後。
+        if not is_search_snippet_source(sources_by_id.get(source_ref)):
+            return "unverified", "reported_source_not_snippet", None
         return "reported_unverified", None, None
 
     if claimed == "explainer":
@@ -1329,6 +1337,41 @@ def _is_blank(value):
     return not isinstance(value, str) or not value.strip()
 
 
+SEARCH_SNIPPET_FETCH_METHOD = "websearch_snippet"
+SEARCH_SNIPPET_USAGE = "snippet_only"
+
+
+def is_search_snippet_source(source):
+    """改修31第1回(3-3): 出典が検索結果の断片かどうか。fetch_method(AIが書く値)が
+    websearch_snippet、かつusage(apply_source_policy()が表の値で上書きした後の値)が
+    snippet_onlyのときだけ真。両方を条件にするのは、fetch_methodだけだとAIが書けば通り、
+    usageだけだと表に無いドメイン(本文を取得していてもsnippet_onlyになる)を通すため。"""
+    if not isinstance(source, dict):
+        return False
+    return (source.get("fetch_method") == SEARCH_SNIPPET_FETCH_METHOD
+            and source.get("usage") == SEARCH_SNIPPET_USAGE)
+
+
+# 改修31第1回(3-4): 出典の本文ファイルの確認(run_check_source_body)で、行の印を下げる食い違い。
+# reconvert・reconvert_failed(文字にし直した結果の食い違い)とreconvert_skippedは記録だけ
+# (道具の版の違いで印が下がらないようにするため)。
+SOURCE_BODY_HARD_MISMATCHES = ("meta_unreadable", "url", "content_sha256", "raw_missing", "raw_sha256")
+
+
+def compute_source_body_downgrades(source_body_check):
+    """改修31第1回(3-4): run_check_source_body()の結果から、行の印を下げる出典を決める。
+    戻り値: {source_id: 理由}。理由は、記録ファイルが無い出典がsource_body_not_machine_saved、
+    reconvert_mismatchのうちSOURCE_BODY_HARD_MISMATCHESのどれかが食い違った出典が
+    source_body_mismatch。"""
+    downgrades = {}
+    for source_id in source_body_check["not_machine_saved"]["source_ids"]:
+        downgrades[source_id] = "source_body_not_machine_saved"
+    for detail in source_body_check["reconvert_mismatch"].get("details", []):
+        if set(detail.get("mismatched") or []) & set(SOURCE_BODY_HARD_MISMATCHES):
+            downgrades[detail["source_id"]] = "source_body_mismatch"
+    return downgrades
+
+
 def find_empty_title_or_url_sources(edition):
     """改修27-2(S12): titleかurlが空(null・空文字・空白のみ)の出典のsource_idの集合。
     読者が「何の資料か」「どこで開けるか」を確かめられない出典のため、この出典を
@@ -1339,7 +1382,11 @@ def find_empty_title_or_url_sources(edition):
     }
 
 
-def run_line_verification(edition, cache_dir):
+def run_line_verification(edition, cache_dir, body_downgrades=None):
+    """body_downgrades: 改修31第1回(3-4)。{source_id: 理由}(compute_source_body_downgrades()の結果)。
+    この出典を参照し、claimed_markがsource_number_matchの行は、確定した印をunverifiedにする
+    (題名かURLが空の出典(empty_title_or_url)の行は、そちらを優先する)。"""
+    body_downgrades = body_downgrades or {}
     sources_by_id = {s.get("source_id"): s for s in edition.get("sources", [])}
     empty_sources = find_empty_title_or_url_sources(edition)
     stats = {
@@ -1360,6 +1407,10 @@ def run_line_verification(edition, cache_dir):
         # source_id(記録専用のキーexcerpt_line_check_skippedの元。印は下げない)。
         "excerpt_spans_lines_line_ids": [],
         "excerpt_line_check_skipped_source_ids": [],
+        # 改修31第1回(3-3): 出典が検索結果の断片でない「報道で見た・未確認」の行のline_id。
+        "reported_source_not_snippet_line_ids": [],
+        # 改修31第1回(3-4): 本文ファイルの確認で印を下げた行(line_idと理由)。
+        "source_body_downgraded": [],
     }
     number_failure_details = []
 
@@ -1380,8 +1431,16 @@ def run_line_verification(edition, cache_dir):
         if ref and ref in empty_sources:
             mark, reason, missing_numbers = "unverified", "empty_title_or_url", None
             stats["empty_title_or_url_line_ids"].append(line.get("line_id"))
+        elif (isinstance(ref, str) and ref in body_downgrades
+              and line.get("claimed_mark") == "source_number_match"):
+            # 改修31第1回(3-4): 機械で保存されたと確かめられない本文の出典を参照する行は、
+            # 抜き出しが本文にあっても印をunverifiedにする(他の理由で既にunverifiedでも、理由はこちらに揃える)。
+            mark, reason, missing_numbers = "unverified", body_downgrades[ref], None
+            stats["source_body_downgraded"].append({"line_id": line.get("line_id"), "reason": reason})
         if reason == "reported_without_source":
             stats["reported_without_source_line_ids"].append(line.get("line_id"))
+        if reason == "reported_source_not_snippet":
+            stats["reported_source_not_snippet_line_ids"].append(line.get("line_id"))
         line["mark"] = mark
         line["mark_reason"] = reason
 
@@ -1798,9 +1857,10 @@ def _count_lines_by_source(edition):
 def run_check_published_at(edition, cache_dir):
     """検査36(要件定義書v12 5.6・13章)の、時刻付きの出典の分: 出典のpublished_at(発表日)が
     本物かどうかを、出典本文にその日付の書き方(published_at_candidates())のどれかが
-    含まれているかで確かめる。時刻付きの出典は記録するだけで、行は一切落とさない
+    含まれているかで確かめる。この関数は記録するだけで、行は一切落とさない
     (markは変更しない)。日付だけの出典の分は、行を落とす
-    run_check_published_date_only_required()が別に行う。
+    run_check_published_date_only_required()が別に行う。時刻付きの出典(EDINET以外)でchangeの行を
+    落とす判定は、改修31第1回からrun_check_published_timed_date_required()が別に行う(候補に前日を足す)。
 
     対象は、published_atが空でなく、かつキャッシュに本文のファイルがあって読める
     時刻付きの出典だけ。published_atがnull、キャッシュが無い・読めない出典は対象外(件数にも
@@ -1904,7 +1964,8 @@ def _check_one_source_body(source, cache_dir):
 
 def run_check_source_body(edition, cache_dir):
     """改修28第2回: 出典の本文ファイルが、機械(save_source.py)で保存されたものかを確かめて記録する
-    (記録だけ。行の印は変えない)。対象は、EDINET以外でusageがquotableの出典のうち、本文ファイル
+    (この関数自体は記録だけ。改修31第1回(3-4)から、呼び出し側がこの結果をcompute_source_body_downgrades()に
+    渡し、行の印を下げる)。対象は、EDINET以外でusageがquotableの出典のうち、本文ファイル
     ({source_id}.txt)があるもの。usageはapply_source_policy()が表の値で上書きした後の値を見る。
     次の4つに分ける。
       ・machine_saved: 記録ファイル({id}.meta.json)があり、URL・本文のハッシュ・元のファイルのハッシュが
@@ -1943,7 +2004,8 @@ def run_check_published_date_only_required(edition, cache_dir):
       ・not_in_body: 本文は読めたが、published_atの日付がどの書き方でも見つからない
       ・body_missing: キャッシュに本文のファイルが無い(取得していない出典など)
       ・body_unreadable: 本文のファイルはあるが、文字コードの問題で読めない
-    時刻付きの出典は対象外(記録だけの run_check_published_at() が扱う)。
+    時刻付きの出典は対象外(改修31第1回から、行を落とす run_check_published_timed_date_required() と、
+    記録だけの run_check_published_at() が扱う)。
 
     検査10(run_check_e_stale_sources)より前に呼ぶこと。ここで落とした行は検査10に
     届かないので、unknown_published_at_hits・stale_source_hitsには数えない
@@ -1973,6 +2035,74 @@ def run_check_published_date_only_required(edition, cache_dir):
         published_date = dt.date.fromisoformat(published_at)
         candidates = published_at_candidates(published_date.year, published_date.month, published_date.day)
         if not date_found_in_text(body_text, candidates):
+            not_found[source_id] = "not_in_body"
+
+    dropped_line_ids = []
+    for section in edition.get("sections", []):
+        if section.get("section_id") != "change":
+            continue
+        for article in section.get("articles", []):
+            kept = []
+            for line in article.get("lines", []):
+                if line.get("source_ref") in not_found:
+                    dropped_line_ids.append(line.get("line_id"))
+                else:
+                    kept.append(line)
+            article["lines"] = kept
+
+    return {
+        "count": len(not_found),
+        "source_ids": list(not_found),
+        "reasons": dict(not_found),
+        "dropped_line_ids": dropped_line_ids,
+    }
+
+
+def timed_published_at_candidates(published_dt):
+    """改修31第1回(3-5): 時刻付きの出典で本文を探す日付の候補。run_check_published_at()と同じ2つ
+    (日本時間に直した日付・published_atに書かれた時差のままの日付)に、それぞれの前日を足す
+    (海外の資料で、AIが現地の日付を日本時間で書いてしまった場合を救うため)。"""
+    dates = []
+    for base in (published_dt.astimezone(JST).date(), published_dt.date()):
+        for day in (base, base - dt.timedelta(days=1)):
+            if day not in dates:
+                dates.append(day)
+    candidates = []
+    for day in dates:
+        candidates += published_at_candidates(day.year, day.month, day.day)
+    return candidates
+
+
+def run_check_published_timed_date_required(edition, cache_dir):
+    """検査36の時刻付きの出典の分(改修31第1回・3-5): published_atが時刻付き(parse_datetime_assume_jst()で
+    読める・日付だけではない)で、EDINETの出典(is_edinet_domain。個々の書類の時刻は機械が書類一覧から
+    書くため。書類一覧の2つもEDINETのドメイン)でない出典は、本文にその日付
+    (timed_published_at_candidates())が書かれていなければ「日付不明」とし、その出典を参照する
+    「新しい変化」(section_idがchange)の行をその場で落とす。change以外の枠の行は落とさない。
+    理由は日付だけの出典(run_check_published_date_only_required)と同じ3つ
+    (not_in_body・body_missing・body_unreadable)。
+    run_check_published_date_only_required()と同じく検査10より前に呼ぶ(ここで落とした行は
+    検査10に届かない)。記録だけのrun_check_published_at()は今までどおり別に動く。
+    戻り値: run_check_published_date_only_required()と同じ形。"""
+    not_found = {}
+    for source in edition.get("sources", []):
+        if source.get("published_date_only"):
+            continue
+        if is_edinet_domain(source.get("url")):
+            continue
+        published_dt = parse_datetime_assume_jst(source.get("published_at"))
+        if published_dt is None:
+            continue  # nullや読めない値は検査10(unknown_published_at)が扱う。
+        source_id = source.get("source_id")
+        cache_path = Path(cache_dir) / f"{source_id}.txt"
+        if not cache_path.is_file():
+            not_found[source_id] = "body_missing"
+            continue
+        body_text = read_source_body_for_checks(cache_path, source)
+        if body_text is None:
+            not_found[source_id] = "body_unreadable"
+            continue
+        if not date_found_in_text(body_text, timed_published_at_candidates(published_dt)):
             not_found[source_id] = "not_in_body"
 
     dropped_line_ids = []
@@ -3236,9 +3366,15 @@ def check_hypothesis_relation_text_number(hyp):
     """検査26(上段専用。下段は対象外): relation_textに半角数字が1文字でも含まれて
     いたら不合格。unicodedata.normalize("NFKC", ...)で全角数字を半角に揃えたうえで
     判定する。漢数字(一・二・三…)は対象にしない(「一部の製品」「第一種」のような
-    普通の日本語まで落ちてしまうため)。"""
+    普通の日本語まで落ちてしまうため)。
+    改修31第1回(3-7): NFKCでそろえたrelation_textから、同じくNFKCでそろえたcompany_nameを取り除いてから
+    数字を探す(「株式会社レオパレス２１は…」のように、社名の中の数字では消さない)。company_nameが
+    空・文字でないときは、取り除かずに今までどおり判定する。"""
     relation_text = hyp.get("relation_text") or ""
     normalized = unicodedata.normalize("NFKC", relation_text)
+    company_name = hyp.get("company_name")
+    if isinstance(company_name, str) and company_name.strip():
+        normalized = normalized.replace(unicodedata.normalize("NFKC", company_name), "")
     if re.search(r"[0-9]", normalized):
         return "relation_text_has_number"
     return None
@@ -3302,8 +3438,43 @@ def check_hypothesis_evidence_source_ref(hyp, sources_by_id):
     return None
 
 
+def apply_primary_evidence_line_rule(hyp, line_marks, line_refs):
+    """改修31第1回(3-1、案1): primaryの会社は、line_idsの中に「確定した印がsource_number_matchで、
+    かつsource_refがevidence_source_refと同じ行」が1行以上あるときだけ残す(無ければ理由
+    primary_no_verified_evidence_lineを返す)。残す会社のline_idsからは、確定した印が
+    source_number_matchでない行を外す(別の出典の行でも、印がsource_number_matchなら外さない)。
+    primary以外の会社には何もしない。
+    戻り値: (理由 or None, 外した行のリスト[{"line_id", "mark"}])。外した行は、会社を残すときだけ
+    hyp["line_ids"]から実際に取り除く。"""
+    if hyp.get("evidence_grade") != "primary":
+        return None, []
+    evidence_ref = hyp.get("evidence_source_ref")
+    hyp_line_ids = hyp.get("line_ids") or []
+    has_evidence_line = isinstance(evidence_ref, str) and bool(evidence_ref) and any(
+        line_marks.get(lid) == "source_number_match" and line_refs.get(lid) == evidence_ref
+        for lid in hyp_line_ids
+    )
+    if not has_evidence_line:
+        return "primary_no_verified_evidence_line", []
+    removed = [
+        {"line_id": lid, "mark": line_marks.get(lid)}
+        for lid in hyp_line_ids if line_marks.get(lid) != "source_number_match"
+    ]
+    if removed:
+        hyp["line_ids"] = [lid for lid in hyp_line_ids if line_marks.get(lid) == "source_number_match"]
+    return None, removed
+
+
+def _line_refs_from_edition(edition):
+    """{行ID: source_ref}。editionに行が無ければ空(check_hypothesis()を単体で呼ぶテスト向け)。"""
+    if not isinstance(edition, dict) or not isinstance(edition.get("sections"), list):
+        return {}
+    return {line.get("line_id"): line.get("source_ref") for _s, _a, line in iter_lines(edition)}
+
+
 def check_hypothesis(hyp, edition, line_ids, business_days, ng_words, sources_by_id, cache_dir,
-                      edinet_companies, codelist_rows, extra_counts):
+                      edinet_companies, codelist_rows, extra_counts, line_refs=None):
+    """line_ids: {行ID: 確定した印}。line_refs: {行ID: source_ref}(省略したらeditionの行から作る)。"""
     ticker_reason = check_ticker_fields(hyp, edinet_companies)
     if ticker_reason:
         return ticker_reason
@@ -3316,12 +3487,19 @@ def check_hypothesis(hyp, edition, line_ids, business_days, ng_words, sources_by
     # 改修27-2第8回(S9): line_idsが空・紙面に無い行IDを含む(line_id_not_found)の判定は、
     # 検査37(run_check37)に移した(同じ条件を2か所で判定しないため)。ここには、検査37を
     # 通った仮説だけが来る。
-    hyp_line_ids = hyp.get("line_ids") or []
-
-    if hyp.get("evidence_grade") == "primary":
-        for lid in hyp_line_ids:
-            if line_ids.get(lid) == "unverified":
-                return "primary_requires_verified_line"
+    # 改修31第1回(3-1、案1): primaryの会社の根拠の行の規則。今までのprimary_requires_verified_line
+    # (1行でもunverifiedなら消す)を置き換えた。検査37より前に置かないこと(前に置くと、検査で
+    # 落とされた行・紙面に元から無い行IDを先に外してしまい、検査37が素通りになる)。
+    if line_refs is None:
+        line_refs = _line_refs_from_edition(edition)
+    primary_reason, trimmed = apply_primary_evidence_line_rule(hyp, line_ids, line_refs)
+    if primary_reason:
+        return primary_reason
+    if trimmed:
+        extra_counts.setdefault("primary_line_ids_trimmed", []).append({
+            "hypothesis_id": hyp.get("hypothesis_id"), "company_name": hyp.get("company_name"),
+            "removed": trimmed,
+        })
 
     # 改修27-1(4-5): horizon_business_days・deadline_dateはapply_observation_window()が
     # 機械で必ず埋めるため、ここでは値を作り直さない。会社を消すのはdeadline_dateが
@@ -3393,8 +3571,17 @@ CHECK37_REASONS = (
 LINE_DROP_CHECK_NAMES = {
     "stop_words": "check7_stop_words",
     "published_date_not_found": "check36_published_date_not_found",
+    "published_timed_date_not_found": "check36_published_timed_date_not_found",
     "stale_source": "check10_stale_or_unknown_published_at",
 }
+# 改修31第1回(3-2、案A): 検査37で、仮説のline_idsから外すだけにする(会社は消さない)検査。
+# 日付・鮮度の検査で落とされた行。停止語(check7_stop_words)で落とされた行と、どの検査で
+# 落ちたか分からない行("unknown")は、今までどおりline_id_removed_by_checkで会社を消す。
+CHECK37_TRIMMABLE_DROP_CHECKS = frozenset({
+    LINE_DROP_CHECK_NAMES["published_date_not_found"],
+    LINE_DROP_CHECK_NAMES["published_timed_date_not_found"],
+    LINE_DROP_CHECK_NAMES["stale_source"],
+})
 
 
 def line_id_set(edition):
@@ -3415,6 +3602,18 @@ def record_dropped_lines(edition, known_line_ids, dropped_by, check_name):
     return newly_dropped
 
 
+def check37_trimmed_line_ids(hyp, original_line_ids, line_marks, dropped_by):
+    """改修31第1回(3-2): 仮説のline_idsのうち、日付・鮮度の検査(CHECK37_TRIMMABLE_DROP_CHECKS)で
+    紙面から落とされた行。戻り値: {行ID: 落とした検査の名前}(line_idsの順)。"""
+    raw_line_ids = hyp.get("line_ids")
+    trimmed = {}
+    for lid in raw_line_ids if isinstance(raw_line_ids, list) else []:
+        if (isinstance(lid, str) and lid in original_line_ids and lid not in line_marks
+                and dropped_by.get(lid) in CHECK37_TRIMMABLE_DROP_CHECKS):
+            trimmed[lid] = dropped_by[lid]
+    return trimmed
+
+
 def check37_reasons(hyp, article_ids, line_marks, line_refs, original_line_ids, dropped_by, line_articles):
     """検査37(改修27-2第8回・S9): 上段の仮説の根拠が、その記事の行と出典から出ているか。
     次のどれかに当たる理由をすべて返す(空なら合格)。行の検査がすべて終わった後の状態で判定する。
@@ -3433,6 +3632,11 @@ def check37_reasons(hyp, article_ids, line_marks, line_refs, original_line_ids, 
     記事に載っている場合は、そのどれか1つが仮説の記事なら「その記事の行」とみなす。
     no_fact_line・primary_ref_mismatchは、line_idsの行のうちいま紙面に残っているものだけで判定し、
     1つも残っていないときは判定しない(その場合の原因は上の3つの理由で記録済みのため)。
+    改修31第1回(3-2、案A): 日付・鮮度の検査(CHECK37_TRIMMABLE_DROP_CHECKS)で落とされた行は、
+    line_id_removed_by_checkにせず、line_idsから外すだけにする(外す行はcheck37_trimmed_line_ids()。
+    実際に外すのはrun_check37)。外した後のline_idsでline_not_in_article・no_fact_line・
+    primary_ref_mismatchを判定する。外した結果line_idsが空になったら、line_ids_emptyに
+    "emptied_by_check_trim": True と外した行・検査の名前を付けて返す。
     戻り値: [{"reason": 理由, ...詳細}, ...](CHECK37_REASONSの順)。"""
     reasons = []
     article_id = hyp.get("article_id")
@@ -3448,8 +3652,17 @@ def check37_reasons(hyp, article_ids, line_marks, line_refs, original_line_ids, 
     def hashable(value):
         return isinstance(value, str)
 
-    never_existed = [l for l in line_ids if not hashable(l) or l not in original_line_ids]
-    removed = [l for l in line_ids if hashable(l) and l in original_line_ids and l not in line_marks]
+    trimmed = check37_trimmed_line_ids(hyp, original_line_ids, line_marks, dropped_by)
+    remaining = [l for l in line_ids if not (hashable(l) and l in trimmed)]
+    if not remaining:
+        reasons.append({
+            "reason": "line_ids_empty", "emptied_by_check_trim": True,
+            "line_ids": list(trimmed), "checks": dict(trimmed),
+        })
+        return reasons
+
+    never_existed = [l for l in remaining if not hashable(l) or l not in original_line_ids]
+    removed = [l for l in remaining if hashable(l) and l in original_line_ids and l not in line_marks]
     if never_existed:
         reasons.append({"reason": "line_id_never_existed", "line_ids": never_existed})
     if removed:
@@ -3457,7 +3670,7 @@ def check37_reasons(hyp, article_ids, line_marks, line_refs, original_line_ids, 
             "reason": "line_id_removed_by_check", "line_ids": removed,
             "checks": {l: dropped_by.get(l, "unknown") for l in removed},
         })
-    surviving = [l for l in line_ids if hashable(l) and l in line_marks]
+    surviving = [l for l in remaining if hashable(l) and l in line_marks]
     if surviving and isinstance(article_id, str) and article_id in article_ids:   # article_not_foundのときは判定しない(article_idが文字でなくても落ちない)
         elsewhere = [l for l in surviving if article_id not in line_articles.get(l, set())]
         if elsewhere:
@@ -3482,8 +3695,12 @@ def check37_reasons(hyp, article_ids, line_marks, line_refs, original_line_ids, 
 def run_check37(hyps, edition, original_line_ids, dropped_by):
     """検査37を上段の仮説すべてにかけ、1つでも理由に当たった仮説を削除する。複数の理由に当たる仮説は、
     すべての理由を記録し、削除は1件と数える。
+    改修31第1回(3-2): 残す仮説のline_idsから、日付・鮮度の検査で落とされた行を実際に取り除き、
+    "trimmed"に記録する。他の理由で消える仮説にも、外すだけの行があれば"line_ids_trimmed_by_check"
+    ({行ID: 検査の名前})を書き残す。
     戻り値: {"kept": 残す仮説, "removed": [{"hypothesis_id", "company_name", "article_id", "line_ids",
-             "reasons": [check37_reasons()の各理由]}, ...]}。"""
+             "reasons": [check37_reasons()の各理由], ("line_ids_trimmed_by_check")}, ...],
+             "trimmed": [{"hypothesis_id", "company_name", "removed": [{"line_id", "check"}]}, ...]}。"""
     article_ids = {a.get("article_id") for _s, a, _l in iter_lines_and_empty_articles(edition)}
     line_marks = {}
     line_refs = {}
@@ -3494,16 +3711,28 @@ def run_check37(hyps, edition, original_line_ids, dropped_by):
         line_articles.setdefault(line.get("line_id"), set()).add(article.get("article_id"))
     kept = []
     removed = []
+    trimmed_records = []
     for hyp in hyps:
         reasons = check37_reasons(hyp, article_ids, line_marks, line_refs, original_line_ids, dropped_by, line_articles)
+        trimmed = check37_trimmed_line_ids(hyp, original_line_ids, line_marks, dropped_by)
         if reasons:
-            removed.append({
+            record = {
                 "hypothesis_id": hyp.get("hypothesis_id"), "company_name": hyp.get("company_name"),
                 "article_id": hyp.get("article_id"), "line_ids": hyp.get("line_ids"), "reasons": reasons,
-            })
+            }
+            if trimmed:
+                # 改修31第1回(3-2): 他の理由で消える会社でも、日付・鮮度の検査で落とされた行(外すだけの行)を書き残す。
+                record["line_ids_trimmed_by_check"] = dict(trimmed)
+            removed.append(record)
         else:
+            if trimmed:
+                hyp["line_ids"] = [l for l in hyp["line_ids"] if l not in trimmed]
+                trimmed_records.append({
+                    "hypothesis_id": hyp.get("hypothesis_id"), "company_name": hyp.get("company_name"),
+                    "removed": [{"line_id": l, "check": c} for l, c in trimmed.items()],
+                })
             kept.append(hyp)
-    return {"kept": kept, "removed": removed}
+    return {"kept": kept, "removed": removed, "trimmed": trimmed_records}
 
 
 def iter_lines_and_empty_articles(edition):
@@ -3521,8 +3750,10 @@ def run_hypothesis_checks(hypotheses_doc, edition, business_days, ng_words, cach
     if line_drop_info is None:
         line_drop_info = {"original_line_ids": line_id_set(edition), "dropped_by": {}}
     line_ids = {}
+    line_refs = {}
     for section, article, line in iter_lines(edition):
         line_ids[line.get("line_id")] = line.get("mark")
+        line_refs[line.get("line_id")] = line.get("source_ref")
 
     hyps = hypotheses_doc.get("hypotheses", [])
     reasons = {}
@@ -3560,6 +3791,10 @@ def run_hypothesis_checks(hypotheses_doc, edition, business_days, ng_words, cach
         "check11_longer_name_check_skipped": 0,
         # 改修27-2第8回(S9): 検査37で削除した会社(社名・理由・記事ID・行ID)。
         "check37_removed": [],
+        # 改修31第1回(3-2): 検査37で、日付・鮮度の検査で落とされた行をline_idsから外した会社。
+        "check37_line_ids_trimmed": [],
+        # 改修31第1回(3-1): 案1で、印がsource_number_matchでない行をline_idsから外したprimaryの会社。
+        "primary_line_ids_trimmed": [],
     }
 
     market_open = edition.get("market_open", True)
@@ -3595,6 +3830,7 @@ def run_hypothesis_checks(hypotheses_doc, edition, business_days, ng_words, cach
         first = item["reasons"][0]["reason"]
         reasons[first] = reasons.get(first, 0) + 1
     extra_counts["check37_removed"] = check37["removed"]
+    extra_counts["check37_line_ids_trimmed"] = check37["trimmed"]
 
     # 修正2・3(要件定義書v12 3.4(2)・5.4)、および2026年9月21日の追加指示: evidence_filer_name/
     # evidence_doc_type/evidence_role/impact_kind/impact_kind_source/auto_check_targetはAIには
@@ -3619,7 +3855,7 @@ def run_hypothesis_checks(hypotheses_doc, edition, business_days, ng_words, cach
     for hyp in hyps:
         reason = check_hypothesis(
             hyp, edition, line_ids, business_days, ng_words, sources_by_id, cache_dir,
-            edinet_companies, codelist_rows, extra_counts,
+            edinet_companies, codelist_rows, extra_counts, line_refs=line_refs,
         )
         if reason:
             reasons[reason] = reasons.get(reason, 0) + 1
@@ -4159,7 +4395,8 @@ def print_report(edition_path, stats, stop_hits, watch_hits, dropped_inferences,
                   number_coverage=None, sources_published_at_null=None, rerun_detected=False,
                   published_date_not_found=None, inference_company_names=None,
                   inference_company_name_check_skipped=False, source_body_check=None,
-                  excerpt_spans_lines=None, excerpt_line_check_skipped=None):
+                  excerpt_spans_lines=None, excerpt_line_check_skipped=None,
+                  published_timed_date_not_found=None):
     print("=" * 60)
     print(f"照合結果: {edition_path}")
     print("=" * 60)
@@ -4189,6 +4426,9 @@ def print_report(edition_path, stats, stop_hits, watch_hits, dropped_inferences,
             "excerpt_not_allowed": "本文を取得していない出典(quotable以外)からの抜き出しだった(excerptは削除した)",
             "empty_title_or_url": "参照している出典の題名かURLが空だった",
             "reported_without_source": "「報道で見た・未確認」と申告したが、出典の番号が空だった",
+            "reported_source_not_snippet": "「報道で見た・未確認」と申告したが、出典が検索結果の断片ではなかった",
+            "source_body_not_machine_saved": "出典の本文ファイルが機械(save_source.py)で保存されたものではなかった(記録ファイルが無い)",
+            "source_body_mismatch": "出典の本文ファイルの記録(URL・ハッシュ・元のファイル)が食い違った",
         }
         for reason, count in stats["unverified_reasons"].items():
             print(f"  ・{reason_text.get(reason, reason)}: {count}件")
@@ -4225,6 +4465,12 @@ def print_report(edition_path, stats, stop_hits, watch_hits, dropped_inferences,
         f"日付だけの出典で、本文に日付が見つからず日付不明にした出典: {date_not_found['count']}件"
         f"(そのため新しい変化の枠から落とした行: {len(date_not_found['dropped_line_ids'])}行)"
     )
+    # 改修31第1回(3-5): 時刻付きの出典(EDINET以外)で、本文に日付が見つからなかったもの。
+    timed_not_found = published_timed_date_not_found or {"count": 0, "source_ids": [], "reasons": {}, "dropped_line_ids": []}
+    print(
+        f"時刻付きの出典(EDINET以外)で、本文に日付が見つからず日付不明にした出典: {timed_not_found['count']}件"
+        f"(そのため新しい変化の枠から落とした行: {len(timed_not_found['dropped_line_ids'])}行)"
+    )
     print(f"出典の日時が読み取れず判定できなかった行の件数: {stale_skipped}")
     # 修正5: change枠に関係なく、出典そのものでpublished_atが無いものを数える
     # (行は落とさない。既存のunknown_published_at_hitsとは別の集計)。
@@ -4241,7 +4487,8 @@ def print_report(edition_path, stats, stop_hits, watch_hits, dropped_inferences,
             for hit in item["hits"]:
                 print(f"    ・{item['article_id']}の推論({hit['field']}): {hit['company_name']}(当たった語: {hit['matched_word']})")
     print(f"号の遅延判定(baseline_late): {baseline_late}")
-    # 改修28第2回: 出典の本文ファイルが機械で保存されたものか(記録だけ。行の印は変えない)。
+    # 改修28第2回: 出典の本文ファイルが機械で保存されたものか(改修31第1回から、記録ファイルが無い・
+    # URLやハッシュが食い違う出典を参照する行の印は下げる。source_body_downgradedを参照)。
     if source_body_check is not None:
         labels = {
             "machine_saved": "機械(save_source.py)で保存され、もう一度文字にした結果も一致",
@@ -4277,13 +4524,13 @@ def print_report(edition_path, stats, stop_hits, watch_hits, dropped_inferences,
             "missing_field": "必須項目が空だった(削除)",
             "field_type_invalid": "仮説の値の型が正しくなかった(文字でもnullでもない値が書かれていた、など。削除。項目名はfield_type_invalid_removedに記録)",
             "article_not_found": "検査37: 仮説の記事ID(article_id)が空、または紙面に無かった(削除。他の理由もcheck37_removedに記録)",
-            "line_ids_empty": "検査37: 仮説の根拠の行(line_ids)が空だった(削除)",
+            "line_ids_empty": "検査37: 仮説の根拠の行(line_ids)が空だった、または日付・鮮度の検査で落とされた行を外した結果空になった(削除)",
             "line_id_never_existed": "検査37: 仮説の根拠の行に、AIが書いた紙面に元から無い行IDがあった(削除)",
-            "line_id_removed_by_check": "検査37: 仮説の根拠の行が、検査(停止語・日付・鮮度)で落とされていた(削除)",
+            "line_id_removed_by_check": "検査37: 仮説の根拠の行が、停止語の検査で落とされていた(削除。日付・鮮度の検査で落とされた行は外すだけ)",
             "line_not_in_article": "検査37: 仮説の根拠の行に、仮説の記事(article_id)以外の記事の行があった(削除)",
             "no_fact_line": "検査37: 仮説の根拠の行が、どれも事実系(出典と数字が一致・出典を明示した未確認)でなかった(削除)",
             "primary_ref_mismatch": "検査37: 根拠が最上位(primary)なのに、根拠の出典が根拠の行の出典に含まれなかった(削除)",
-            "primary_requires_verified_line": "根拠が最上位なのに参照行が未確認だった(削除)",
+            "primary_no_verified_evidence_line": "根拠が最上位(primary)なのに、根拠の出典で数字が一致した行が1行も無かった(削除)",
             "deadline_date_mismatch": "確認期限の日付が営業日計算と合わなかった(削除)",
             "relation_text_conclusive_word": "断定的な言葉(プラス/マイナス/好材料/悪材料)が入っていた(削除)",
             "relation_text_recommendation": "説明文に推奨表現が入っていた(削除)",
@@ -4374,6 +4621,39 @@ def should_abort_rerun(existing_verification, baseline_late):
     return bool(baseline_late)
 
 
+def remove_edition_corrections(edition):
+    """改修31第1回(3-6): 号の最上位のcorrections(訂正の記録)を取り除く。紙面を作るAIが偽の訂正を
+    書けないようにするため(運営側の訂正は今後、号とは別のファイルに置く)。過去の号は検査24で
+    書き戻されないため、既にある運営側の訂正(9/20夕号)は消えない。
+    戻り値: 取り除いた件数(配列なら要素の数、配列でない値なら1、nullやキーが無いなら0)。"""
+    if "corrections" not in edition:
+        return 0
+    value = edition.pop("corrections")
+    if isinstance(value, list):
+        return len(value)
+    return 0 if value is None else 1
+
+
+# 改修31第1回(3-6): 上段の仮説から取り除く廃止キー。紙面の推論欄(inferences)のfalsifierは
+# 名前が同じ別物(必須の項目)なので、こちらは触らない。
+DEPRECATED_HYPOTHESIS_KEYS = ("direction", "evidence_excerpt", "falsifier")
+
+
+def remove_deprecated_hypothesis_keys(hypotheses_doc):
+    """改修31第1回(3-6): 仮説ファイルのhypotheses[]の各要素から、廃止キー(DEPRECATED_HYPOTHESIS_KEYS)を
+    取り除く。下段(industry_examples)・industry_picks・紙面には触らない。
+    戻り値: {キー: 取り除いた仮説の数}。"""
+    counts = {key: 0 for key in DEPRECATED_HYPOTHESIS_KEYS}
+    for hyp in hypotheses_doc.get("hypotheses") or []:
+        if not isinstance(hyp, dict):
+            continue
+        for key in DEPRECATED_HYPOTHESIS_KEYS:
+            if key in hyp:
+                del hyp[key]
+                counts[key] += 1
+    return counts
+
+
 def override_generated_at(doc, run_at_iso):
     """改修27-1(4-1): generated_atをAIの自己申告から照合スクリプトの実行時刻(run_at_iso、
     日本時間・+09:00付き)へ上書きする。docは紙面JSON・仮説JSONのどちらにも使う共通処理。
@@ -4450,6 +4730,8 @@ def run_verification(edition_file, hypotheses_file, cache_dir_arg, calendar_dir_
         # 改修27-2 第8回の追加2: 構造・型の検査を、紙面の値を読むどの処理よりも先に行う
         # (verificationが辞書でないと、下でも止まるため)。
         check_a_structure(edition)
+        # 改修31第1回(3-6): 号の最上位のcorrectionsを、構造の検査の直後に取り除く(件数を記録)。
+        corrections_removed = remove_edition_corrections(edition)
         existing_verification = edition.get("verification")
         existing_first_run = (existing_verification or {}).get("first_run")
         # 修正8: 記録専用。existing_verificationの有無だけで決まり、実行時刻には
@@ -4563,7 +4845,13 @@ def run_verification(edition_file, hypotheses_file, cache_dir_arg, calendar_dir_
 
         watch_hits = check_watch_proximity(edition, ng_words_exclude)
 
-        stats, number_failure_details = run_line_verification(edition, cache_dir_arg)
+        # 改修28第2回: 出典の本文ファイルが機械(save_source.py)で保存されたものか。改修31第1回(3-4)で、
+        # 行の確定より前に移し、記録ファイルが無い・URLやハッシュが食い違う出典を参照する行の印を
+        # 下げるようにした(中身は出典と本文ファイルだけを見るので、移しても記録は変わらない)。
+        source_body_check = run_check_source_body(edition, cache_dir_arg)
+        body_downgrades = compute_source_body_downgrades(source_body_check)
+
+        stats, number_failure_details = run_line_verification(edition, cache_dir_arg, body_downgrades)
         # 改修27-2(S12): titleかurlが空の出典を参照していた行(印はunverifiedにした)。
         empty_title_or_url_refs = {
             "count": len(stats["empty_title_or_url_line_ids"]),
@@ -4584,6 +4872,20 @@ def run_verification(edition_file, hypotheses_file, cache_dir_arg, calendar_dir_
             "count": len(stats["excerpt_line_check_skipped_source_ids"]),
             "source_ids": stats["excerpt_line_check_skipped_source_ids"],
         }
+        # 改修31第1回(3-3): 出典が検索結果の断片でない「報道で見た・未確認」の行(印はunverifiedにした)。
+        reported_source_not_snippet = {
+            "count": len(stats["reported_source_not_snippet_line_ids"]),
+            "line_ids": stats["reported_source_not_snippet_line_ids"],
+        }
+        # 改修31第1回(3-4): 本文ファイルの確認で印を下げた行。
+        body_by_reason = {}
+        for item in stats["source_body_downgraded"]:
+            body_by_reason[item["reason"]] = body_by_reason.get(item["reason"], 0) + 1
+        source_body_downgraded = {
+            "count": len(stats["source_body_downgraded"]),
+            "line_ids": [item["line_id"] for item in stats["source_body_downgraded"]],
+            "by_reason": body_by_reason,
+        }
         source_usage_invalid_hits = count_invalid_source_usages(edition)
         dropped_inferences = run_check_d_inferences(edition)
         # 改修27-2第6回(S7): コードリストは、--hypothesesの有無にかかわらずここで1回だけ読む
@@ -4597,9 +4899,10 @@ def run_verification(edition_file, hypotheses_file, cache_dir_arg, calendar_dir_
         # 二重に数えない)、時刻付きの出典は今までどおり記録だけ(行は落とさない)。
         published_date_not_found = run_check_published_date_only_required(edition, cache_dir_arg)
         record_dropped_lines(edition, known_line_ids, dropped_by, LINE_DROP_CHECK_NAMES["published_date_not_found"])
+        # 改修31第1回(3-5): 時刻付きの出典(EDINET以外)も、本文に日付が見つからなければchangeの行を落とす。
+        published_timed_date_not_found = run_check_published_timed_date_required(edition, cache_dir_arg)
+        record_dropped_lines(edition, known_line_ids, dropped_by, LINE_DROP_CHECK_NAMES["published_timed_date_not_found"])
         published_at_unverified_hits, published_at_unverified_sources = run_check_published_at(edition, cache_dir_arg)
-        # 改修28第2回: 出典の本文ファイルが機械(save_source.py)で保存されたものか(記録だけ)。
-        source_body_check = run_check_source_body(edition, cache_dir_arg)
         stale_hits, unknown_published_at_hits, stale_source_hits_by_kind = run_check_e_stale_sources(edition, run_at_dt)
         record_dropped_lines(edition, known_line_ids, dropped_by, LINE_DROP_CHECK_NAMES["stale_source"])
         stale_check_skipped = 0  # run_at_dtは常に読み取れるため、判定を飛ばす理由が無い。
@@ -4651,7 +4954,12 @@ def run_verification(edition_file, hypotheses_file, cache_dir_arg, calendar_dir_
             "check11_longer_name_check_skipped": 0,
             # 改修27-2第8回(S9): --hypotheses未指定でもキーがそろうよう、既定値にしておく。
             "check37_removed": [],
+            # 改修31第1回(3-1・3-2): --hypotheses未指定でもキーがそろうよう、既定値にしておく。
+            "check37_line_ids_trimmed": [],
+            "primary_line_ids_trimmed": [],
         }
+        # 改修31第1回(3-6): --hypotheses未指定でもキーがそろうよう、既定値(0件)にしておく。
+        deprecated_keys_removed = {key: 0 for key in DEPRECATED_HYPOTHESIS_KEYS}
         hypotheses_doc = None
         field_type_invalid_removed = []
         industry_pick_field_type_invalid_removed = []
@@ -4676,6 +4984,9 @@ def run_verification(edition_file, hypotheses_file, cache_dir_arg, calendar_dir_
             validate_hypotheses_doc_structure(hypotheses_doc)
             field_type_invalid_removed = remove_type_invalid_hypotheses(hypotheses_doc)
             industry_pick_field_type_invalid_removed = remove_type_invalid_industry_picks(hypotheses_doc)
+            # 改修31第1回(3-6): 上段の廃止キー(direction・evidence_excerpt・falsifier)を取り除く(件数を記録)。
+            # 紙面の推論欄のfalsifierは触らない。
+            deprecated_keys_removed = remove_deprecated_hypothesis_keys(hypotheses_doc)
             # 改修27-1(4-1): 仮説ファイルのgenerated_atも、紙面と同じく実行時刻で上書きする。
             hypotheses_generated_at_raw = override_generated_at(hypotheses_doc, run_at)
             hypotheses_doc["baseline_late"] = baseline_late
@@ -4896,6 +5207,16 @@ def run_verification(edition_file, hypotheses_file, cache_dir_arg, calendar_dir_
             # 改修27-2第8回(S9): 検査37(上段の会社の根拠の行・記事・出典)で削除した会社。
             # 社名・記事ID・行ID・当たった理由すべて(複数の理由に当たれば全部)。
             "check37_removed": hypothesis_extra["check37_removed"],
+            # 改修31第1回(3-2): 検査37で、日付・鮮度の検査で落とされた行をline_idsから外した会社
+            # (会社は残した。外した行IDと、落とした検査の名前)。
+            "check37_line_ids_trimmed": hypothesis_extra["check37_line_ids_trimmed"],
+            # 改修31第1回(3-1、案1): primaryの会社のline_idsから、印がsource_number_matchでない行を
+            # 外した記録(会社は残した。外した行IDとその行の印)。
+            "primary_line_ids_trimmed": hypothesis_extra["primary_line_ids_trimmed"],
+            # 改修31第1回(3-6): 号の最上位から取り除いたcorrectionsの件数と、上段の仮説から取り除いた
+            # 廃止キーの件数(キーごと)。
+            "corrections_removed": corrections_removed,
+            "deprecated_keys_removed": deprecated_keys_removed,
             # 改修27-2 第8回の追加2: 値の型の問題(文字でもnullでもない、など)で先に削除した上段の仮説
             # (位置・hypothesis_id・項目名)と、取り除いた業種の指定(位置・項目名)。
             "field_type_invalid_removed": field_type_invalid_removed,
@@ -4903,6 +5224,9 @@ def run_verification(edition_file, hypotheses_file, cache_dir_arg, calendar_dir_
             # 改修27-2第4回(S2): 日付だけの出典で、本文に日付が見つからず(または本文が読めず)
             # 日付不明にした出典と、そのためにchangeの枠から落とした行。
             "published_date_not_found": published_date_not_found,
+            # 改修31第1回(3-5): 時刻付きの出典(EDINET以外)で、本文に日付(前日を含む候補)が見つからず
+            # (または本文が無い・読めず)日付不明にした出典と、そのためにchangeの枠から落とした行。
+            "published_timed_date_not_found": published_timed_date_not_found,
             "published_at_unverified_hits": published_at_unverified_hits,
             "published_at_unverified_sources": published_at_unverified_sources,
             # 修正5: 記録専用(判定には使わない)。既存のunknown_published_at_hitsは変えない。
@@ -4934,8 +5258,14 @@ def run_verification(edition_file, hypotheses_file, cache_dir_arg, calendar_dir_
             # 改修28第2回: EDINET以外のquotableの出典で本文ファイルがあるものを、機械で保存されたもの
             # (machine_saved)・記録ファイルが無いもの(not_machine_saved)・食い違ったもの
             # (reconvert_mismatch、detailsに食い違った項目)・道具が無くて確かめられなかったもの
-            # (reconvert_skipped)に分けた記録(記録専用。行の印は変えない)。
+            # (reconvert_skipped)に分けた記録。改修31第1回(3-4)から、not_machine_savedと、reconvert_mismatchの
+            # うちURL・ハッシュ・元のファイル・記録ファイルが食い違った出典は、参照する行の印を下げる。
             "source_body_check": source_body_check,
+            # 改修31第1回(3-4): 上の確認で、記録ファイルが無い(source_body_not_machine_saved)・URLやハッシュが
+            # 食い違った(source_body_mismatch)出典を参照していたため、印をunverifiedにした行。
+            "source_body_downgraded": source_body_downgraded,
+            # 改修31第1回(3-3): 出典が検索結果の断片でない「報道で見た・未確認」の行(印をunverifiedにした)。
+            "reported_source_not_snippet": reported_source_not_snippet,
             # 改修27-2(S13): reportedの上段の会社のうち、relation_textが定型文と違うもの
             # (記録専用。会社は消さない)。
             "reported_relation_text_mismatch": reported_relation_text_mismatch,
@@ -4981,6 +5311,7 @@ def run_verification(edition_file, hypotheses_file, cache_dir_arg, calendar_dir_
             source_body_check=source_body_check,
             excerpt_spans_lines=excerpt_spans_lines,
             excerpt_line_check_skipped=excerpt_line_check_skipped,
+            published_timed_date_not_found=published_timed_date_not_found,
         )
         return 0
 

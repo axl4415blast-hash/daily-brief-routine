@@ -233,9 +233,11 @@ def test_check_source_ref_not_found():
     mark5, reason5, _ = ve.verify_line(line_empty_ref, sources_by_id, ".")
     check("検査33/負例2: source_refが空文字の行も対象外(explainerのまま)", mark5, "explainer")
 
-    line_found_reported = {"claimed_mark": "reported_unverified", "source_ref": "SRC-OK"}
-    mark6, reason6, _ = ve.verify_line(line_found_reported, sources_by_id, ".")
-    check("検査33/負例3: source_refが見つかれば従来どおりreported_unverifiedになる", mark6, "reported_unverified")
+    line_found_reported = {"claimed_mark": "reported_unverified", "source_ref": "SRC-SNIP"}
+    # 改修31第1回(3-3): 報道の行は出典が検索結果の断片のときだけreported_unverifiedになるため、断片の出典で確かめる。
+    snippet_sources = dict(sources_by_id, **{"SRC-SNIP": {"source_id": "SRC-SNIP", "usage": "snippet_only", "fetch_method": "websearch_snippet"}})
+    mark6, reason6, _ = ve.verify_line(line_found_reported, snippet_sources, ".")
+    check("検査33/負例3: source_refが見つかれば従来どおりreported_unverifiedになる(改修31: 出典は検索結果の断片)", mark6, "reported_unverified")
 
     line_found_no_cache = {
         "claimed_mark": "source_number_match", "numbers": [{"value": 1}],
@@ -705,7 +707,9 @@ def test_check_numbers_empty():
     # (この負例の目的は「numbersが空でもnumbers_emptyにならない」ことで、出典の有無は関係しない)。
     line_reported = {"claimed_mark": "reported_unverified", "numbers": [], "source_ref": "SRC-R"}
     mark, reason, _ = ve.verify_line(
-        line_reported, {"SRC-R": {"source_id": "SRC-R", "usage": "link_only"}}, "/nonexistent",
+        # 改修31第1回(3-3): 報道の行は出典が検索結果の断片のときだけreported_unverifiedになるため、断片の出典にした
+        # (改修30まではusage link_onlyの出典)。
+        line_reported, {"SRC-R": {"source_id": "SRC-R", "usage": "snippet_only", "fetch_method": "websearch_snippet"}}, "/nonexistent",
     )
     check(
         "検査15/負例: reported_unverifiedでnumbersが空でもnumbers_emptyにならない",
@@ -2160,8 +2164,10 @@ def test_apply_source_policy():
     }
     mark5, reason5, _ = ve.verify_line(line5, sources5, "/nonexistent")
     check(
-        "作業A/負例5: usage:nullのEDINET出典はquotableに埋まりexcerpt_not_allowedにならない",
-        (mark5, reason5), ("reported_unverified", None),
+        "作業A/負例5: usage:nullのEDINET出典はquotableに埋まりexcerpt_not_allowedにならない"
+        "(改修31第1回: EDINETは検索結果の断片ではないため、印はreported_source_not_snippetでunverifiedになる。"
+        "excerpt_not_allowedではないことは今までどおり)",
+        (mark5, reason5), ("unverified", "reported_source_not_snippet"),
     )
     check("作業A/負例5: excerptは削除されない", line5["excerpt"], "何かの抜き出し")
 
@@ -2757,6 +2763,12 @@ def _rebuild_testdata_as_today_evening(src_testdata_root, dst_root):
     edition["slot"] = "evening"
     edition.pop("verification", None)
     edition.pop("baseline_late", None)
+    # 改修31第1回(3-3): 報道の行L-12の出典SRC-007(表に無いドメイン)を検索結果の断片として扱うため、
+    # 一時コピーにfetch_methodを書く(scripts/testdataそのものは変えない)。L-12は下段の根拠の行として
+    # 使われ、検査28は印がreported_unverifiedであることを求めるため。
+    for source in edition.get("sources", []):
+        if source.get("source_id") == "SRC-007":
+            source["fetch_method"] = "websearch_snippet"
 
     hyp["edition_id"] = edition_id
     for h in hyp.get("hypotheses", []):
@@ -2839,7 +2851,55 @@ def _rebuild_canary_as_today(work_dir):
     hyp_path = hyp_dir / f"{today_str}-evening.json"
     hyp_path.write_text(hyp_text, encoding="utf-8")
 
+    _adapt_canary_copy_for_kaishu31(edition_path, cache_dir, today_str)
+
     return edition_path, hyp_path, cache_dir, today_str, prev_str
+
+
+# 改修31第1回: 見本の号(scripts/testdata/canary)の一時コピーを、改修31の規則に合う形に直すときに使う値。
+CANARY31_SNIPPET_SOURCE_IDS = ("C05", "C06", "C08", "C09", "C10", "C11", "C12", "C13")
+CANARY31_DATED_TIMED_SOURCE_IDS = ("C05", "C07")
+CANARY31_C14_EXTRA_BODY = "<p>社債の発行総額は100億円である。</p>"
+
+
+def _adapt_canary_copy_for_kaishu31(edition_path, cache_dir, today_str):
+    """改修31第1回: 見本の号の一時コピー(scripts/testdata/canaryそのものは変えない)を、改修31の規則のもとでも
+    今までのテストの意図(どの会社・行が残るか)が保てる形に直す。
+      ・3-3: 報道の行の出典のうち、表に無いドメイン・snippet_onlyのドメインのもの(C05・C06・C08〜C13)に
+        fetch_method "websearch_snippet" を書く(検索結果の断片として扱われ、印はreported_unverifiedのまま)。
+        日本銀行のC07(表でquotable)は検索断片にならないので書かない(L-02はreported_source_not_snippetになる)。
+      ・3-1: primaryのH-5の根拠の行L-17(報道の行)を、C14(EDINETの書類)で数字が一致する行にする
+        (C14の本文に数字の1文を足し、その本文のハッシュを出典に書く)。案1では、報道の行だけを根拠にした
+        primaryの会社は残らないため。報道の行だけのprimaryが消えることは、別のテスト
+        (test_kaishu31_primary_evidence_line)で確かめる。
+      ・3-5: 「新しい変化」の行が参照する時刻付きの出典(C05・C07。EDINET以外)の本文に、号の日付を書き足す
+        (時刻付きの出典も本文の日付を確かめるようになったため。本文に日付が無い場合に落ちることは、別のテスト
+        (test_kaishu31_timed_date_required)で確かめる)。"""
+    cache_dir = Path(cache_dir)
+    today = dt.datetime.strptime(today_str, "%Y-%m-%d").date()
+    today_jp = f"{today.year}年{today.month}月{today.day}日"
+    for source_id in CANARY31_DATED_TIMED_SOURCE_IDS:
+        path = cache_dir / f"{source_id}.txt"
+        path.write_text(path.read_text(encoding="utf-8") + f"\n（{today_jp}発表）", encoding="utf-8")
+    c14_path = cache_dir / "C14.txt"
+    c14_text = c14_path.read_text(encoding="utf-8").replace("</body>", CANARY31_C14_EXTRA_BODY + "</body>")
+    c14_path.write_text(c14_text, encoding="utf-8")
+
+    edition = json.loads(Path(edition_path).read_text(encoding="utf-8"))
+    for source in edition["sources"]:
+        if source["source_id"] in CANARY31_SNIPPET_SOURCE_IDS:
+            source["fetch_method"] = "websearch_snippet"
+        if source["source_id"] == "C14":
+            source["content_sha256"] = hashlib.sha256(c14_path.read_bytes()).hexdigest()
+    for _section, _article, line in ve.iter_lines(edition):
+        if line["line_id"] == "L-17":
+            line.update({
+                "claimed_mark": "source_number_match",
+                "text": "カナリア精機が臨時報告書を提出した。社債の発行総額は100億円である",
+                "excerpt": "社債の発行総額は100億円である",
+                "numbers": [{"value": 100, "label": "社債の発行総額(億円)"}],
+            })
+    Path(edition_path).write_text(json.dumps(edition, ensure_ascii=False, indent=1), encoding="utf-8")
 
 
 def _write_fake_codelist(work_dir, rows):
@@ -3282,6 +3342,10 @@ def test_industry_examples_not_skipped_when_market_open_and_not_late():
             edition.pop("verification", None)
             edition["date"] = today
             edition["slot"] = "evening"
+            # 改修31第1回(3-3): 報道の行(L-12・L-EXTRA-1)の出典SRC-007を検索結果の断片として扱う(下段の根拠の行のため)。
+            for source in edition.get("sources", []):
+                if source.get("source_id") == "SRC-007":
+                    source["fetch_method"] = "websearch_snippet"
             if extra_article:
                 edition["sections"][0]["articles"].append(extra_article)
             edition_path.write_text(json.dumps(edition, ensure_ascii=False, indent=1), encoding="utf-8")
@@ -3812,10 +3876,13 @@ def test_round1_end_to_end_missing_ai_fields():
             "generated_at": None,
             "market_open": None,
             # 改修28第1回: L-1(報道で見た・未確認)の出典。change欄の鮮度の検査(36時間以内)を通るよう、
-            # 発表時刻は実行時刻にする(本文は保存しないので、発表日の検査36の対象外)。
+            # 発表時刻は実行時刻にする。
+            # 改修31第1回: 報道の行の印が保たれるよう検索結果の断片(fetch_method websearch_snippet)にし、
+            # 時刻付きの出典も本文の日付を確かめるようになったため、本文(S-1.txt。下で書く)に号の日付を書く。
             "sources": [{
                 "source_id": "S-1", "url": "https://example.test/news-kaku", "publisher": "テスト通信",
                 "title": "架空の会社の発表に関する報道", "publisher_type": "news", "usage": "link_only",
+                "fetch_method": "websearch_snippet",
                 "published_at": now.replace(microsecond=0).isoformat(),
             }],
             "sections": [{
@@ -3863,6 +3930,8 @@ def test_round1_end_to_end_missing_ai_fields():
 
         cache_dir = work_dir / "cache"
         cache_dir.mkdir(parents=True)
+        local_now = now.astimezone(ve.JST)
+        write(cache_dir, "S-1.txt", f"{local_now.year}年{local_now.month}月{local_now.day}日 架空の会社が発表した。")
         calendar_dir = _write_temp_calendar(work_dir, dt.datetime.strptime(today_str, "%Y-%m-%d").date(), 40)
 
         result = _run_verify(work_dir, edition_path, hyp_path, cache_dir, calendar_dir)
@@ -4640,6 +4709,10 @@ def test_round2_end_to_end_edinet_published_at_and_tob_side():
             }],
         )
         _write_edinet_list_json(cache_dir / "SRC-EDINET-LIST-PREV.json", today_str, [])
+        # 改修31第1回: EDINETの書類を出典にする行は「報道で見た・未確認」にできない(検索結果の断片ではない)ため、
+        # 書類の本文を置き、数字が一致する行にした(改修30までは報道の行)。
+        bid_body = "<html><body><p>買付価格は1株につき1,000円とする</p></body></html>".encode("utf-8")
+        write(cache_dir, "SRC-BID.txt", bid_body)
 
         edition = {
             "edition_id": f"{today_str}-evening",
@@ -4650,15 +4723,16 @@ def test_round2_end_to_end_edinet_published_at_and_tob_side():
             "sources": [{
                 "source_id": "SRC-BID", "publisher": "カナリア工業", "title": "公開買付届出書",
                 "url": "https://disclosure2.edinet-fsa.go.jp/api/v2/documents/S-BID?type=1",
-                "published_at": None,
+                "published_at": None, "content_sha256": hashlib.sha256(bid_body).hexdigest(),
             }],
             "sections": [{
                 "section_id": "change",
                 "articles": [{
                     "article_id": "A-1",
                     "lines": [{
-                        "line_id": "L-1", "text": "カナリア工業が公開買付を届け出た内容です",
-                        "claimed_mark": "reported_unverified", "numbers": [], "source_ref": "SRC-BID",
+                        "line_id": "L-1", "text": "カナリア工業が公開買付を届け出た。買付価格は1株1000円",
+                        "claimed_mark": "source_number_match", "numbers": [{"value": 1000, "label": "買付価格(円)"}],
+                        "source_ref": "SRC-BID", "excerpt": "買付価格は1株につき1,000円とする",
                     }],
                 }],
             }],
@@ -6211,7 +6285,8 @@ def test_empty_title_or_url_refs():
         return {"sources": sources, "sections": [{"section_id": "big", "articles": [{"lines": lines}]}]}
 
     def src(source_id, title="題名", url="https://example.test/x"):
-        return {"source_id": source_id, "title": title, "url": url, "usage": "snippet_only"}
+        # 改修31第1回(3-3): 報道の行の印が保たれるよう、出典は検索結果の断片(fetch_methodも書く)。
+        return {"source_id": source_id, "title": title, "url": url, "usage": "snippet_only", "fetch_method": "websearch_snippet"}
 
     def line(line_id, ref, claimed="reported_unverified", **kw):
         l = {"line_id": line_id, "text": "本文", "claimed_mark": claimed, "numbers": [], "source_ref": ref}
@@ -7532,7 +7607,8 @@ def test_check37_reasons_and_run():
     check("検査37/line_ids_empty: line_idsが空・nullなら消える(他の理由は重ねない)", (removed["R2-empty"], removed["R2-null"]), (["line_ids_empty"],) * 2)
     check("検査37/line_id_never_existed: 元から無い行IDが1つでもあれば消える(他の行が正常でも)",
           (removed["R3-never"], removed["R3-never-plus-ok"]), (["line_id_never_existed"],) * 2)
-    check("検査37/line_id_removed_by_check: 検査で落とされた行IDが1つでもあれば消える(他の行が正常でも)",
+    check("検査37/line_id_removed_by_check: 停止語の検査で落とされた行IDが1つでもあれば消える(他の行が正常でも。"
+          "改修31第1回: R4-removed-plus-okは停止語のL-05があるため消える。鮮度で落ちたL-06は外すだけ)",
           (removed["R4-removed"], removed["R4-removed-plus-ok"]), (["line_id_removed_by_check"],) * 2)
     check("検査37/no_fact_line: 行のmarkがどれも事実系でなければ消える(unverifiedだけ・unverifiedと解説だけ)",
           (removed["R5-nofact"], removed["R5-nofact-explainer"]), (["no_fact_line"],) * 2)
@@ -7540,12 +7616,14 @@ def test_check37_reasons_and_run():
           (removed["R6-primary-mismatch"], removed["R6-primary-noref"]), (["primary_ref_mismatch"],) * 2)
     check("検査37/複数の理由: 当たった理由をすべて記録する(削除は1件)。行が1つも残っていないときno_fact_line・primary_ref_mismatchは重ねない",
           removed["MULTI"], ["article_not_found", "line_id_never_existed", "line_id_removed_by_check"])
-    check("検査37/複数の理由: 記事なし・元から無い行・落とされた行・(残る行がunverifiedだけなので)事実系の行なし・primaryの出典の食い違いの5つ",
-          removed["MULTI2"], ["article_not_found", "line_id_never_existed", "line_id_removed_by_check", "no_fact_line", "primary_ref_mismatch"])
+    check("検査37/複数の理由: 記事なし・元から無い行・(残る行がunverifiedだけなので)事実系の行なし・primaryの出典の食い違いの4つ"
+          "(改修31第1回: 鮮度の検査で落とされたL-06は外すだけになったため、line_id_removed_by_checkは記録しない。改修30までは5つ)",
+          removed["MULTI2"], ["article_not_found", "line_id_never_existed", "no_fact_line", "primary_ref_mismatch"])
     detail = {r["hypothesis_id"]: r for r in result["removed"]}
-    check("検査37/記録: 落とされた行IDには、どの検査で落ちたかが記録される",
+    check("検査37/記録: 落とされた行IDには、どの検査で落ちたかが記録される(改修31第1回: 会社を消す理由に入るのは停止語のL-05だけ。"
+          "鮮度の検査で落とされたL-06は外すだけなので、ここには入らない。改修30まではL-06・L-05の2つ)",
           [x for x in detail["R4-removed-plus-ok"]["reasons"] if x["reason"] == "line_id_removed_by_check"],
-          [{"reason": "line_id_removed_by_check", "line_ids": ["L-06", "L-05"], "checks": {"L-06": "check10_stale_or_unknown_published_at", "L-05": "check7_stop_words"}}])
+          [{"reason": "line_id_removed_by_check", "line_ids": ["L-05"], "checks": {"L-05": "check7_stop_words"}}])
     check("検査37/記録: 社名・記事ID・行IDも記録される",
           {k: detail["R3-never"][k] for k in ("hypothesis_id", "company_name", "article_id", "line_ids")},
           {"hypothesis_id": "R3-never", "company_name": "社R3-never", "article_id": "A-1", "line_ids": ["L-999"]})
@@ -8088,7 +8166,8 @@ def test_canary_edition():
             [h["hypothesis_id"] for h in after_hyp.get("hypotheses") or []], ["H-1", "H-2", "H-3", "H-4", "H-5"],
         )
         check(
-            "見本の号/正例: hypothesis_violationsは10(検査11で消えたH-6・H-7の2社と、検査37で消えたH-8〜H-15の8社)",
+            "見本の号/正例: hypothesis_violationsは10(検査11で消えたH-6・H-7の2社と、検査37で消えたH-8〜H-15のうちH-11を除く7社と、"
+            "改修31第1回から検査37を通るようになったH-11が検査13(証券コードの食い違い)で消える1社)",
             v.get("hypothesis_violations"), 10,
         )
         check(
@@ -8096,7 +8175,8 @@ def test_canary_edition():
             "第5回でL-17・L-18を足した。L-12・L-13・L-15は検査36・検査10で落ちるが、行の数は落とす前に数える)",
             v.get("lines_total"), 18,
         )
-        check("見本の号/正例: 出典と数字が一致した行は4件", v.get("passed"), 4)
+        check("見本の号/正例: 出典と数字が一致した行は5件(改修31第1回: 一時コピーでH-5の根拠の行L-17を、C14で数字が"
+              "一致する行にしたため4件から5件にした。_adapt_canary_copy_for_kaishu31を参照)", v.get("passed"), 5)
         check(
             "見本の号/正例(改修29第1回): 照合全体を通すと、記録専用のキーexcerpt_spans_lines・"
             "excerpt_line_check_skippedが紙面のverificationに書かれる(見本の号の4行の抜き出しはどれも1文で、"
@@ -8209,8 +8289,9 @@ def test_canary_edition():
             (1, 1),
         )
         check(
-            "見本の号/正例: change_verified_lines_by_sectionはchange枠2件・big枠2件",
-            v.get("change_verified_lines_by_section"), {"change": 2, "big": 2},
+            "見本の号/正例: change_verified_lines_by_sectionはchange枠2件・big枠3件(改修31第1回: big枠のL-17が"
+            "数字の一致する行になったため2件から3件にした)",
+            v.get("change_verified_lines_by_section"), {"change": 2, "big": 3},
         )
 
         # --- 改修27-2第1回: S1・S12・S13 ---
@@ -8289,9 +8370,24 @@ def test_canary_edition():
             (False, 1, {"timed": 0, "date_only": 1}, 0),
         )
         check(
-            "見本の号/負例(27-2 S2): 時刻付きの出典(C01〜C07と、第5回で足したEDINETのC14・C15)は記録だけで、行は落とさない",
+            "見本の号/負例(27-2 S2): 時刻付きの出典(C01〜C04・C06と、第5回で足したEDINETのC14・C15)の記録だけの確認"
+            "(published_at_unverified)では行を落とさない。改修31第1回: 一時コピーでC05・C07の本文に号の日付を足したので、"
+            "この2つは確認できた側に移り、9件から7件にした",
             (v.get("published_at_unverified_hits"), sorted(v.get("published_at_unverified_sources") or [])),
-            (9, ["C01", "C02", "C03", "C04", "C05", "C06", "C07", "C14", "C15"]),
+            (7, ["C01", "C02", "C03", "C04", "C06", "C14", "C15"]),
+        )
+        check(
+            "見本の号/正例(改修31第1回 3-5): 時刻付きのEDINET以外の出典で、本文に日付が無いC06(not_in_body)と、本文の無いC09"
+            "(body_missing)は日付不明になるが、どちらもchangeの枠の行が無いので落ちる行は0。EDINETのC01〜C04・C14・C15は対象外",
+            v.get("published_timed_date_not_found"),
+            {"count": 2, "source_ids": ["C06", "C09"], "reasons": {"C06": "not_in_body", "C09": "body_missing"},
+             "dropped_line_ids": []},
+        )
+        check(
+            "見本の号/正例(改修31第1回 3-3): 日本銀行の出典(C07。表でquotable)を参照する報道の行L-02と、EDINETの書類(C15)を"
+            "参照する報道の行L-18は、検索結果の断片ではないので印がunverified(reported_source_not_snippet)になり、記録される",
+            (lines_by_id["L-02"]["mark"], lines_by_id["L-02"]["mark_reason"], v.get("reported_source_not_snippet")),
+            ("unverified", "reported_source_not_snippet", {"count": 2, "line_ids": ["L-02", "L-18"]}),
         )
 
         # --- 改修27-2第5回: S5(検査11を削除にする)・Q6(長い社名の一部)・Q5(EDINETの書類から出したprimary) ---
@@ -8349,8 +8445,8 @@ def test_canary_edition():
             "H-14=複数(記事なし・元から無い行・落とされた行)・H-15=行が別の記事(A-2)の行(この理由だけ)",
             [(r["hypothesis_id"], [x["reason"] for x in r["reasons"]]) for r in v.get("check37_removed") or []],
             [("H-8", ["article_not_found"]), ("H-9", ["line_ids_empty"]), ("H-10", ["line_id_never_existed"]),
-             ("H-11", ["line_id_removed_by_check"]), ("H-12", ["no_fact_line"]), ("H-13", ["primary_ref_mismatch"]),
-             ("H-14", ["article_not_found", "line_id_never_existed", "line_id_removed_by_check"]),
+             ("H-12", ["no_fact_line"]), ("H-13", ["primary_ref_mismatch"]),
+             ("H-14", ["article_not_found", "line_id_never_existed"]),
              ("H-15", ["line_not_in_article"])],
         )
         check(
@@ -8360,12 +8456,23 @@ def test_canary_edition():
         )
         removed37 = {r["hypothesis_id"]: r for r in v.get("check37_removed") or []}
         check(
-            "見本の号/正例(27-2 S9): H-11のL-13は検査36(日付不明)で落ちた行として記録される。H-14のL-13も同じ。"
-            "H-8の記事ID・社名・行IDも記録される",
-            (removed37["H-11"]["reasons"][0]["checks"], removed37["H-14"]["reasons"][2]["checks"],
+            "見本の号/正例(27-2 S9・改修31第1回 3-2): H-11のL-13は検査36(日付不明)で落ちた行なので、検査37では外すだけになり"
+            "(check37_line_ids_trimmedに記録)、H-11は検査37では消えない(改修30まではline_id_removed_by_checkで消えた)。"
+            "他の理由で消えるH-14にも、外した行L-13が書き残される。H-8の記事ID・社名・行IDも記録される",
+            ([r for r in v.get("check37_line_ids_trimmed") or [] if r["hypothesis_id"] == "H-11"],
+             removed37["H-14"].get("line_ids_trimmed_by_check"),
              (removed37["H-8"]["company_name"], removed37["H-8"]["article_id"], removed37["H-8"]["line_ids"])),
-            ({"L-13": "check36_published_date_not_found"}, {"L-13": "check36_published_date_not_found"},
+            ([{"hypothesis_id": "H-11", "company_name": "カナリア運輸株式会社",
+               "removed": [{"line_id": "L-13", "check": "check36_published_date_not_found"}]}],
+             {"L-13": "check36_published_date_not_found"},
              ("カナリア商会株式会社", "A-99", ["L-01"])),
+        )
+        check(
+            "見本の号/正例(改修31第1回 3-2): 検査37を通ったH-11は、その後の検査13(証券コードがEDINET書類一覧の記録と"
+            "一致しない)で消える(hypothesis_violationsは10のまま: 検査11の2社・検査37の7社・検査13の1社)",
+            ("H-11" in [h["hypothesis_id"] for h in after_hyp["hypotheses"]], v.get("hypothesis_violations"),
+             "証券コードがEDINET書類一覧の記録と一致しなかった(削除): 1件" in result.stdout),
+            (False, 10, True),
         )
         check(
             "見本の号/負例(27-2 S9): 全部を満たす(article_idが実在・行が事実系・primaryの出典が行の出典と一致)H-1〜H-5は、検査37で消えない",
@@ -8880,7 +8987,9 @@ def test_kaishu28_find_mentions_accept_start_default():
 
 def test_kaishu28_reported_without_source():
     """改修28第1回(4-3): 「報道で見た・未確認」と申告した行で出典が空なら、印をunverifiedにする(理由reported_without_source)。"""
-    sources = {"SRC-R": {"source_id": "SRC-R", "usage": "link_only"}}
+    # 改修31第1回(3-3): 出典のある報道の行がreported_unverifiedのままになるよう、出典は検索結果の断片にした
+    # (改修30まではusage link_only)。
+    sources = {"SRC-R": {"source_id": "SRC-R", "usage": "snippet_only", "fetch_method": "websearch_snippet"}}
     for label, value in (("null", None), ("空文字", ""), ("空白のみ", "  "), ("全角空白のみ", "　"), ("数字", 5), ("リスト", ["SRC-R"])):
         line = {"claimed_mark": "reported_unverified", "numbers": [], "source_ref": value}
         check(f"出典の無い報道行/出典が{label}ならunverified(reported_without_source)",
@@ -8897,7 +9006,8 @@ def test_kaishu28_reported_without_source():
     check("出典の無い報道行/解説(explainer)は出典が無くても今までどおりexplainer",
           ve.verify_line({"claimed_mark": "explainer", "numbers": []}, sources, "/nonexistent")[:2], ("explainer", None))
 
-    edition = {"sources": [{"source_id": "SRC-R", "title": "報道", "url": "https://example.test/r", "usage": "link_only"}],
+    edition = {"sources": [{"source_id": "SRC-R", "title": "報道", "url": "https://example.test/r", "usage": "snippet_only",
+                            "fetch_method": "websearch_snippet"}],
                "sections": [{"section_id": "big", "articles": [{"article_id": "A", "lines": [
                    {"line_id": "L-1", "claimed_mark": "reported_unverified", "numbers": [], "source_ref": None},
                    {"line_id": "L-2", "claimed_mark": "reported_unverified", "numbers": [], "source_ref": "SRC-R"},
@@ -9596,8 +9706,26 @@ K29_PDF_TEXT = (
 )
 
 
+def _k31_write_body_meta(d, source_id, kind, url, raw_bytes, content_type=None):
+    """改修31第1回: 出典の本文ファイル({id}.txt。先に書いておく)に、機械(save_source.py)で保存したときと
+    同じ形の記録ファイル({id}.meta.json)と元のファイル(raw/{id}.{kind})を足す。URL・本文のハッシュ・元の
+    ファイルのハッシュはそろえるので、照合の本文ファイルの確認で印は下がらない(もう一度文字にした結果が
+    食い違うのは記録だけ)。"""
+    d = Path(d)
+    (d / "raw").mkdir(exist_ok=True)
+    write(d / "raw", f"{source_id}.{kind}", raw_bytes)
+    meta = {
+        "source_id": source_id, "url": url, "kind": kind, "content_type": content_type,
+        "content_sha256": hashlib.sha256((d / f"{source_id}.txt").read_bytes()).hexdigest(),
+        "raw_sha256": hashlib.sha256(raw_bytes).hexdigest(),
+    }
+    write(d, f"{source_id}.meta.json", json.dumps(meta, ensure_ascii=False))
+
+
 def _k29_cache(d):
-    """1行の検査のテスト用の出典(PDFの本文・EDINET・食い違うHTML)を作る。戻り値: sources_by_id。"""
+    """1行の検査のテスト用の出典(PDFの本文・EDINET・食い違うHTML)を作る。戻り値: sources_by_id。
+    改修31第1回: EDINET以外の2つ(SRC-P・SRC-H)には、機械で保存したときと同じ形の記録ファイルを付ける
+    (照合とcheck_excerpts.pyが、記録ファイルの無い本文の行の印を下げるようになったため)。"""
     d = Path(d)
     pdf = K29_PDF_TEXT.encode("utf-8")
     write(d, "SRC-P.txt", pdf)
@@ -9605,9 +9733,9 @@ def _k29_cache(d):
     write(d, "SRC-E.txt", raw_e)
     body_h = "本文の\n段落 2026年 12件\n"
     write(d, "SRC-H.txt", body_h.encode("utf-8"))
-    (d / "raw").mkdir(exist_ok=True)
-    write(d / "raw", "SRC-H.html", "<p>別の中身</p>".encode("utf-8"))
-    write(d, "SRC-H.meta.json", json.dumps({"kind": "html", "content_type": "text/html; charset=utf-8"}))
+    _k31_write_body_meta(d, "SRC-P", "pdf", "https://www.boj.or.jp/test.pdf", b"%PDF-1.4 test")
+    _k31_write_body_meta(d, "SRC-H", "html", "https://www.boj.or.jp/test.htm", "<p>別の中身</p>".encode("utf-8"),
+                         content_type="text/html; charset=utf-8")
     sources = [
         _k29_source("SRC-P", "https://www.boj.or.jp/test.pdf", pdf),
         _k29_source("SRC-E", EDINET_URL_K29, raw_e),
@@ -9692,6 +9820,7 @@ def test_kaishu29_check_excerpts():
         sources_by_id = _k29_cache(cache)
         sources_by_id["SRC-B"] = dict(sources_by_id["SRC-P"], source_id="SRC-B", content_sha256="0" * 64)
         write(cache, "SRC-B.txt", K29_PDF_TEXT.encode("utf-8"))
+        _k31_write_body_meta(cache, "SRC-B", "pdf", sources_by_id["SRC-B"]["url"], b"%PDF-1.4 test")
         lines = [
             _k29_line("L-OK", "SRC-P", "製造業 22 17 24", [24, 17]),
             _k29_line("L-SPAN", "SRC-P", "変化幅 製造業 22 17 24", [22]),
@@ -9923,9 +10052,12 @@ def test_kaishu29_round2_companies():
     (見本の号のコピーで、照合全体を通して確かめる。検査の仕組みは変えていない)。
     ・reported(報道)の会社: 根拠の行がどれも事実の印でなくなると検査37(no_fact_line)で消える。
       事実の印の行が1行でも残れば残る。
-    ・primary(最上位)の会社: 根拠の行がまたがる行だけなら検査37(no_fact_line)で、事実の印の行と
-      またがる行の両方なら primary_requires_verified_line(1行でもunverifiedなら消える)で消える。
-      根拠の行がすべて1行に収まる会社は残る。"""
+    ・primary(最上位)の会社: 根拠の行がまたがる行だけなら検査37(no_fact_line)で消える。
+      根拠の行がすべて1行に収まる会社は残る。
+    改修31第1回(案1): 事実の印の行とまたがる行の両方を根拠にしたprimaryの会社(H-22)は、改修30までは
+    primary_requires_verified_line(1行でもunverifiedなら消える)で消えていたが、根拠の出典で数字が一致した行
+    (L-08)があるので残り、またがる行(L-07)がline_idsから外れて記録されるように変えた。H-22が残ると上段が
+    上限(5社)を超えるため、このテストでは確かめる会社(H-1・H-4・H-21〜H-23)だけを仮説ファイルに残す。"""
     with tempfile.TemporaryDirectory() as d:
         work_dir = Path(d)
         edition_path, hyp_path, cache_dir, today_str, prev_str = _rebuild_canary_as_today(work_dir)
@@ -9941,7 +10073,7 @@ def test_kaishu29_round2_companies():
         by_id = {h["hypothesis_id"]: h for h in hyps["hypotheses"]}
         by_id["H-1"]["line_ids"] = ["L-07"]
         by_id["H-4"]["line_ids"] = ["L-07", "L-08"]
-        hyps["hypotheses"] += [
+        hyps["hypotheses"] = [by_id["H-1"], by_id["H-4"]] + [
             dict(copy.deepcopy(by_id["H-1"]), hypothesis_id="H-21", evidence_grade="primary"),
             dict(copy.deepcopy(by_id["H-4"]), hypothesis_id="H-22", evidence_grade="primary"),
             dict(copy.deepcopy(by_id["H-4"]), hypothesis_id="H-23", evidence_grade="primary", line_ids=["L-08"]),
@@ -9961,13 +10093,451 @@ def test_kaishu29_round2_companies():
               (0, ("unverified", "excerpt_spans_lines"), ("source_number_match", None), {"count": 1, "line_ids": ["L-07"]}))
         check("改修29第2回/会社/reportedでまたがる行だけを根拠にしたH-1は消える(検査37のno_fact_line)",
               ("H-1" in kept, check37.get("H-1")), (False, ["no_fact_line"]))
-        check("改修29第2回/会社/reportedで事実の印の行が1行残るH-4(L-07とL-08)は残る", "H-4" in kept, True)
+        check("改修29第2回/会社/reportedで事実の印の行が1行残るH-4(L-07とL-08)は検査では消えない(検査37の記録に無い)。"
+              "改修31第1回でH-22も残るようになり、同じ記事の会社がH-4・H-22・H-23の3社になるため、1記事2社の枠"
+              "(検査29)でprimaryを優先し、reportedのH-4が外れる(改修30までは残っていた)",
+              ("H-4" in check37, "H-4" in kept, v.get("slot_violations")),
+              (False, False, {"total": 1, "reasons": {"slot_per_article_limit": 1}}))
         check("改修29第2回/会社/primaryでまたがる行だけを根拠にしたH-21は消える(検査37が先に当たり、理由はno_fact_line)",
               ("H-21" in kept, check37.get("H-21")), (False, ["no_fact_line"]))
-        check("改修29第2回/会社/primaryで事実の印の行とまたがる行の両方を根拠にしたH-22は、primary_requires_verified_lineで消える",
-              ("H-22" in kept, "H-22" in check37, "根拠が最上位なのに参照行が未確認だった(削除): 1件" in result.stdout),
-              (False, False, True))
+        h22 = {h["hypothesis_id"]: h for h in after_hyp["hypotheses"]}.get("H-22") or {}
+        check("改修29第2回/会社/primaryで事実の印の行とまたがる行の両方を根拠にしたH-22は、改修31第1回(案1)から残り、"
+              "またがる行L-07がline_idsから外れて記録される(改修30まではprimary_requires_verified_lineで消えた)",
+              ("H-22" in kept, "H-22" in check37, h22.get("line_ids"), v.get("primary_line_ids_trimmed")),
+              (True, False, ["L-08"], [{"hypothesis_id": "H-22", "company_name": by_id["H-4"]["company_name"],
+                                        "removed": [{"line_id": "L-07", "mark": "unverified"}]}]))
         check("改修29第2回/会社/primaryで根拠の行がすべて1行に収まるH-23は残る", "H-23" in kept, True)
+
+
+# ---------------------------------------------------------------------------
+# 改修31第1回: 判定の変更(3-1〜3-8)のテスト。
+# ---------------------------------------------------------------------------
+
+def _k31_hyp(hid, line_ids, grade="primary", ref="S-1", **kw):
+    """check_hypothesis()を単体で呼ぶときの上段の会社(テスト物産。検査17・32等に当たらない形)。"""
+    business_days = ve.load_business_days(str(CALENDAR_DIR))
+    h = {
+        "hypothesis_id": hid, "company_name": "テスト物産", "relation_text": "業績に影響しうる",
+        "baseline_price_type": "close", "baseline_date": "2026-09-24", "evidence_grade": grade,
+        "evidence_source_ref": ref, "ticker": "8801", "ticker_source": "edinet_codelist",
+        "line_ids": list(line_ids), "article_id": "A-1", "added_by": "manual",
+        "horizon_business_days": 20, "deadline_date": ve.compute_deadline(business_days, "2026-09-24", 20),
+    }
+    h.update(kw)
+    return h
+
+
+def test_kaishu31_primary_evidence_line():
+    """改修31第1回(3-1、案1): primaryの会社は、根拠の出典で数字が一致した行が1行以上あるときだけ残し、
+    印がsource_number_matchでない行はline_idsから外して記録する。"""
+    marks = {"L-SNM": "source_number_match", "L-SNM2": "source_number_match", "L-EXP": "explainer",
+             "L-UNV": "unverified", "L-REP": "reported_unverified"}
+    refs = {"L-SNM": "S-1", "L-SNM2": "S-2", "L-EXP": None, "L-UNV": "S-1", "L-REP": "S-1"}
+    rule = ve.apply_primary_evidence_line_rule
+
+    h1 = _k31_hyp("H-1", ["L-EXP", "L-SNM"])
+    check("改修31/案1/①解説の行が混じるprimaryは残り、解説の行がline_idsから外れて記録される",
+          (rule(h1, marks, refs), h1["line_ids"]),
+          ((None, [{"line_id": "L-EXP", "mark": "explainer"}]), ["L-SNM"]))
+    h2 = _k31_hyp("H-2", ["L-UNV"])
+    h2b = _k31_hyp("H-2b", ["L-UNV", "L-REP", "L-EXP"])
+    check("改修31/案1/②根拠の出典の行がunverified・報道・解説だけのprimaryは消える(primary_no_verified_evidence_line)。"
+          "消える会社のline_idsは書き換えない",
+          (rule(h2, marks, refs), rule(h2b, marks, refs), h2b["line_ids"]),
+          (("primary_no_verified_evidence_line", []), ("primary_no_verified_evidence_line", []), ["L-UNV", "L-REP", "L-EXP"]))
+    h3 = _k31_hyp("H-3", ["L-SNM", "L-SNM2"])
+    check("改修31/案1/③別の出典(S-2)の行でも、印がsource_number_matchなら外さない",
+          (rule(h3, marks, refs), h3["line_ids"]), ((None, []), ["L-SNM", "L-SNM2"]))
+    h3b = _k31_hyp("H-3b", ["L-SNM2"])
+    check("改修31/案1/③'別の出典の数字が一致した行しか無い(根拠の出典S-1の行が無い)primaryは消える",
+          rule(h3b, marks, refs), ("primary_no_verified_evidence_line", []))
+    h4 = _k31_hyp("H-4", ["L-EXP", "L-UNV"], grade="reported", ref=None)
+    check("改修31/案1/④reportedの会社は対象外(何もしない。line_idsも変えない)",
+          (rule(h4, marks, refs), h4["line_ids"]), ((None, []), ["L-EXP", "L-UNV"]))
+    h5 = _k31_hyp("H-5", ["L-SNM"], ref=None)
+    check("改修31/案1/evidence_source_refが空のprimaryは消える", rule(h5, marks, refs), ("primary_no_verified_evidence_line", []))
+
+    # check_hypothesis()全体: 記録primary_line_ids_trimmedと、行の出典(line_refs)を渡さないときはeditionの行から作ること
+    business_days = ve.load_business_days(str(CALENDAR_DIR))
+    extra = {"codelist_unavailable": False, "baseline_date_check_skipped": 0}
+    h6 = _k31_hyp("H-6", ["L-SNM", "L-EXP"])
+    sources = {"S-1": {"source_id": "S-1"}}   # 検査34(evidence_source_refが出典一覧にあること)を通すため
+    reason = ve.check_hypothesis(h6, {}, marks, business_days, [], sources, ".", None, _test_bussan_codelist(), extra, line_refs=refs)
+    check("改修31/案1/check_hypothesis: 残り、primary_line_ids_trimmedに社名・外した行と印が記録される",
+          (reason, h6["line_ids"], extra.get("primary_line_ids_trimmed")),
+          (None, ["L-SNM"], [{"hypothesis_id": "H-6", "company_name": "テスト物産", "removed": [{"line_id": "L-EXP", "mark": "explainer"}]}]))
+    edition = {"sections": [{"section_id": "big", "articles": [{"article_id": "A-1", "lines": [
+        {"line_id": "L-SNM", "mark": "source_number_match", "source_ref": "S-1"}]}]}]}
+    extra2 = {"codelist_unavailable": False, "baseline_date_check_skipped": 0}
+    check("改修31/案1/check_hypothesis: line_refsを省略したときは、editionの行のsource_refを使う",
+          ve.check_hypothesis(_k31_hyp("H-7", ["L-SNM"]), edition, {"L-SNM": "source_number_match"}, business_days, [], sources, ".",
+                              None, _test_bussan_codelist(), extra2),
+          None)
+    check("改修31/案1/今までの理由primary_requires_verified_lineは使わない(要約表示の説明も新しい理由に変えた)",
+          ve.check_hypothesis(_k31_hyp("H-8", ["L-UNV"]), {}, marks, business_days, [], {}, ".", None, _test_bussan_codelist(),
+                              {"codelist_unavailable": False, "baseline_date_check_skipped": 0}, line_refs=refs),
+          "primary_no_verified_evidence_line")
+
+
+def test_kaishu31_check37_trim():
+    """改修31第1回(3-2、案A): 検査37で、日付・鮮度の検査で落とされた行はline_idsから外すだけにし、停止語で
+    落とされた行・どの検査で落ちたか分からない行は今までどおり会社を消す。"""
+    edition = {"sections": [{"section_id": "change", "articles": [{"article_id": "A-1", "lines": [
+        {"line_id": "L-01", "mark": "source_number_match", "source_ref": "S-1"},
+        {"line_id": "L-03", "mark": "unverified", "source_ref": "S-3"},
+    ]}]}]}
+    names = ve.LINE_DROP_CHECK_NAMES
+    dropped_by = {"L-D": names["published_date_not_found"], "L-T": names["published_timed_date_not_found"],
+                  "L-S": names["stale_source"], "L-W": names["stop_words"]}
+    original = {"L-01", "L-03", "L-D", "L-T", "L-S", "L-W", "L-U"}   # L-Uは落とした検査の記録が無い行
+
+    def hyp(hid, line_ids, grade="reported", ref=None):
+        return {"hypothesis_id": hid, "company_name": f"社{hid}", "article_id": "A-1", "line_ids": list(line_ids),
+                "evidence_grade": grade, "evidence_source_ref": ref}
+
+    hyps = [
+        hyp("K-date", ["L-01", "L-D"]),
+        hyp("K-timed-stale", ["L-T", "L-01", "L-S"]),
+        hyp("K-primary", ["L-01", "L-D"], grade="primary", ref="S-1"),
+        hyp("X-stop", ["L-01", "L-W"]),
+        hyp("X-unknown", ["L-01", "L-U"]),
+        hyp("X-empty", ["L-D", "L-S"]),
+        hyp("X-never", ["L-01", "L-999"]),
+        hyp("X-nofact", ["L-03", "L-D"]),
+        hyp("X-primary-ref", ["L-01", "L-D"], grade="primary", ref="S-9"),
+    ]
+    result = ve.run_check37(hyps, edition, original, dropped_by)
+    kept = {h["hypothesis_id"]: h["line_ids"] for h in result["kept"]}
+    removed = {r["hypothesis_id"]: r for r in result["removed"]}
+    reasons = {k: [x["reason"] for x in r["reasons"]] for k, r in removed.items()}
+    check("改修31/検査37/①日付不明(日付だけ・時刻付き)・古い出典で落ちた行を含む会社は、残りの行で残り、落ちた行がline_idsから外れる",
+          kept, {"K-date": ["L-01"], "K-timed-stale": ["L-01"], "K-primary": ["L-01"]})
+    check("改修31/検査37/①外した行と検査の名前がtrimmedに記録される",
+          [(r["hypothesis_id"], r["removed"]) for r in result["trimmed"]],
+          [("K-date", [{"line_id": "L-D", "check": "check36_published_date_not_found"}]),
+           ("K-timed-stale", [{"line_id": "L-T", "check": "check36_published_timed_date_not_found"},
+                              {"line_id": "L-S", "check": "check10_stale_or_unknown_published_at"}]),
+           ("K-primary", [{"line_id": "L-D", "check": "check36_published_date_not_found"}])])
+    check("改修31/検査37/②停止語で落ちた行を含む会社は、他の行が正常でも消える(line_id_removed_by_check)。"
+          "落とした検査が分からない行(unknown)も消える",
+          (reasons["X-stop"], removed["X-stop"]["reasons"][0]["checks"], reasons["X-unknown"]),
+          (["line_id_removed_by_check"], {"L-W": "check7_stop_words"}, ["line_id_removed_by_check"]))
+    check("改修31/検査37/③外した結果line_idsが空なら消える(line_ids_empty。emptied_by_check_trimの印と外した行・検査を記録)",
+          removed["X-empty"]["reasons"],
+          [{"reason": "line_ids_empty", "emptied_by_check_trim": True, "line_ids": ["L-D", "L-S"],
+            "checks": {"L-D": "check36_published_date_not_found", "L-S": "check10_stale_or_unknown_published_at"}}])
+    check("改修31/検査37/④紙面に元から無い行IDなら消える(line_id_never_existed)", reasons["X-never"], ["line_id_never_existed"])
+    check("改修31/検査37/外した後の行でno_fact_line・primary_ref_mismatchを判定する。外した行は消える会社の記録にも書き残す",
+          (reasons["X-nofact"], reasons["X-primary-ref"], removed["X-nofact"].get("line_ids_trimmed_by_check")),
+          (["no_fact_line"], ["primary_ref_mismatch"], {"L-D": "check36_published_date_not_found"}))
+    check("改修31/検査37/外すだけの検査は日付・鮮度の3つ(停止語は入らない)",
+          sorted(ve.CHECK37_TRIMMABLE_DROP_CHECKS),
+          sorted([names["published_date_not_found"], names["published_timed_date_not_found"], names["stale_source"]]))
+    check("改修31/検査37/check37_reasons単体でも、外した後のline_idsで判定する(消える理由が無ければ空)",
+          ve.check37_reasons(hyp("K-x", ["L-01", "L-S"]), {"A-1"}, {"L-01": "source_number_match"}, {"L-01": "S-1"},
+                             original, dropped_by, {"L-01": {"A-1"}}), [])
+
+
+def test_kaishu31_reported_snippet():
+    """改修31第1回(3-3): 報道の行は、出典がfetch_method websearch_snippet かつ usage snippet_only のときだけ
+    reported_unverified。それ以外はunverified(reported_source_not_snippet)。"""
+    combos = {
+        "S-BOTH": {"fetch_method": "websearch_snippet", "usage": "snippet_only"},
+        "S-FM": {"fetch_method": "websearch_snippet", "usage": "quotable"},
+        "S-US": {"fetch_method": "curl", "usage": "snippet_only"},
+        "S-NONE": {"fetch_method": "urllib", "usage": "link_only"},
+    }
+    sources = {sid: dict(v, source_id=sid, title="報道", url="https://example.test/" + sid) for sid, v in combos.items()}
+
+    def mark(ref):
+        return ve.verify_line({"claimed_mark": "reported_unverified", "numbers": [], "source_ref": ref}, sources, "/nonexistent")[:2]
+
+    check("改修31/報道の行/両方を満たす(websearch_snippet・snippet_only)ならreported_unverified", mark("S-BOTH"), ("reported_unverified", None))
+    check("改修31/報道の行/fetch_methodだけ満たす(usageがquotable)ならunverified", mark("S-FM"), ("unverified", "reported_source_not_snippet"))
+    check("改修31/報道の行/usageだけ満たす(本文を取得したcurl・表に無いドメイン)ならunverified(9/20夕号のJETROの形)",
+          mark("S-US"), ("unverified", "reported_source_not_snippet"))
+    check("改修31/報道の行/どちらも満たさないならunverified", mark("S-NONE"), ("unverified", "reported_source_not_snippet"))
+    check("改修31/報道の行/出典の無い報道の行は今までどおりreported_without_source(扱いを変えない)",
+          ve.verify_line({"claimed_mark": "reported_unverified", "numbers": [], "source_ref": None}, sources, "/nonexistent")[:2],
+          ("unverified", "reported_without_source"))
+    check("改修31/報道の行/検索断片でも抜き出しが付いていれば今までどおりexcerpt_not_allowed(検査16が先)",
+          ve.verify_line({"claimed_mark": "reported_unverified", "numbers": [], "source_ref": "S-BOTH", "excerpt": "抜き出し"},
+                         sources, "/nonexistent")[:2], ("unverified", "excerpt_not_allowed"))
+
+    # usageは表(source_policy.csv)で上書きした後の値で見る: 日本銀行(表でquotable)は検索断片にならない
+    edition = {"sources": [
+        {"source_id": "S-SNIP", "url": "https://www.example-news.test/a", "title": "報道", "usage": None, "fetch_method": "websearch_snippet"},
+        {"source_id": "S-BOJ", "url": "https://www.boj.or.jp/x.htm", "title": "日本銀行", "usage": "snippet_only", "fetch_method": "websearch_snippet"},
+    ], "sections": [{"section_id": "big", "articles": [{"article_id": "A", "lines": [
+        {"line_id": "L-1", "text": "報道", "claimed_mark": "reported_unverified", "numbers": [], "source_ref": "S-SNIP"},
+        {"line_id": "L-2", "text": "報道", "claimed_mark": "reported_unverified", "numbers": [], "source_ref": "S-BOJ"},
+    ]}]}]}
+    ve.apply_source_policy(edition, SOURCE_POLICY_PATH)
+    stats, _ = ve.run_line_verification(edition, "/nonexistent")
+    marks = [(l["line_id"], l["mark"], l["mark_reason"]) for l in edition["sections"][0]["articles"][0]["lines"]]
+    check("改修31/報道の行/表に無いドメインの検索断片は残り、表でquotableの日本銀行はAIがsnippet_onlyと書いてもunverified",
+          marks, [("L-1", "reported_unverified", None), ("L-2", "unverified", "reported_source_not_snippet")])
+    check("改修31/報道の行/記録の元(reported_source_not_snippet_line_ids)と件数が印と食い違わない",
+          (stats["reported_source_not_snippet_line_ids"], stats["reported_unverified"], stats["unverified"],
+           stats["unverified_reasons"]),
+          (["L-2"], 1, 1, {"reported_source_not_snippet": 1}))
+
+
+def _k31_body_case(mutate=None):
+    """改修31第1回(3-4)のテスト用: 機械で保存した形の出典SRC-P(PDF)と、それを参照する数字の一致する行・報道の行・
+    解説の行の紙面を作り、mutate(cache)で本文の記録を壊してから、照合と同じ順(本文の確認→行の確定)で確かめる。
+    戻り値: (行ごとの(印, 理由), stats, 本文の確認の結果)。"""
+    import save_source as ss
+    with tempfile.TemporaryDirectory() as d:
+        sources_by_id = _k29_cache(d)
+        if mutate is not None:
+            mutate(Path(d))
+        lines = [
+            _k29_line("L-SNM", "SRC-P", "製造業 22 17 24", [24]),
+            {"line_id": "L-REP", "text": "報道", "claimed_mark": "reported_unverified", "numbers": [], "source_ref": "SRC-P"},
+            {"line_id": "L-EXP", "text": "解説", "claimed_mark": "explainer", "numbers": [], "source_ref": "SRC-P"},
+        ]
+        edition = {"sources": list(sources_by_id.values()),
+                   "sections": [{"section_id": "big", "articles": [{"article_id": "A", "lines": lines}]}]}
+        with _kaishu28_patch(ss, "find_tool", lambda name: None):   # 道具(pdftotext)が無い形にする(もう一度文字にするのは記録だけ)
+            body = ve.run_check_source_body(edition, d)
+        stats, _ = ve.run_line_verification(edition, d, ve.compute_source_body_downgrades(body))
+    marks = {l["line_id"]: (l["mark"], l["mark_reason"]) for l in lines}
+    return marks, stats, body
+
+
+def test_kaishu31_source_body_downgrade():
+    """改修31第1回(3-4): 本文ファイルの記録が無い・URLやハッシュが食い違う出典を参照する、数字の一致を申告した行は
+    印をunverifiedにする。もう一度文字にした結果の食い違い・道具が無い場合は記録だけ。"""
+    marks, stats, body = _k31_body_case()
+    check("改修31/本文の確認/負例: 機械で保存した形(道具が無くreconvert_skipped)なら、数字の一致する行は合格のまま",
+          (marks["L-SNM"], body["reconvert_skipped"]["source_ids"], stats["source_body_downgraded"]),
+          (("source_number_match", None), ["SRC-P"], []))
+
+    marks, stats, _ = _k31_body_case(lambda c: (c / "SRC-P.meta.json").unlink())
+    check("改修31/本文の確認/正例: 記録ファイルを消すとsource_body_not_machine_saved",
+          marks["L-SNM"], ("unverified", "source_body_not_machine_saved"))
+    check("改修31/本文の確認/報道・解説の行は対象外(数字の一致を申告した行だけ下げる)",
+          (marks["L-REP"][1], marks["L-EXP"]), ("reported_source_not_snippet", ("explainer", None)))
+    check("改修31/本文の確認/件数(passed・unverified・理由の内訳)が下げた後の印と一致する",
+          (stats["passed"], stats["unverified"], stats["unverified_reasons"], stats["source_body_downgraded"]),
+          (0, 2, {"source_body_not_machine_saved": 1, "reported_source_not_snippet": 1},
+           [{"line_id": "L-SNM", "reason": "source_body_not_machine_saved"}]))
+
+    def change_url(c):
+        meta = json.loads((c / "SRC-P.meta.json").read_text(encoding="utf-8"))
+        meta["url"] = "https://www.boj.or.jp/other.pdf"
+        (c / "SRC-P.meta.json").write_text(json.dumps(meta), encoding="utf-8")
+    marks, _, body = _k31_body_case(change_url)
+    check("改修31/本文の確認/正例: 記録ファイルのURLを変えるとsource_body_mismatch",
+          (marks["L-SNM"], [x for x in body["reconvert_mismatch"]["details"] if x["source_id"] == "SRC-P"]),
+          (("unverified", "source_body_mismatch"), [{"source_id": "SRC-P", "mismatched": ["url"]}]))
+    marks, _, _ = _k31_body_case(lambda c: (c / "raw" / "SRC-P.pdf").unlink())
+    check("改修31/本文の確認/正例: 元のファイルを消すとsource_body_mismatch(raw_missing)", marks["L-SNM"], ("unverified", "source_body_mismatch"))
+    marks, _, _ = _k31_body_case(lambda c: (c / "SRC-P.meta.json").write_text("{壊れた", encoding="utf-8"))
+    check("改修31/本文の確認/正例: 記録ファイルが読めないとsource_body_mismatch(meta_unreadable)", marks["L-SNM"], ("unverified", "source_body_mismatch"))
+
+    check("改修31/本文の確認/負例: もう一度文字にした結果だけが違う(reconvert)・できない(reconvert_failed)・道具が無い"
+          "(reconvert_skipped)出典は下げない",
+          ve.compute_source_body_downgrades({
+              "not_machine_saved": {"source_ids": []},
+              "reconvert_mismatch": {"source_ids": ["A", "B"], "details": [
+                  {"source_id": "A", "mismatched": ["reconvert"]}, {"source_id": "B", "mismatched": ["reconvert_failed"]}]},
+              "reconvert_skipped": {"source_ids": ["C"]}}),
+          {})
+    # SRC-H(HTML)は、記録はそろっているが元のファイルを文字にし直した結果が本文と食い違う(reconvert)
+    with tempfile.TemporaryDirectory() as d:
+        sources_by_id = _k29_cache(d)
+        edition = {"sources": [sources_by_id["SRC-H"]], "sections": [{"section_id": "big", "articles": [{"article_id": "A", "lines": [
+            _k29_line("L-H", "SRC-H", "段落 2026年 12件", [12])]}]}]}
+        body = ve.run_check_source_body(edition, d)
+        ve.run_line_verification(edition, d, ve.compute_source_body_downgrades(body))
+        line = edition["sections"][0]["articles"][0]["lines"][0]
+    check("改修31/本文の確認/負例: 文字にし直した結果だけが違うHTMLの出典は、記録だけで印は下げない",
+          ([x["mismatched"] for x in body["reconvert_mismatch"]["details"]], line["mark"]), ([["reconvert"]], "source_number_match"))
+
+    # 照合全体: 本文の確認が行の確定より前に動き、verificationのsource_body_downgradedと件数がそろう
+    with tempfile.TemporaryDirectory() as d:
+        work_dir = Path(d)
+        edition_path, hyp_path, cache_dir, today_str, prev_str = _rebuild_canary_as_today(work_dir)
+        calendar_dir = _write_temp_calendar(work_dir, dt.datetime.strptime(prev_str, "%Y-%m-%d").date() - dt.timedelta(days=3), 60)
+        edition = json.loads(edition_path.read_text(encoding="utf-8"))
+        c07 = (cache_dir / "C07.txt").read_bytes()
+        for source in edition["sources"]:
+            if source["source_id"] == "C07":
+                source["content_sha256"] = hashlib.sha256(c07).hexdigest()
+        edition["sections"][1]["articles"][0]["lines"].append({
+            "line_id": "L-90", "text": "企業物価指数は前月比0.5%上昇した", "claimed_mark": "source_number_match",
+            "source_ref": "C07", "excerpt": "前月比0.5%上昇した", "numbers": [{"value": 0.5, "label": "前月比(%)"}]})
+        edition_path.write_text(json.dumps(edition, ensure_ascii=False), encoding="utf-8")
+        with _patched_codelist(_fake_codelist_rows(CANARY_CODELIST_ENTRIES)):
+            result = _run_verify(work_dir, edition_path, hyp_path, cache_dir, calendar_dir)
+        after = json.loads(edition_path.read_text(encoding="utf-8"))
+        v = after.get("verification") or {}
+        l90 = [l for _s, _a, l in ve.iter_lines(after) if l["line_id"] == "L-90"][0]
+    check("改修31/本文の確認/統合: 記録ファイルの無い日本銀行の本文(C07)の、数字が一致する行L-90は、印をunverifiedにして記録する。"
+          "合格の件数(passed)は見本の号の5件のまま(L-90を数えない)",
+          (result.returncode, (l90["mark"], l90["mark_reason"]), v.get("source_body_downgraded"), v.get("passed"),
+           v["unverified_reasons"].get("source_body_not_machine_saved"), v["source_body_check"]["not_machine_saved"]["source_ids"]),
+          (0, ("unverified", "source_body_not_machine_saved"),
+           {"count": 1, "line_ids": ["L-90"], "by_reason": {"source_body_not_machine_saved": 1}}, 5, 1, ["C07"]))
+
+
+def test_kaishu31_timed_date_required():
+    """改修31第1回(3-5): 時刻付きの出典(EDINET以外)も、本文に日付(日本時間の日付・書かれた時差のままの日付と、
+    それぞれの前日)が無ければ「日付不明」とし、changeの枠の行だけを落とす。"""
+    with tempfile.TemporaryDirectory() as d:
+        write(d, "S-FRB.txt", "For release at 2:00 p.m. EDT September 16, 2026")
+        write(d, "S-NODATE.txt", "日付の書かれていない本文")
+        write(d, "S-EDI.txt", "<p>日付の書かれていないEDINETの書類</p>")
+        write(d, "S-PREV.txt", "2026年10月7日 公表")
+        write(d, "S-DONLY.txt", "日付の書かれていない日付だけの出典")
+
+        def src(sid, published_at, url="https://www.example.test/x", date_only=False):
+            return {"source_id": sid, "url": url, "published_at": published_at, "published_date_only": date_only}
+
+        edition = {
+            "sources": [
+                src("S-FRB", "2026-09-16T14:00:00-04:00", "https://www.federalreserve.gov/x.htm"),
+                src("S-NODATE", "2026-10-08T09:00:00+09:00"),
+                src("S-EDI", "2026-10-08T09:00:00+09:00", "https://disclosure2.edinet-fsa.go.jp/api/v2/documents/S1?type=1"),
+                src("S-PREV", "2026-10-08T03:00:00+09:00"),
+                src("S-MISSING", "2026-10-08T09:00:00+09:00"),
+                src("S-DONLY", "2026-10-08", date_only=True),
+                src("S-NULL", None),
+            ],
+            "sections": [
+                {"section_id": "change", "articles": [{"article_id": "A-1", "lines": [
+                    {"line_id": f"C-{sid}", "source_ref": sid} for sid in
+                    ("S-FRB", "S-NODATE", "S-EDI", "S-PREV", "S-MISSING", "S-DONLY", "S-NULL")]}]},
+                {"section_id": "big", "articles": [{"article_id": "A-2", "lines": [
+                    {"line_id": "B-S-NODATE", "source_ref": "S-NODATE"}]}]},
+            ],
+        }
+        result = ve.run_check_published_timed_date_required(edition, d)
+    remaining = [l["line_id"] for _s, _a, l in ve.iter_lines(edition)]
+    check("改修31/時刻付きの日付/①時差-04:00で書いたFRBの日付は、本文の現地の日付(September 16, 2026)で通る",
+          "S-FRB" in result["source_ids"], False)
+    check("改修31/時刻付きの日付/②本文に日付が無い(not_in_body)・本文が無い(body_missing)出典の、changeの枠の行は落ちる",
+          (result["reasons"], result["dropped_line_ids"]),
+          ({"S-NODATE": "not_in_body", "S-MISSING": "body_missing"}, ["C-S-NODATE", "C-S-MISSING"]))
+    check("改修31/時刻付きの日付/③change以外の枠(big)の行は落ちない", "B-S-NODATE" in remaining, True)
+    check("改修31/時刻付きの日付/④EDINETの書類は対象外(本文に日付が無くても落ちない)。日付だけの出典・published_atがnullの出典も対象外",
+          ("C-S-EDI" in remaining, "C-S-DONLY" in remaining, "C-S-NULL" in remaining), (True, True, True))
+    check("改修31/時刻付きの日付/⑤日本時間で10月8日3時と書かれていても、本文の前日の日付(10月7日)で通る",
+          "C-S-PREV" in remaining, True)
+    check("改修31/時刻付きの日付/候補は日本時間の日付・時差のままの日付と、それぞれの前日(9月17日・16日・15日の3日分)",
+          sorted({c for c in ve.timed_published_at_candidates(ve.parse_datetime_assume_jst("2026-09-16T14:00:00-04:00"))
+                  if c.startswith("2026-")}),
+          ["2026-09-15", "2026-09-16", "2026-09-17"])
+    check("改修31/時刻付きの日付/落とした行は検査37で外すだけの側(check36_published_timed_date_not_found)",
+          ve.LINE_DROP_CHECK_NAMES["published_timed_date_not_found"] in ve.CHECK37_TRIMMABLE_DROP_CHECKS, True)
+
+
+def test_kaishu31_remove_corrections_and_deprecated_keys():
+    """改修31第1回(3-6): 号の最上位のcorrectionsと、上段の仮説の廃止キー(direction・evidence_excerpt・falsifier)を
+    取り除き、件数を記録する。紙面の推論欄のfalsifier・下段・industry_picksは触らない。"""
+    check("改修31/取り除き/correctionsの件数(配列なら要素の数・nullなら0・キーが無ければ0)",
+          [ve.remove_edition_corrections(e) for e in ({"corrections": [{}, {}]}, {"corrections": None}, {}, {"corrections": "文字"})],
+          [2, 0, 0, 1])
+    doc = {
+        "hypotheses": [{"hypothesis_id": "H-1", "direction": "plus", "evidence_excerpt": "x", "falsifier": "y", "relation_text": "z"},
+                       {"hypothesis_id": "H-2", "falsifier": None}],
+        "industry_examples": [{"example_id": "X-1", "falsifier": "下段", "direction": "plus"}],
+        "industry_picks": [{"article_id": "A-1", "industry": "銀行業", "falsifier": "業種"}],
+    }
+    counts = ve.remove_deprecated_hypothesis_keys(doc)
+    check("改修31/取り除き/②上段の廃止キー3つを取り除き、キーごとの件数を数える(nullの値も取り除く)",
+          (counts, doc["hypotheses"]),
+          ({"direction": 1, "evidence_excerpt": 1, "falsifier": 2},
+           [{"hypothesis_id": "H-1", "relation_text": "z"}, {"hypothesis_id": "H-2"}]))
+    check("改修31/取り除き/④下段(industry_examples)・industry_picksは変わらない",
+          (doc["industry_examples"], doc["industry_picks"]),
+          ([{"example_id": "X-1", "falsifier": "下段", "direction": "plus"}], [{"article_id": "A-1", "industry": "銀行業", "falsifier": "業種"}]))
+
+    with tempfile.TemporaryDirectory() as d:
+        work_dir = Path(d)
+        edition_path, hyp_path, cache_dir, today_str, prev_str = _rebuild_canary_as_today(work_dir)
+        calendar_dir = _write_temp_calendar(work_dir, dt.datetime.strptime(prev_str, "%Y-%m-%d").date() - dt.timedelta(days=3), 60)
+        edition = json.loads(edition_path.read_text(encoding="utf-8"))
+        edition["corrections"] = [{"kind": "mark_downgrade", "corrected_at": f"{today_str}T10:00:00+09:00", "line_ids": ["L-01"]}]
+        edition_path.write_text(json.dumps(edition, ensure_ascii=False), encoding="utf-8")
+        hyps = json.loads(hyp_path.read_text(encoding="utf-8"))
+        for h in hyps["hypotheses"]:
+            if h["hypothesis_id"] in ("H-1", "H-2"):
+                h.update({"direction": "plus", "evidence_excerpt": "抜き出し", "falsifier": "条件"})
+        hyp_path.write_text(json.dumps(hyps, ensure_ascii=False), encoding="utf-8")
+        with _patched_codelist(_fake_codelist_rows(CANARY_CODELIST_ENTRIES)):
+            result = _run_verify(work_dir, edition_path, hyp_path, cache_dir, calendar_dir)
+        after = json.loads(edition_path.read_text(encoding="utf-8"))
+        after_hyp = json.loads(hyp_path.read_text(encoding="utf-8"))
+    v = after.get("verification") or {}
+    check("改修31/取り除き/統合①: 号のcorrectionsが取り除かれ、件数(1)が記録される",
+          (result.returncode, "corrections" in after, v.get("corrections_removed")), (0, False, 1))
+    check("改修31/取り除き/統合②: 上段の廃止キーが取り除かれ、件数が記録される(照合で消えた会社の分も数える)",
+          (v.get("deprecated_keys_removed"),
+           [k for h in after_hyp["hypotheses"] for k in ve.DEPRECATED_HYPOTHESIS_KEYS if k in h]),
+          ({"direction": 2, "evidence_excerpt": 2, "falsifier": 2}, []))
+    check("改修31/取り除き/統合③: 紙面の推論欄のfalsifierは残る(必須の項目。A-1の推論)",
+          [i.get("falsifier") for i in after["sections"][0]["articles"][0]["inferences"]], ["投資計画が撤回された場合"])
+
+
+def test_kaishu31_relation_text_company_digits():
+    """改修31第1回(3-7): 検査26は、relation_textから社名(NFKCでそろえる)を取り除いてから数字を探す。"""
+    f = ve.check_hypothesis_relation_text_number
+    check("改修31/検査26/社名の中の数字(株式会社レオパレス２１)では消えない",
+          f({"company_name": "株式会社レオパレス２１", "relation_text": "株式会社レオパレス２１は、臨時報告書を自ら提出した会社という立場にある。"}),
+          None)
+    check("改修31/検査26/全角・半角が違っても、NFKCでそろえて取り除く",
+          f({"company_name": "株式会社レオパレス21", "relation_text": "株式会社レオパレス２１は、自ら提出した会社という立場にある。"}), None)
+    check("改修31/検査26/社名以外の部分に数字があれば、今までどおり消える",
+          f({"company_name": "株式会社レオパレス２１", "relation_text": "株式会社レオパレス２１は、前年比10%増の見込み。"}),
+          "relation_text_has_number")
+    check("改修31/検査26/company_nameが空・文字でないときは取り除かずに判定する(社名の数字でも消える)",
+          (f({"company_name": "", "relation_text": "レオパレス21は"}), f({"company_name": None, "relation_text": "レオパレス21は"})),
+          ("relation_text_has_number", "relation_text_has_number"))
+
+
+def test_kaishu31_check_excerpts_new_statuses():
+    """改修31第1回(3-8): check_excerpts.pyも、照合と同じく、本文の記録が確かめられない出典の行(body_check_failed)と、
+    出典が検索結果の断片でない報道の行(reported_source_not_snippet)を表示し、終了コード1にする。"""
+    with tempfile.TemporaryDirectory() as d:
+        d = Path(d)
+        cache = d / "cache"
+        cache.mkdir()
+        sources_by_id = _k29_cache(cache)
+        sources_by_id["SRC-N"] = dict(sources_by_id["SRC-P"], source_id="SRC-N", url="https://www.boj.or.jp/n.pdf")
+        write(cache, "SRC-N.txt", K29_PDF_TEXT.encode("utf-8"))   # 記録ファイル(.meta.json)を付けない
+        sources_by_id["SRC-SNIP"] = {"source_id": "SRC-SNIP", "url": "https://www.example-news.test/a", "title": "報道",
+                                     "publisher": "テスト", "fetch_method": "websearch_snippet"}
+        lines = [
+            _k29_line("L-OK", "SRC-P", "製造業 22 17 24", [24, 17]),
+            _k29_line("L-BODY", "SRC-N", "製造業 22 17 24", [24]),
+            {"line_id": "L-REPBOJ", "text": "報道", "claimed_mark": "reported_unverified", "numbers": [], "source_ref": "SRC-P"},
+            {"line_id": "L-REPSNIP", "text": "報道", "claimed_mark": "reported_unverified", "numbers": [], "source_ref": "SRC-SNIP"},
+        ]
+        edition_path = _k29_edition_file(d, lines, sources_by_id)
+        before = {p: p.read_bytes() for p in d.rglob("*") if p.is_file()}
+        result = _k29_run_check_excerpts(edition_path, cache)
+        after = {p: p.read_bytes() for p in d.rglob("*") if p.is_file()}
+        out = result.stdout
+        status = dict(re.findall(r"^(L-[A-Z]+)  (\S+)  ", out, re.M))
+        check("改修31/check_excerpts/新しい2つの状態が表示される(検索断片の報道の行は表示しない)",
+              status, {"L-OK": "ok", "L-BODY": "body_check_failed", "L-REPBOJ": "reported_source_not_snippet"})
+        check("改修31/check_excerpts/理由と直し方の一言が表示される",
+              ("本文の記録ファイル(.meta.json)が無い" in out, "save_source.py で本文を保存し直す" in out,
+               "検索結果の断片を出典にするか、報道の印をやめる" in out),
+              (True, True, True))
+        check("改修31/check_excerpts/新しい状態があれば終了コード1。合計の表示に新しい状態も入る",
+              (result.returncode, "合計 3行: ok 1、spans_lines 0、excerpt_not_found 0、number_missing 0、skipped 0、"
+                                  "body_check_failed 1、reported_source_not_snippet 1" in out),
+              (1, True))
+        check("改修31/check_excerpts/ファイルを1つも書き換えない", after == before, True)
+
+        ok_path = _k29_edition_file(d, [lines[0], lines[3]], sources_by_id, name="edition_ok.json")
+        result = _k29_run_check_excerpts(ok_path, cache)
+        check("改修31/check_excerpts/ok と検索断片の報道の行だけなら終了コード0",
+              (result.returncode, "合計 1行: ok 1、" in result.stdout), (0, True))
 
 
 def main():
@@ -10189,6 +10759,14 @@ def main():
     test_kaishu29_round2_marks()
     test_kaishu29_round2_spans_and_tables()
     test_kaishu29_round2_companies()
+    test_kaishu31_primary_evidence_line()
+    test_kaishu31_check37_trim()
+    test_kaishu31_reported_snippet()
+    test_kaishu31_source_body_downgrade()
+    test_kaishu31_timed_date_required()
+    test_kaishu31_remove_corrections_and_deprecated_keys()
+    test_kaishu31_relation_text_company_digits()
+    test_kaishu31_check_excerpts_new_statuses()
 
     total = len(results)
     passed = sum(1 for _, ok, _, _ in results if ok)
